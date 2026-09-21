@@ -1,0 +1,21 @@
+model = "gpt-5.6-sol"
+model_reasoning_effort = "medium"
+
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 3
+default_subagent_model = "gpt-5.6-luna"
+default_subagent_reasoning_effort = "high"
+interrupt_message = true
+
+[agents.task_worker]
+description = "Implement one ready AtlasRisk task packet in its assigned worktree and return a verified handoff."
+config_file = "./agents/task-worker.toml"
+
+[agents.task_reviewer]
+description = "Review one AtlasRisk task branch against its task packet, ADRs, tests, and architecture invariants."
+config_file = "./agents/task-reviewer.toml"
+
+[agents.code_explorer]
+description = "Read AtlasRisk code and documentation to answer a bounded evidence-gathering question without editing."
+config_file = "./agents/code-explorer.toml"
