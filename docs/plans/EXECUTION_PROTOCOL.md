@@ -39,7 +39,16 @@ model to orchestrator and a fast, tool-capable coding model to worker/reviewer.
 10. Orchestrator verifies required checks, opens/updates the PR, and merges only
     after all required checks pass.
 11. Remove the worktree and local task branch after merge; retain the remote PR
-    history.
+   history.
+
+### Empty-repository bootstrap exception
+
+The protected-trunk rule has one one-time exception. When a remote repository
+has no commit and therefore cannot provide a pull-request base, the repository
+owner may explicitly approve one seed commit to `main`. Record the approval,
+seed SHA, and reason in the orchestration record. This exception only creates
+the initial history; it never authorizes feature or documentation pushes to
+`main` after the seed exists.
 
 No direct pushes to `main`, force pushes, shared writable worktrees, or unrelated
 changes are permitted. A rebase/merge conflict is resolved by the orchestrator or
@@ -86,6 +95,11 @@ Stop conditions: decision conflict, scope ambiguity, unsafe migration, missing d
 
 Do not paste a parallel alternative specification into the prompt. The task packet
 remains the source of truth so another AI can resume without chat history.
+
+Every worker handoff must use `.ai/REPORT_TEMPLATE.md`. The report is required
+even when the worker is blocked and must state the packet authority, owned and
+shared paths, acceptance evidence, verification results, commit and remote
+branch state, worktree state, assumptions, and unresolved risks.
 
 ## Task lifecycle
 
