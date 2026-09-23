@@ -1,10 +1,11 @@
 ---
 id: AR-002
 title: Create the polyglot toolchain skeleton
-status: draft
+status: ready
 phase: 0
 depends_on: [AR-001]
 branch: task/AR-002-toolchain-skeleton
+base_sha: b483537c17821dd45383983254a842ec953266d4
 owned_paths: [go.mod, go.sum, apps/, internal/, risk-engine/, package.json, package-lock.json]
 shared_paths: [.gitignore, .editorconfig, README.md]
 adrs: [ADR-003, ADR-009, ADR-013]
