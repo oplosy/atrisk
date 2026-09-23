@@ -1,7 +1,7 @@
 ---
 id: AR-001
 title: Establish repository governance
-status: ready
+status: review
 phase: 0
 depends_on: []
 branch: task/AR-001-repository-governance
