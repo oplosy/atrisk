@@ -51,5 +51,10 @@ These instructions apply to every human or AI contributor.
   a report based on `.ai/REPORT_TEMPLATE.md`.
 - Commit with Conventional Commits and include the task ID, for example:
   `feat(ingestion): add FRED vintage adapter [AR-103]`.
-- Push only the task branch. Never push directly to `main`.
+- Push only the task branch. Never push directly to `main` after the one-time
+  empty-repository seed bootstrap has completed.
 - Leave the worktree clean and report the commit SHA and remote branch state.
+
+The already-completed, one-time empty-repository seed commit to `main` was the
+sole bootstrap exception, approved only to establish a pull-request base. Once
+that seed exists, direct pushes to `main` are forbidden.

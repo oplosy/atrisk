@@ -1,10 +1,11 @@
 ---
 id: AR-001
 title: Establish repository governance
-status: draft
+status: review
 phase: 0
 depends_on: []
 branch: task/AR-001-repository-governance
+base_sha: ffbc5aef830a9845867911006c600af185a79404
 owned_paths: [CONTRIBUTING.md, SECURITY.md, .github/, docs/plans/EXECUTION_PROTOCOL.md]
 shared_paths: [AGENTS.md, .ai/]
 adrs: [ADR-018, ADR-019, ADR-020, ADR-021]

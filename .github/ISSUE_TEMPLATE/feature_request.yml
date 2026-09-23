@@ -1,0 +1,38 @@
+name: Feature request
+description: Propose a product or engineering change for explicit review.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Proposals must respect the product definition and accepted ADRs. Do not include personal portfolio data or secrets.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or engineering problem requires a change?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed outcome
+      description: Describe the observable result, not an implementation prescription.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and constraints
+      description: Identify affected product areas, ADRs, data contracts, and exclusions.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence and acceptance
+      description: Add examples, failure states, and objective acceptance criteria using synthetic data.
+    validations:
+      required: true

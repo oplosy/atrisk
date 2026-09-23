@@ -1,0 +1,44 @@
+name: Bug report
+description: Report a reproducible defect in an existing AtlasRisk capability.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include API keys, credentials, personal financial data, or production payloads.
+        For a security vulnerability, use the private reporting route in SECURITY.md.
+  - type: input
+    id: task
+    attributes:
+      label: Related task or area
+      description: Provide an AR task ID, route, package, or documented area.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Give the smallest deterministic steps and synthetic inputs.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Include commit SHA and relevant runtime versions; omit secrets.
+    validations:
+      required: true
