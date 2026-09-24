@@ -7,7 +7,7 @@ depends_on: [AR-102]
 branch: task/AR-104-tcmb-adapter
 base_sha: 94a4c3eb689ee82e3a835b21ebb5344d62650fc5
 owned_paths: [internal/sources/tcmb/, test/fixtures/tcmb/]
-shared_paths: [apps/collector/, db/queries/, contracts/, test/integration/]
+shared_paths: [apps/collector/, db/queries/, contracts/, test/integration/, internal/ingestion/]
 adrs: [ADR-005, ADR-006, ADR-007, ADR-011]
 ---
 
@@ -26,6 +26,10 @@ honest publication-time precision, and visible delayed/missing periods.
 - Confirm the endpoint generation, authentication, and response semantics against
   the [official EVDS documentation](https://evds3.tcmb.gov.tr/dokumanlar); keep
   the API base URL configurable and do not assume an endpoint is permanent.
+- Shared-path rationale: EVDS credentials use an HTTP `key` header, while the
+  common fetcher currently filters unknown headers. Authorize `internal/ingestion/`
+  only for safe credential forwarding; ensure it is omitted from persisted
+  request metadata and stripped before following redirects.
 
 ## Out of scope
 
@@ -37,7 +41,7 @@ honest publication-time precision, and visible delayed/missing periods.
 - [ ] Decimal separators and locale/date rules normalize deterministically.
 - [ ] Missing/late expected periods create quality evidence, not zero values.
 - [ ] Re-fetched changed values create append-only revisions retaining raw provenance; unchanged values are idempotent.
-- [ ] Logs and raw metadata contain no EVDS key.
+- [ ] Logs, raw metadata, and redirected requests contain no EVDS key.
 
 ## Required verification
 
