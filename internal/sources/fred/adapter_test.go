@@ -157,6 +157,11 @@ func TestFREDFetchObservationPagesUsesBoundedOffset(t *testing.T) {
 	if err != nil || resumeRequest.SeriesID != "GDP" || resumeRequest.Offset != 2 {
 		t.Fatalf("checkpoint did not resume request: %+v", resumeRequest)
 	}
+	tamperedCheckpoint := checkpoint
+	tamperedCheckpoint.SeriesID = "CPIAUCSL"
+	if _, err := tamperedCheckpoint.NextRequest(request, client.pageSize); !errors.Is(err, ErrCheckpointRequestMismatch) {
+		t.Fatalf("tampered checkpoint series was accepted: %v", err)
+	}
 	for name, mismatch := range map[string]ObservationRequest{
 		"vintage":     {SeriesID: "GDP", Limit: 2, OutputType: 2, VintageDates: "2024-06-01"},
 		"output type": {SeriesID: "GDP", Limit: 2, OutputType: 3},

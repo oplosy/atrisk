@@ -17,8 +17,9 @@
 - The checkpoint now persists a SHA-256 fingerprint of the complete normalized
   FRED request (series, vintage/realtime bounds, observation filters, units,
   frequency, aggregation, output type, and effective page limit). Resume rejects
-  any request whose fingerprint differs; the unit and PostgreSQL integration
-  tests cover original-request resume and changed-vintage rejection.
+  any request whose fingerprint differs, and separately rejects a tampered
+  checkpoint series ID; the unit and PostgreSQL integration tests cover
+  original-request resume and changed-vintage rejection.
 
 ## Acceptance evidence
 
@@ -56,9 +57,9 @@ Review-fix rerun: scoped `test-go TEST=FRED`, `go test ./test/integration -run T
 ## Git state
 
 - Branch: `task/AR-103-fred-alfred-adapter`
-- Commit SHA: `b405963316bc966763f0b39fbc0eec5c2c941250` (checkpoint fingerprint review fix)
-- Remote branch: `task/AR-103-fred-alfred-adapter` after the final report commit
-- Worktree: clean after final report commit and push
+- Commit SHA: `b405963316bc966763f0b39fbc0eec5c2c941250` (checkpoint fingerprint review fix; tampered-series fix pending)
+- Remote branch: `task/AR-103-fred-alfred-adapter` pending tampered-series fix push
+- Worktree: dirty only with the tampered-checkpoint fix until commit/push
 
 ## Assumptions and risks
 

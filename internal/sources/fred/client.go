@@ -389,7 +389,9 @@ func (c ObservationCheckpoint) NextRequest(request ObservationRequest, defaultPa
 	if err != nil {
 		return ObservationRequest{}, err
 	}
-	normalized.SeriesID = c.SeriesID
+	if normalized.SeriesID != c.SeriesID {
+		return ObservationRequest{}, ErrCheckpointRequestMismatch
+	}
 	normalized.Offset = c.NextOffset
 	return normalized, nil
 }
