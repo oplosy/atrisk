@@ -1,7 +1,7 @@
 ---
 id: AR-003
 title: Build CI and verification targets
-status: review
+status: merged
 phase: 0
 depends_on: [AR-002]
 branch: task/AR-003-ci-and-verification

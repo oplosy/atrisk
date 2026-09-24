@@ -1,10 +1,11 @@
 ---
 id: AR-004
 title: Provide isolated local infrastructure
-status: draft
+status: ready
 phase: 0
 depends_on: [AR-002]
 branch: task/AR-004-local-infrastructure
+base_sha: fd2d7b5a306d2ab29c30ea41ec8292c546e6eee4
 owned_paths: [infra/compose/, scripts/infra/]
 shared_paths: [.env.example, Taskfile.yml, README.md]
 adrs: [ADR-001, ADR-004, ADR-005, ADR-017]
