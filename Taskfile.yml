@@ -49,9 +49,15 @@ tasks:
       - uv run --locked pytest
 
   test-contract:
-    desc: Run contract tests when contract sources exist
+    desc: Generate and test contract sources and fixtures
     cmds:
-      - node scripts/verify/check-scope.mjs contract contracts test/contract
+      - task: generate
+      - node --test test/contract/contract.test.mjs
+
+  generate:
+    desc: Generate Go, TypeScript, and Python contract models
+    cmds:
+      - node scripts/generate/contract-models.mjs
 
   test-integration:
     desc: Run integration tests when integration sources exist

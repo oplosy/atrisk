@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://atlasrisk.local/contracts/version-error.schema.json",
+  "title": "Unknown schema version error",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["code", "message", "details"],
+  "properties": {
+    "code": { "const": "ATLAS_UNKNOWN_SCHEMA_VERSION" },
+    "message": { "const": "Unsupported schema version" },
+    "details": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "schema_version", "supported_versions"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 },
+        "schema_version": { "type": "string", "minLength": 1 },
+        "supported_versions": { "type": "array", "const": ["1.0"] }
+      }
+    }
+  }
+}

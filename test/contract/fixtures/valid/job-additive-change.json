@@ -1,0 +1,10 @@
+{
+  "kind": "risk.run",
+  "schema_version": "1.0",
+  "idempotency_key": "fixture-job-002",
+  "input_snapshot_ids": ["snapshot-001", "snapshot-002"],
+  "payload": {
+    "scenario_version": "fixture",
+    "new_optional_field": "additive changes stay inside the payload boundary"
+  }
+}

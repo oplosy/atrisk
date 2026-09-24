@@ -1,0 +1,9 @@
+{
+  "kind": "risk.run",
+  "schema_version": "1.0",
+  "idempotency_key": "fixture-job-001",
+  "input_snapshot_ids": ["snapshot-001"],
+  "payload": {
+    "scenario_version": "fixture"
+  }
+}

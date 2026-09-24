@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://atlasrisk.local/contracts/result-envelope.schema.json",
+  "title": "Versioned result envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["job_id", "schema_version", "status", "input_snapshot_ids", "data_quality", "engine_version", "output"],
+  "properties": {
+    "job_id": { "type": "string", "minLength": 1 },
+    "schema_version": { "const": "1.0" },
+    "status": { "enum": ["succeeded", "degraded", "blocked", "failed"] },
+    "input_snapshot_ids": {
+      "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true
+    },
+    "data_quality": { "enum": ["healthy", "degraded", "blocked"] },
+    "engine_version": { "type": "string", "minLength": 1 },
+    "output": { "type": "object", "additionalProperties": true }
+  }
+}
