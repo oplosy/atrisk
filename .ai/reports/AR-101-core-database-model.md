@@ -6,7 +6,7 @@
 - Packet status at start: `active` (review follow-up)
 - Referenced ADRs: `ADR-004`, `ADR-005`, `ADR-006`, `ADR-007`, `ADR-010`
 - Owned paths: `db/migrations/`, `db/queries/core/`, `internal/platform/database/`, `internal/domain/marketdata/`
-- Shared paths changed and justification: `Taskfile.yml` replaces the foundation scope placeholder with the packet-owned CoreDatabase integration runner and sets fail-closed test-DSN enforcement; `test/integration/` contains the CoreDatabase acceptance fixtures.
+- Shared paths changed and justification: `Taskfile.yml` replaces the foundation scope placeholder with the packet-owned CoreDatabase integration runner and sets fail-closed test-DSN enforcement; `.github/workflows/ci.yml` provides the required ephemeral PostgreSQL service for the strict CI runner; `test/integration/` contains the CoreDatabase acceptance fixtures.
 
 ## Result
 
@@ -16,6 +16,9 @@ The implementation and isolated PostgreSQL acceptance are complete. Runtime
 verification used only the explicitly created `atrisk_test` database on the
 declared loopback PostgreSQL port; the running `atrisk` development database was
 not migrated or reset. Docker settings and services were not changed.
+GitHub Actions now provisions only its hosted-job PostgreSQL 18.6 service,
+using the approved digest, exact `atrisk_test` database, CI-only credentials,
+loopback exposure, and a health check.
 
 Handoff remains `needs-review` only because the repository-wide generated-file
 gate reports pre-existing Windows contract-generator drift; all AR-101 runtime
@@ -54,6 +57,7 @@ checks and the remaining verify stages pass.
 | `go run github.com/go-task/task/v3/cmd/task@v3.44.1 check-generated` | fails at the existing AR-005 contract generator: exactly four tracked contract outputs are rewritten on this Windows checkout; only those four outputs were restored. sqlc regeneration and all preceding gates are clean. |
 | `go run github.com/go-task/task/v3/cmd/task@v3.44.1 verify` with isolated DSN | format, lint, typecheck, unit, contract, AR-101 integration, and build stages pass; final `check-generated` fails only on the same four AR-005 contract outputs. No Docker or service lifecycle command ran. |
 | `go run github.com/go-task/task/v3/cmd/task@v3.44.1 migrate-test` and `test-go-integration TEST=CoreDatabase` after pinned-generator change | both pass against isolated `atrisk_test`; the database was removed afterward with zero active sessions. |
+| `.github/workflows/ci.yml` service definition | pinned PostgreSQL 18.6-bookworm digest, exact `atrisk_test` initialization, dedicated CI-only role/password, loopback port mapping, and `pg_isready` health check; local Docker/services were not used. |
 | `psql ... -d atrisk ... to_regclass('public.goose_db_version')` | pass; returned `f`, confirming the running dev database was not migrated. The explicitly isolated `atrisk_test` database was removed after runtime acceptance with no active sessions. |
 | `git diff --check` | pass. |
 
@@ -67,15 +71,15 @@ checks and the remaining verify stages pass.
 
 - Branch: `task/AR-101-core-database-model`
 - Commit SHA: `6a8b2280c4dd35adc53f85f8665613029e5d0922` (latest substantive migration/upgrade implementation)
-- Remote branch: `origin/task/AR-101-core-database-model` verified at pre-pinned-generator SHA `7f6c477e75411f43eae72f4b6b5d0ce52ecce442`; local `HEAD` and the origin-tracking ref matched before this follow-up, and the follow-up push is reported separately in the handoff.
-- Report snapshot SHA: `7f6c477e75411f43eae72f4b6b5d0ce52ecce442` (last clean pre-follow-up branch state).
+- Remote branch: `origin/task/AR-101-core-database-model` verified at pre-CI-service SHA `f521eef7e5da9c2eef4c266b68448240dc09c51d`; local `HEAD` and the origin-tracking ref matched before this follow-up, and the follow-up push is reported separately in the handoff.
+- Report snapshot SHA: `f521eef7e5da9c2eef4c266b68448240dc09c51d` (last clean pre-follow-up branch state).
 - Live `ls-remote` was not independently verified because the proxy/remote endpoint remains unavailable.
 - Worktree: clean after restoring the four verification-generated contract outputs; report snapshot is recorded separately above.
 
 ## Assumptions and risks
 
 - The integration target and `database.Migrate` entrypoint accept only `ATLASRISK_TEST_DATABASE_URL` with exact database name `atrisk_test`, loopback host `127.0.0.1`, explicit port, PostgreSQL scheme, and explicit user; credentials are never printed.
-- The required Taskfile targets set `ATLASRISK_REQUIRE_TEST_DATABASE=1`, so missing or unsafe DSNs fail rather than silently skipping.
+- The required Taskfile targets set `ATLASRISK_REQUIRE_TEST_DATABASE=1`, so missing or unsafe DSNs fail rather than silently skipping; CI supplies the exact validated loopback URL through the ephemeral service.
 - `00002_core_database_hardening.sql` is forward-only and preserves the already-created `00001` migration for previous-version upgrades.
 - The repository-wide generated-file gate has a pre-existing Windows line-ending/index-stat incompatibility in the AR-005 contract generator; CI/Linux should be used as the authoritative cross-platform gate. No AR-005 generated output is included in this task.
 - The aggregate verify gate was run with repository npm dependencies present; its only failure is the pre-existing four-file AR-005 contract-generator drift described above.
