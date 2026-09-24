@@ -1,7 +1,7 @@
 ---
 id: AR-105
 title: Add Binance Spot public market data
-status: review
+status: merged
 phase: 1
 depends_on: [AR-102]
 branch: task/AR-105-binance-adapter
@@ -53,13 +53,13 @@ the market-data-only endpoint with deterministic time and rate-limit handling.
 
 ## Acceptance criteria
 
-- [ ] Requests are restricted to `data-api.binance.vision`, `GET /api/v3/exchangeInfo?permissions=SPOT`, and `GET /api/v3/klines?interval=1d`; no authenticated/private or trading API is callable.
-- [ ] The current incomplete UTC daily candle is excluded using an injectable clock, and missing/delisted symbols are visible without inferring delisting from a single omission.
-- [ ] Millisecond open/close timestamps normalize to UTC; source decimal strings round-trip through exact decimal storage without floating-point conversion.
-- [ ] Unknown source publication time remains null with an explicit first-observed system basis.
-- [ ] HTTP 429/418 responses respect `Retry-After`; if its duration exceeds configured wait bounds, fail without retrying early. Rate limits never advance a checkpoint before data is durably accepted.
-- [ ] Duplicate pages are idempotent and changed historical candles create append-only price revisions retaining raw provenance.
-- [ ] `BTCUSDT` metadata and prices persist `USDT` exactly as the denomination/quote-unit code; migration preserves existing values and fresh-database migration tests pass.
+- [x] Requests are restricted to `data-api.binance.vision`, `GET /api/v3/exchangeInfo?permissions=SPOT`, and `GET /api/v3/klines?interval=1d`; no authenticated/private or trading API is callable.
+- [x] The current incomplete UTC daily candle is excluded using an injectable clock, and missing/delisted symbols are visible without inferring delisting from a single omission.
+- [x] Millisecond open/close timestamps normalize to UTC; source decimal strings round-trip through exact decimal storage without floating-point conversion.
+- [x] Unknown source publication time remains null with an explicit first-observed system basis.
+- [x] HTTP 429/418 responses respect `Retry-After`; if its duration exceeds configured wait bounds, fail without retrying early. Rate limits never advance a checkpoint before data is durably accepted.
+- [x] Duplicate pages are idempotent and changed historical candles create append-only price revisions retaining raw provenance.
+- [x] `BTCUSDT` metadata and prices persist `USDT` exactly as the denomination/quote-unit code; migration preserves existing values and fresh-database migration tests pass.
 
 ## Required verification
 
