@@ -10,7 +10,7 @@
 
 ## Result
 
-`review` — independent code review is clear on final code tip `d48cf1f3b0614d835ce2b8a26ea06915202fb9ab`; hosted PostgreSQL CI run `36067788520` passed, including `TestPointInTimeAPI` and `task verify`.
+`merged` — independent code review is clear on final code tip `d48cf1f3b0614d835ce2b8a26ea06915202fb9ab`; hosted PostgreSQL CI run `36067788520` passed, including `TestPointInTimeAPI` and `task verify`. PR #22 merged as `6026d71a2163dcba430d3e86e598b42b4f9f035f`.
 
 ## Acceptance evidence
 
@@ -50,10 +50,10 @@
 
 ## Git state
 
-- Branch: `task/AR-106-point-in-time-query-service`
-- Implementation/code tip: `d48cf1f3b0614d835ce2b8a26ea06915202fb9ab`; the lifecycle/report commit follows.
-- Remote branch: synchronized with `origin/task/AR-106-point-in-time-query-service` at the final code tip; lifecycle/report commit is pending push.
-- Worktree: clean before the lifecycle/report commit; expected clean after push.
+- Implementation branch: `task/AR-106-point-in-time-query-service`; final branch head `9870ad4845700307194c4a69cedd3ae1be83b7d3`, PR #22 merged.
+- Merge commit: `6026d71a2163dcba430d3e86e598b42b4f9f035f`; the primary checkout fast-forwarded to this SHA and is clean.
+- Hosted CI: Verify run `36067788520` passed on code tip `d48cf1f3b0614d835ce2b8a26ea06915202fb9ab`; final branch head adds only the task acceptance checklist and report.
+- Lifecycle metadata: this report-only status-finalization branch is based on merge commit `6026d71a2163dcba430d3e86e598b42b4f9f035f`; PR and cleanup remain pending.
 
 ## Assumptions and risks
 

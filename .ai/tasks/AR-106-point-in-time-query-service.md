@@ -1,7 +1,7 @@
 ---
 id: AR-106
 title: Expose point-in-time data queries
-status: review
+status: merged
 phase: 1
 depends_on: [AR-103, AR-104, AR-105]
 branch: task/AR-106-point-in-time-query-service
