@@ -83,7 +83,23 @@ func TestTCMBIngestion(t *testing.T) {
 	if err != nil || loaded.RequestFingerprint != checkpoint.RequestFingerprint {
 		t.Fatalf("TCMB checkpoint did not round-trip: %+v err=%v", loaded, err)
 	}
-	if inserted, err := store.PersistRecords(ctx, series.ID.String(), records); err != nil || inserted != 5 {
+	fxRecords := make([]ingestion.NormalizedRecord, 0, len(records))
+	for _, record := range records {
+		decoded, decodeErr := tcmb.DecodeObservationRecord(record)
+		if decodeErr != nil {
+			t.Fatal(decodeErr)
+		}
+		if decoded.SeriesCode == "TP.DK.USD.A" {
+			fxRecords = append(fxRecords, record)
+		}
+	}
+	if inserted, err := store.PersistFXRecords(ctx, "USD", "TRY", fxRecords, series.ID.String()); err != nil || inserted != 5 {
+		t.Fatalf("persist TCMB FX quotes and missing period: inserted=%d err=%v", inserted, err)
+	}
+	if inserted, err := store.PersistFXRecords(ctx, "USD", "TRY", fxRecords, series.ID.String()); err != nil || inserted != 0 {
+		t.Fatalf("duplicate TCMB FX ingest was not idempotent: inserted=%d err=%v", inserted, err)
+	}
+	if inserted, err := store.PersistRecords(ctx, series.ID.String(), records); err != nil || inserted != 4 {
 		t.Fatalf("persist TCMB observations: inserted=%d err=%v", inserted, err)
 	}
 	if inserted, err := store.PersistRecords(ctx, series.ID.String(), records); err != nil || inserted != 0 {
@@ -125,21 +141,19 @@ func TestTCMBIngestion(t *testing.T) {
 	if !missing {
 		t.Fatal("TCMB missing period did not create quality evidence")
 	}
-	fxRecords := make([]ingestion.NormalizedRecord, 0, len(records))
-	for _, record := range records {
-		decoded, decodeErr := tcmb.DecodeObservationRecord(record)
-		if decodeErr != nil {
-			t.Fatal(decodeErr)
-		}
-		if decoded.SeriesCode == "TP.DK.USD.A" {
-			fxRecords = append(fxRecords, record)
-		}
+	var missingFX bool
+	if err := pool.QueryRow(ctx, `SELECT value IS NULL AND value_text = 'null' AND quality_flags->>'missing' = 'true' AND quality_flags->>'fx_missing_persisted' = 'true' FROM observation_revisions WHERE series_id = $1 AND observation_time = $2`, validUUID(t, series.ID), timestamp("2024-01-03T00:00:00Z")).Scan(&missingFX); err != nil {
+		t.Fatal(err)
 	}
-	if inserted, err := store.PersistFXRecords(ctx, "USD", "TRY", fxRecords); err != nil || inserted != 4 {
-		t.Fatalf("persist TCMB FX quotes: inserted=%d err=%v", inserted, err)
+	if !missingFX {
+		t.Fatal("TCMB missing FX period was not durably retained with FX quality evidence")
 	}
-	if inserted, err := store.PersistFXRecords(ctx, "USD", "TRY", fxRecords); err != nil || inserted != 0 {
-		t.Fatalf("duplicate TCMB FX ingest was not idempotent: inserted=%d err=%v", inserted, err)
+	var numericFXCount int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fx_quote_revisions WHERE base_currency = 'USD' AND quote_currency = 'TRY'`).Scan(&numericFXCount); err != nil {
+		t.Fatal(err)
+	}
+	if numericFXCount != 4 {
+		t.Fatalf("missing FX period was written as a numeric quote: count=%d", numericFXCount)
 	}
 	if err := runStore.CompleteRun(ctx, runID, "succeeded", map[string]any{"records": len(records)}); err != nil {
 		t.Fatal(err)

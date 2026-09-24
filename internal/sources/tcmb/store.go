@@ -76,14 +76,18 @@ func (s Store) PersistRecords(ctx context.Context, seriesID string, records []in
 		return 0, fmt.Errorf("begin TCMB EVDS observation transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	sourceCode, err := seriesSourceCode(ctx, tx, seriesID)
+	if err != nil {
+		return 0, err
+	}
 	var inserted int64
 	for index, normalized := range records {
 		decoded, decodeErr := DecodeObservationRecord(normalized)
 		if decodeErr != nil {
 			return 0, fmt.Errorf("decode TCMB EVDS observation %d: %w", index, decodeErr)
 		}
-		if decoded.SeriesCode != seriesID {
-			continue
+		if decoded.SeriesCode != sourceCode {
+			return 0, fmt.Errorf("TCMB EVDS observation %d belongs to series %q, want %q", index, decoded.SeriesCode, sourceCode)
 		}
 		rows, err := insertObservation(ctx, tx, seriesID, decoded)
 		if err != nil {
@@ -131,19 +135,31 @@ RETURNING 1`, seriesID, record.ObservationTime, value, valueText, sourceKnownAt,
 
 // PersistFXRecords writes a TCMB series as an explicit currency pair. The
 // caller supplies the pair because EVDS series codes do not provide a
-// canonical base/quote contract for every FX series.
-func (s Store) PersistFXRecords(ctx context.Context, baseCurrency, quoteCurrency string, records []ingestion.NormalizedRecord) (int64, error) {
+// canonical base/quote contract for every FX series. Missing source periods
+// are retained in observation_revisions when the source series ID is supplied;
+// fx_quote_revisions remains numeric-only because its rate is NOT NULL.
+func (s Store) PersistFXRecords(ctx context.Context, baseCurrency, quoteCurrency string, records []ingestion.NormalizedRecord, missingSeriesID ...string) (int64, error) {
 	if s.Pool == nil {
 		return 0, errors.New("TCMB EVDS database pool is required")
 	}
 	if len(baseCurrency) != 3 || len(quoteCurrency) != 3 || baseCurrency == quoteCurrency {
 		return 0, errors.New("TCMB EVDS FX currencies must be distinct ISO 4217 codes")
 	}
+	if len(missingSeriesID) > 1 || (len(missingSeriesID) == 1 && missingSeriesID[0] == "") {
+		return 0, errors.New("TCMB EVDS FX missing-value series ID is invalid")
+	}
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("begin TCMB EVDS FX transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	var sourceCode string
+	if len(missingSeriesID) == 1 {
+		sourceCode, err = seriesSourceCode(ctx, tx, missingSeriesID[0])
+		if err != nil {
+			return 0, err
+		}
+	}
 	var inserted int64
 	for index, normalized := range records {
 		decoded, decodeErr := DecodeObservationRecord(normalized)
@@ -151,7 +167,26 @@ func (s Store) PersistFXRecords(ctx context.Context, baseCurrency, quoteCurrency
 			return 0, fmt.Errorf("decode TCMB EVDS FX observation %d: %w", index, decodeErr)
 		}
 		if decoded.Value == nil {
+			if len(missingSeriesID) == 0 {
+				return 0, errors.New("TCMB EVDS missing FX value requires a source series ID")
+			}
+			if decoded.SeriesCode != sourceCode {
+				return 0, fmt.Errorf("TCMB EVDS FX observation %d belongs to series %q, want %q", index, decoded.SeriesCode, sourceCode)
+			}
+			if decoded.QualityFlags == nil {
+				decoded.QualityFlags = map[string]any{}
+			}
+			decoded.QualityFlags["fx_missing_persisted"] = true
+			decoded.QualityFlags["fx_persistence_target"] = "observation_revisions"
+			rows, err := insertObservation(ctx, tx, missingSeriesID[0], decoded)
+			if err != nil {
+				return 0, fmt.Errorf("insert TCMB EVDS missing FX observation %d: %w", index, err)
+			}
+			inserted += rows
 			continue
+		}
+		if len(missingSeriesID) == 1 && decoded.SeriesCode != sourceCode {
+			return 0, fmt.Errorf("TCMB EVDS FX observation %d belongs to series %q, want %q", index, decoded.SeriesCode, sourceCode)
 		}
 		rawID, err := rawObjectID(ctx, tx, decoded.RawObject.ContentSHA256)
 		if err != nil {
@@ -191,4 +226,12 @@ func rawObjectID(ctx context.Context, tx pgx.Tx, digest string) (string, error) 
 		return "", fmt.Errorf("find TCMB EVDS raw object %q: %w", digest, err)
 	}
 	return id, nil
+}
+
+func seriesSourceCode(ctx context.Context, tx pgx.Tx, seriesID string) (string, error) {
+	var sourceCode string
+	if err := tx.QueryRow(ctx, `SELECT source_code FROM series WHERE id = $1::uuid`, seriesID).Scan(&sourceCode); err != nil {
+		return "", fmt.Errorf("find TCMB EVDS series %q: %w", seriesID, err)
+	}
+	return sourceCode, nil
 }
