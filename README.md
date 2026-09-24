@@ -41,3 +41,36 @@ not begin until the applicable task packet in `.ai/tasks/` is marked `ready`.
 documentation pushes. Every change uses a short-lived task branch and a separate
 worktree when another task is active. See `AGENTS.md` and the execution protocol
 before making changes.
+
+## Toolchain
+
+The repository pins the supported runtime families in the component manifests:
+
+- Go 1.27 is declared by `go.mod`.
+- Python 3.14.7 is pinned by `risk-engine/.python-version`; `risk-engine/uv.lock`
+  locks the Python project and development dependencies.
+- Node.js 24.16.0 is pinned by `apps/web/.node-version`, and npm 12.0.1 is pinned
+  by `package.json`; `package-lock.json` locks the workspace dependencies.
+
+From a clean clone, install and verify each component with:
+
+```powershell
+go test ./...
+uv run --project risk-engine pytest
+npm ci
+npm test -- --run
+npm run build
+```
+
+Diagnostic commands report the runtime and component versions:
+
+```powershell
+go run ./apps/api/cmd/api --version
+go run ./apps/collector/cmd/collector --version
+uv run --project risk-engine atlasrisk-risk-engine
+npm run diagnostics
+```
+
+The Go commands are toolchain-only entry points. Domain behavior, database
+access, network ingestion, risk calculations, and UI flows belong to later task
+packets.
