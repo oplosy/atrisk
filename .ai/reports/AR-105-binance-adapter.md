@@ -22,7 +22,7 @@
 | AC-4 | Price records retain `source_known_at` as nil and `first_observed_by_system`, with `source_publication_time_unknown` quality evidence. |
 | AC-5 | `internal/ingestion/fetcher.go` retries 429/418 and 5xx with bounded `Retry-After`; an oversized provider wait fails closed. `AdvanceComplete` excludes incomplete current candles and keeps their open boundary for restart. `PersistPriceRecordsAndCheckpoint` validates checkpoint/request symbol identity and commits accepted prices plus the checkpoint atomically; integration verifies unrelated and rejected cursors leave the prior checkpoint unchanged. |
 | AC-6 | `Store.PersistPriceRecords` uses append-only `price_revisions` identity and raw SHA lookup; duplicate pages are idempotent and a changed raw candle can create a new revision. Integration assertions cover exact raw SHA joins and unknown publication time. |
-| AC-7 | `db/migrations/00003_asset_unit_codes.sql` widens only instrument/price unit fields to uppercase normalized `TEXT`, preserves existing values, leaves FX quote revisions `CHAR(3)`, and integration asserts exact `USDT` persistence. |
+| AC-7 | `db/migrations/00003_asset_unit_codes.sql` widens only instrument/price unit fields to uppercase normalized `TEXT`, preserves existing values, drops/recreates the dependent `latest_price_revisions` view around the type change in both directions, leaves FX quote revisions `CHAR(3)`, and integration asserts exact `USDT` persistence. |
 
 ## Stop-condition check
 
@@ -51,8 +51,8 @@
 ## Git state
 
 - Branch: `task/AR-105-binance-adapter`
-- Implementation/code tip: `4f6af16941740ab9b20669ff6a4e9294787e7ed1`; a report-only handoff commit follows this implementation tip.
-- Report-only handoff tip before this correction: `2889c7e2ad278c35f668edb3d8e679fe9c71a25d`; the current report-only correction commit follows.
+- Implementation/code tip: `0d3c95112d8982d0a684a1cec893e520d8f4c1ab`; a report-only handoff commit follows this implementation tip.
+- Prior report-only handoff tip: `ea4ff6e243e585292595f0f4924bd1fc40eab08b`; the current report-only correction commit follows.
 - Remote branch: `origin/task/AR-105-binance-adapter` is synchronized after the report-only handoff commit.
 - Worktree: clean after the report-only handoff commit.
 
