@@ -22,7 +22,7 @@
 | AC-4 | Price records retain `source_known_at` as nil and `first_observed_by_system`, with `source_publication_time_unknown` quality evidence. |
 | AC-5 | `internal/ingestion/fetcher.go` retries 429/418 and 5xx with bounded `Retry-After`; an oversized provider wait fails closed. `AdvanceComplete` excludes incomplete current candles and keeps their open boundary for restart. `PersistPriceRecordsAndCheckpoint` validates checkpoint/request symbol identity and commits accepted prices plus the checkpoint atomically; integration verifies unrelated and rejected cursors leave the prior checkpoint unchanged. |
 | AC-6 | `Store.PersistPriceRecords` uses append-only `price_revisions` identity and raw SHA lookup; duplicate pages are idempotent and a changed raw candle can create a new revision. Integration assertions cover exact raw SHA joins and unknown publication time. |
-| AC-7 | `db/migrations/00003_asset_unit_codes.sql` widens only instrument/price unit fields to uppercase normalized `TEXT`, preserves existing values, drops/recreates the dependent `latest_price_revisions` view around the type change in both directions, leaves FX quote revisions `CHAR(3)`, and integration asserts exact `USDT` persistence. |
+| AC-7 | `db/migrations/00003_asset_unit_codes.sql` widens only instrument/price unit fields to uppercase alphanumeric `TEXT` (non-empty, with no leading-letter or length restriction), preserves existing values, drops/recreates the dependent `latest_price_revisions` view around the type change in both directions, leaves FX quote revisions `CHAR(3)`, and integration asserts exact `USDT` plus digit-leading `1INCH` persistence. |
 
 ## Stop-condition check
 
@@ -40,6 +40,7 @@
 | `go test ./apps/... ./internal/... ./test/integration -count=1` | pass; integration tests were skipped without required DSN. |
 | `go vet ./apps/... ./internal/...` | pass. |
 | `rg -n "TRADE|USER_DATA|apiKey|secret" internal/sources/binance` | pass; no matches. |
+| `node scripts/verify/check-generated.mjs` | pass; registered generated outputs are synchronized. |
 | `git diff --check` | pass. |
 
 ## Change inventory
@@ -51,10 +52,10 @@
 ## Git state
 
 - Branch: `task/AR-105-binance-adapter`
-- Implementation/code tip: `0d3c95112d8982d0a684a1cec893e520d8f4c1ab`; a report-only handoff commit follows this implementation tip.
-- Prior report-only handoff tip: `ea4ff6e243e585292595f0f4924bd1fc40eab08b`; the current report-only correction commit follows.
-- Remote branch: `origin/task/AR-105-binance-adapter` is synchronized after the report-only handoff commit.
-- Worktree: clean after the report-only handoff commit.
+- Implementation/code tip: `13f7b2d58c739d8b333216118d5b4c9a1fa5bf47`; a report-only handoff commit follows this implementation tip.
+- Prior report-only handoff tip: `1fc21ff86996e0e0d8583eb38ee0b61803e50eeb`; the current report-only correction commit follows.
+- Remote branch: `origin/task/AR-105-binance-adapter` is synchronized at handoff.
+- Worktree: clean at handoff.
 
 ## Assumptions and risks
 
