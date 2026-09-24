@@ -4,9 +4,9 @@
 
 - Task packet: `.ai/tasks/AR-105-binance-adapter.md`
 - Packet status at start: `ready`
-- Referenced ADRs: ADR-002, ADR-005, ADR-006, ADR-011
+- Referenced ADRs: ADR-002, ADR-005, ADR-006, ADR-011, ADR-024
 - Owned paths: `internal/sources/binance/`, `test/fixtures/binance/`
-- Shared paths changed and justification: `internal/ingestion/` was explicitly authorized by amended packet commit `ecf77787c24f9245bab9229a21843cd8161db258` for bounded HTTP 418 `Retry-After` handling and tests. `test/integration/binance_market_data_test.go` adds the required real PostgreSQL integration coverage.
+- Shared paths changed and justification: `internal/ingestion/` was explicitly authorized by amended packet commit `ecf77787c24f9245bab9229a21843cd8161db258` for bounded HTTP 418 `Retry-After` handling and tests. `db/migrations/` was authorized by amendment `426b28a` under ADR-024 to preserve provider asset codes. `test/integration/binance_market_data_test.go` and `test/integration/core_database_test.go` add migration, USDT persistence, evidence, and checkpoint coverage.
 
 ## Result
 
@@ -22,11 +22,12 @@
 | AC-4 | Price records retain `source_known_at` as nil and `first_observed_by_system`, with `source_publication_time_unknown` quality evidence. |
 | AC-5 | `internal/ingestion/fetcher.go` retries 429/418 and 5xx with bounded `Retry-After`; an oversized provider wait fails closed. `KlineCheckpoint.Advance` moves by one UTC daily period, and `PersistPriceRecordsAndCheckpoint` commits accepted prices and the checkpoint in one transaction. Integration verifies a rejected symbol mismatch leaves the prior checkpoint unchanged. |
 | AC-6 | `Store.PersistPriceRecords` uses append-only `price_revisions` identity and raw SHA lookup; duplicate pages are idempotent and a changed raw candle can create a new revision. Integration assertions cover exact raw SHA joins and unknown publication time. |
+| AC-7 | `db/migrations/00003_asset_unit_codes.sql` widens only instrument/price unit fields to uppercase normalized `TEXT`, preserves existing values, leaves FX quote revisions `CHAR(3)`, and integration asserts exact `USDT` persistence. |
 
 ## Stop-condition check
 
-- Decision or scope conflict: the orchestrator has chosen to widen the asset-code model through a new ADR and migration, but that amendment is pending; this repair intentionally does not change schema or quote policy.
-- Missing dependency, unsafe migration, or unavailable verification: isolated PostgreSQL DSN is not configured; the integration command failed closed as required. The repository's `task` executable is also unavailable in this environment, so the packet task wrappers were run through equivalent Go commands where possible. No Docker or local service was started or changed.
+- Decision or scope conflict: `none`; ADR-024 and packet amendment `426b28a` authorize the asset-code migration. FX quote revisions remain ISO-4217 fiat-only and are not widened.
+- Missing dependency, unsafe migration, or unavailable verification: isolated PostgreSQL DSN is not configured; migration and integration commands therefore fail closed. The repository's `task` executable is also unavailable in this environment, so the packet task wrappers were run through equivalent Go commands where possible. No Docker or local service was started or changed.
 
 ## Verification
 
@@ -34,6 +35,8 @@
 |---|---|
 | `task test-go TEST=Binance` | unavailable: PowerShell reports `task` is not installed; equivalent `go test ./apps/... ./internal/... -run 'TestBinance' -count=1` passed. |
 | `task test-go-integration TEST=BinanceMarketData` | unavailable: `task` is not installed; equivalent isolated run failed closed because `ATLASRISK_TEST_DATABASE_URL` is not configured. |
+| `task migrate-test` | unavailable: `task` is not installed; migration assertions are present in `TestCoreDatabaseMigrations` and `TestCoreDatabasePreviousVersionUpgrade`, but no PostgreSQL DSN was available. |
+| `task test-contract` | unavailable: `task` is not installed; no contract files were changed. |
 | `go test ./apps/... ./internal/... ./test/integration -count=1` | pass; integration tests were skipped without required DSN. |
 | `go vet ./apps/... ./internal/...` | pass. |
 | `rg -n "TRADE|USER_DATA|apiKey|secret" internal/sources/binance` | pass; no matches. |
@@ -41,14 +44,14 @@
 
 ## Change inventory
 
-- Files changed: `internal/sources/binance/client.go`, `internal/sources/binance/adapter.go`, `internal/sources/binance/store.go`, `internal/sources/binance/adapter_test.go`, `internal/ingestion/fetcher.go`, `internal/ingestion/fetcher_test.go`, `test/fixtures/binance/exchange-info.json`, `test/fixtures/binance/daily-klines.json`, `test/integration/binance_market_data_test.go`, and this report.
-- Schema/API changes: no migration or public contract change; added Binance Spot public metadata/daily kline adapter and append-only persistence against existing core tables.
+- Files changed: `db/migrations/00003_asset_unit_codes.sql`, `internal/sources/binance/client.go`, `internal/sources/binance/adapter.go`, `internal/sources/binance/store.go`, `internal/sources/binance/adapter_test.go`, `internal/ingestion/fetcher.go`, `internal/ingestion/fetcher_test.go`, `test/fixtures/binance/exchange-info.json`, `test/fixtures/binance/daily-klines.json`, `test/integration/binance_market_data_test.go`, `test/integration/core_database_test.go`, and this report.
+- Schema/API changes: forward migration widens `instruments.native_currency` and `price_revisions.quote_currency` to normalized uppercase `TEXT`; existing values are preserved, and `fx_quote_revisions` remains unchanged.
 - Generated artifacts: none changed.
 
 ## Git state
 
 - Branch: `task/AR-105-binance-adapter`
-- Implementation/code tip: `270d86ab5f046b6d91382ed3ea2cb8d4d7552b3d`; a report-only handoff commit follows this implementation tip.
+- Implementation/code tip: `912cd8a81f64db1364c24cc15c37bcb40a59e17c`; a report-only handoff commit follows this implementation tip.
 - Remote branch: `origin/task/AR-105-binance-adapter` is synchronized after the report-only handoff commit.
 - Worktree: clean after the report-only handoff commit.
 
@@ -56,4 +59,4 @@
 
 - Binance kline responses do not carry a source publication timestamp; the adapter intentionally records first-observed system knowledge rather than retrieval time.
 - Missing catalog symbols are emitted as quality/status records and are not inserted as synthetic instruments; explicit non-TRADING statuses are preserved as inactive evidence rather than inferred delistings.
-- The implementation resolves quote currency from the instrument row. The planned asset-code widening and final USDT integration assertions remain pending the orchestrator's ADR/migration amendment.
+- Binance asset codes are distinct from ISO fiat currencies; no peg or conversion is inferred. Reporting-currency valuation still requires an explicit persisted price/FX path.
