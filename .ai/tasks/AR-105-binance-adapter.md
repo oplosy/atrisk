@@ -1,7 +1,7 @@
 ---
 id: AR-105
 title: Add Binance Spot public market data
-status: ready
+status: review
 phase: 1
 depends_on: [AR-102]
 branch: task/AR-105-binance-adapter
