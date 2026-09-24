@@ -1,10 +1,11 @@
 ---
 id: AR-002
 title: Create the polyglot toolchain skeleton
-status: draft
+status: review
 phase: 0
 depends_on: [AR-001]
 branch: task/AR-002-toolchain-skeleton
+base_sha: b483537c17821dd45383983254a842ec953266d4
 owned_paths: [go.mod, go.sum, apps/, internal/, risk-engine/, package.json, package-lock.json]
 shared_paths: [.gitignore, .editorconfig, README.md]
 adrs: [ADR-003, ADR-009, ADR-013]
@@ -31,11 +32,11 @@ locked dependencies, without implementing domain behavior.
 
 ## Acceptance criteria
 
-- [ ] Clean installs use committed lockfiles and documented commands.
-- [ ] Each component has a minimal passing test and production build.
-- [ ] No component depends on another component's internal source files.
-- [ ] Repository ignores build output, environments, secrets, and local worktrees.
-- [ ] Runtime and dependency versions are reported by a diagnostic command.
+- [x] Clean installs use committed lockfiles and documented commands.
+- [x] Each component has a minimal passing test and production build.
+- [x] No component depends on another component's internal source files.
+- [x] Repository ignores build output, environments, secrets, and local worktrees.
+- [x] Runtime and dependency versions are reported by a diagnostic command.
 
 ## Required verification
 

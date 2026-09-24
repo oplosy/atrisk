@@ -1,0 +1,32 @@
+# Go
+/bin/
+*.test
+.gopath/
+.gocache/
+.cache/
+dist/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.uv-python/
+.uv-cache/
+.pytest_cache/
+.ruff_cache/
+*.tsbuildinfo
+*.egg-info/
+
+# JavaScript
+node_modules/
+coverage/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Local worktrees and tooling state
+atrisk-worktrees/
+.codex/local/
+.task/

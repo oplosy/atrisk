@@ -41,3 +41,44 @@ not begin until the applicable task packet in `.ai/tasks/` is marked `ready`.
 documentation pushes. Every change uses a short-lived task branch and a separate
 worktree when another task is active. See `AGENTS.md` and the execution protocol
 before making changes.
+
+## Toolchain
+
+The repository pins the supported runtime families in the component manifests:
+
+- Go 1.27 is declared by `go.mod`.
+- Python 3.14.7 is pinned by `risk-engine/.python-version`; `risk-engine/uv.lock`
+  locks the Python project and development dependencies.
+- Node.js 24.16.0 is pinned by `apps/web/.node-version`, and npm 12.0.1 is pinned
+  by `package.json`; `package-lock.json` locks the web dependencies.
+
+From a clean clone, install and verify each component with:
+
+```powershell
+go test ./...
+uv run --project risk-engine pytest
+npm ci
+npm test -- --run
+npm run build
+```
+
+Diagnostic commands report the runtime and component versions:
+
+```powershell
+go run ./apps/api/cmd/api --version
+go run ./apps/collector/cmd/collector --version
+uv run --project risk-engine atlasrisk-risk-engine
+npm run diagnostics
+```
+
+The diagnostics include the actual Go runtime, Python interpreter, Node/npm
+runtime, React dependencies, and web tooling versions installed locally; they do
+not access the network. `go test ./...` also discovers a Go example package
+shipped inside `node_modules/flatted/golang`. It is outside the AtlasRisk Go
+module and currently passes without tests. AR-003 should scope its aggregate Go
+gate to AtlasRisk-owned packages if dependency contents make that external
+package unstable.
+
+The Go commands are toolchain-only entry points. Domain behavior, database
+access, network ingestion, risk calculations, and UI flows belong to later task
+packets.
