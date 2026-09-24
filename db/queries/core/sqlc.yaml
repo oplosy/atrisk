@@ -5,6 +5,7 @@ sql:
     queries:
       - "."
       - "../timeline"
+      - "../quality"
     gen:
       go:
         package: database

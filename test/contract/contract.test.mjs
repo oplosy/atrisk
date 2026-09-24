@@ -79,6 +79,27 @@ test("OpenAPI source is 3.1 and carries request/idempotency conventions", async 
   assert.equal(openapi.paths.constructor, Object);
 });
 
+test("quality evaluation contract carries fixed cutoffs and gate states", async () => {
+  const openapi = await readJson("contracts/openapi/openapi.json");
+  const operation = openapi.paths["/api/v1/quality/evaluate"].post;
+  assert.equal(operation.operationId, "evaluateDataQuality");
+  assert.equal(
+    operation.requestBody.content["application/json"].schema.$ref,
+    "#/components/schemas/QualityEvaluationRequest",
+  );
+  assert.deepEqual(
+    openapi.components.schemas.QualityInputResult.properties.classification.enum,
+    ["fresh", "stale", "missing", "partial", "suspect", "revised"],
+  );
+  assert.deepEqual(openapi.components.schemas.QualityInputResult.properties.state.enum, [
+    "valid",
+    "degraded",
+    "blocked",
+  ]);
+  assert.ok(openapi.components.schemas.QualityEvaluationRequest.required.includes("as_of"));
+  assert.match(openapi.components.schemas.QualityEvaluationRequest.properties.to.description, /exclusive/i);
+});
+
 test("valid and additive job fixtures pass validation", async () => {
   for (const file of ["job.json", "job-additive-change.json"]) {
     assert.equal(validateJob(await readJson(`test/contract/fixtures/valid/${file}`)), null, file);

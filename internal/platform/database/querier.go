@@ -40,6 +40,7 @@ type Querier interface {
 	ListPriceRevisions(ctx context.Context, arg ListPriceRevisionsParams) ([]PriceRevision, error)
 	ListPricesSourceAsOf(ctx context.Context, arg ListPricesSourceAsOfParams) ([]PriceRevision, error)
 	ListPricesSystemAsOf(ctx context.Context, arg ListPricesSystemAsOfParams) ([]PriceRevision, error)
+	ListQualityObservations(ctx context.Context, arg ListQualityObservationsParams) ([]ListQualityObservationsRow, error)
 	ListSeriesByDataset(ctx context.Context, datasetID pgtype.UUID) ([]Series, error)
 	ListTimelineObservationRevisions(ctx context.Context, arg ListTimelineObservationRevisionsParams) ([]ListTimelineObservationRevisionsRow, error)
 	ListTimelineObservationsCombinedLatest(ctx context.Context, arg ListTimelineObservationsCombinedLatestParams) ([]ListTimelineObservationsCombinedLatestRow, error)

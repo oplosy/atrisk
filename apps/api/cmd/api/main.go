@@ -10,7 +10,9 @@ import (
 	"runtime"
 	"time"
 
+	apiquality "github.com/oplosy/atrisk/apps/api/handlers/quality"
 	"github.com/oplosy/atrisk/apps/api/handlers/timeline"
+	appquality "github.com/oplosy/atrisk/internal/application/quality"
 	application "github.com/oplosy/atrisk/internal/application/timeline"
 	"github.com/oplosy/atrisk/internal/buildinfo"
 	"github.com/oplosy/atrisk/internal/platform/database"
@@ -41,8 +43,13 @@ func main() {
 		os.Exit(1)
 	}
 	defer pool.Close()
-	service := application.Service{Queries: database.New(pool)}
-	handler := timeline.New(service)
+	queries := database.New(pool)
+	qualityHandler := apiquality.New(appquality.Service{Queries: queries})
+	mux := http.NewServeMux()
+	mux.Handle("/api/v1/quality/evaluate", qualityHandler)
+	mux.Handle("/v1/quality/evaluate", qualityHandler)
+	mux.Handle("/", timeline.New(application.Service{Queries: queries}))
+	handler := mux
 	server := &http.Server{Addr: *listen, Handler: handler, ReadHeaderTimeout: 5 * time.Second}
 	fmt.Fprintf(os.Stdout, "atlasrisk api listening on %s\n", *listen)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
