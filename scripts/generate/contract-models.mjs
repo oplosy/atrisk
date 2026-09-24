@@ -58,6 +58,7 @@ const goType = (property, nestedName, fieldTypeName) => {
   if (property.const !== undefined || property.enum) return goNamedType(fieldTypeName, property);
   if (property.type === "string") return "string";
   if (property.type === "integer") return "int";
+  if (property.type === "number") return "float64";
   if (property.type === "boolean") return "bool";
   return "map[string]any";
 };
@@ -89,7 +90,8 @@ const pyType = (property, nestedName) => {
   if (property.const !== undefined) return `Literal[${JSON.stringify(property.const)}]`;
   if (property.enum) return `Literal[${property.enum.map((value) => JSON.stringify(value)).join(", ")}]`;
   if (property.type === "string") return "str";
-  if (property.type === "integer" || property.type === "number") return "int";
+  if (property.type === "integer") return "int";
+  if (property.type === "number") return "float";
   if (property.type === "boolean") return "bool";
   return "dict[str, Any]";
 };
