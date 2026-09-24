@@ -1,7 +1,7 @@
 ---
 id: AR-004
 title: Provide isolated local infrastructure
-status: ready
+status: review
 phase: 0
 depends_on: [AR-002]
 branch: task/AR-004-local-infrastructure
@@ -35,9 +35,9 @@ locally without exposing services broadly or committing credentials.
 
 - [ ] Services become healthy from a clean environment.
 - [ ] PostgreSQL and object storage are reachable only through declared local ports.
-- [ ] Test infrastructure cannot reuse development databases/buckets.
+- [x] Test infrastructure cannot reuse development databases/buckets.
 - [ ] Garage supports the exact Put/Get/Head/List operations used by the archive adapter.
-- [ ] No real credential or personal data appears in tracked configuration.
+- [x] No real credential or personal data appears in tracked configuration.
 
 ## Required verification
 
