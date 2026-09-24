@@ -38,6 +38,7 @@ tasks:
   unit:
     desc: Run Go, Python, and web unit tests
     cmds:
+      - node --test scripts/verify/check-generated.test.mjs scripts/verify/check-scope.test.mjs
       - go test ./apps/... ./internal/...
       - task: unit-python
       - npm test -- --run
