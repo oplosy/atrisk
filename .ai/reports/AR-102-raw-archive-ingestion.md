@@ -6,7 +6,7 @@
 - Packet status at start: `ready`
 - Referenced ADRs: ADR-005, ADR-006, ADR-007, ADR-017
 - Owned paths: `apps/collector/`, `internal/archive/`, `internal/ingestion/`, `test/fixtures/http/`
-- Shared paths changed and justification: `Taskfile.yml` adds the required Go test targets; `.github/workflows/ci.yml` provisions an ephemeral, pinned Garage service on the hosted GitHub runner for the raw-archive integration test; `go.mod` and `go.sum` add the AWS SDK for Go v2 S3 client.
+- Shared paths changed and justification: `Taskfile.yml` adds the required Go test targets; `.github/workflows/ci.yml` provisions an ephemeral, pinned Garage service on the hosted GitHub runner for the raw-archive integration test; `test/integration/` adds the required PostgreSQL `DatabaseStore.RegisterRawObject` proof; `go.mod` and `go.sum` add the AWS SDK for Go v2 S3 client.
 
 ## Result
 
@@ -14,22 +14,22 @@
 
 ## Review follow-up
 
-- Independent review found five blocking issues; fixes are in progress on the same task branch before a second review. No local Docker or service action is authorized or planned.
+- Independent review found five blocking issues. Redirect/error redaction, conditional S3 create/content validation, database conflict validation, and the required PostgreSQL integration proof are now implemented. No local Docker or service action was used.
 
 ## Acceptance evidence
 
 | Criterion | Evidence |
 |---|---|
-| AC-1 | `internal/archive/store_test.go` exercises concurrent identical content-addressed writes; `S3Store` uses SHA-256 object keys and validates existing content before accepting it. |
+| AC-1 | `internal/archive/store_test.go` exercises conditional S3-level concurrent creates and tampered-content rejection; `internal/archive/raw_archive_integration_test.go` exercises concurrent Put/Get against hosted Garage. |
 | AC-2 | `internal/ingestion/pipeline_test.go` runs the fetch/archive/normalize pipeline and asserts every normalized record carries the exact archived key and SHA-256. |
-| AC-3 | `internal/ingestion/fetcher_test.go`, `internal/archive/store_test.go`, and `internal/ingestion/pipeline_test.go` assert authorization/API-key values are excluded from request/response metadata and stored archive metadata. |
+| AC-3 | `internal/ingestion/fetcher_test.go`, `internal/archive/store_test.go`, `internal/ingestion/pipeline_test.go`, and `test/integration/raw_archive_test.go` assert authorization/API-key values are excluded from request/response metadata, transport errors, and stored archive metadata. |
 | AC-4 | Unit tests cover timeout, oversized response, invalid media type, and storage failure; `internal/archive/raw_archive_integration_test.go` proves Put/Get bytes against Garage in hosted CI. |
 | AC-5 | `test/fixtures/http/sample-response.json` is replayed by `TestReplayFixtureUsesSavedBytesWithoutNetwork`, with exact raw SHA-256 provenance. |
 
 ## Stop-condition check
 
 - Decision or scope conflict: none.
-- Missing dependency, unsafe migration, or unavailable verification: local PostgreSQL/Garage integration is intentionally unavailable because no local Docker command was run; hosted CI Garage and PostgreSQL are configured in `.github/workflows/ci.yml`.
+- Missing dependency, unsafe migration, or unavailable verification: local required integration targets fail closed because `ATLASRISK_TEST_DATABASE_URL` and `ATLASRISK_S3_ENDPOINT` are not configured. No local Docker command was run; hosted CI Garage and PostgreSQL are configured in `.github/workflows/ci.yml`.
 
 ## Verification
 
@@ -38,22 +38,24 @@
 | `go run github.com/go-task/task/v3/cmd/task@v3.44.1 test-go TEST=Ingestion` | pass; Go ingestion tests passed. |
 | `go test ./...` | pass; all Go packages passed. |
 | `go vet ./apps/... ./internal/...` | pass. |
-| `go run github.com/go-task/task/v3/cmd/task@v3.44.1 test-go-integration TEST=RawArchive` | blocked locally; the test correctly failed closed because `ATLASRISK_S3_ENDPOINT` was not configured. No Docker command was run. |
+| `go run github.com/go-task/task/v3/cmd/task@v3.44.1 test-go TEST=Ingestion` | pass after review fixes. |
+| `go run github.com/go-task/task/v3/cmd/task@v3.44.1 test-go-integration TEST=RawArchive` | blocked locally; the new PostgreSQL integration test correctly failed closed because `ATLASRISK_TEST_DATABASE_URL` was not configured. No Docker command was run. |
 | `go run github.com/go-task/task/v3/cmd/task@v3.44.1 verify` | partial; format, lint, typecheck, unit, and contract checks passed, then PostgreSQL integration stopped because `ATLASRISK_TEST_DATABASE_URL` was not configured. |
+| `go test ./internal/archive ./internal/ingestion -run 'Test(Ingestion|RawArchive)' -count=1` | pass; archive and ingestion tests passed. |
 | `git diff --check` | pass. |
 
 ## Change inventory
 
-- Files changed: `.github/workflows/ci.yml`, `Taskfile.yml`, `go.mod`, `go.sum`, `internal/archive/`, `internal/ingestion/`, `test/fixtures/http/`, and this report.
+- Files changed: `.github/workflows/ci.yml`, `Taskfile.yml`, `go.mod`, `go.sum`, `internal/archive/`, `internal/ingestion/`, `test/fixtures/http/`, `test/integration/raw_archive_test.go`, and this report.
 - Schema/API changes: no database migration; added archive, bounded fetcher, adapter, replay, pipeline, and PostgreSQL run/object persistence interfaces.
 - Generated artifacts: none intentionally changed.
 
 ## Git state
 
 - Branch: `task/AR-102-raw-archive-ingestion`
-- Implementation commit SHA: `c91c37ea2b42e61e9a1622aba0a3f7fb5fd572a8`
+- Implementation commit SHA: `d70efec25438087c65a37798823706ed50dee1be` (adds the required PostgreSQL integration proof on top of `f004d3e2136eccaf5415d7ae3062bccdea50fba6`)
 - Review snapshot: `e3b5de7e4ed51411735abde03c749b7f509a5ea0`; local and remote matched and the worktree was clean at review.
-- Review follow-up lifecycle update and implementation fixes are being committed on this same task branch.
+- Review follow-up lifecycle update and implementation fixes are committed on this same task branch; this report records the follow-up test and local fail-closed verification.
 
 ## Assumptions and risks
 
