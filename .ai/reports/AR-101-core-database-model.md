@@ -64,9 +64,10 @@ there is no AR-101 runtime failure.
 ## Git state
 
 - Branch: `task/AR-101-core-database-model`
-- Commit SHA: review-fix `300ba630941b1a7468b6a0e819e66d5ccc7d6810`
-- Remote branch: `origin/task/AR-101-core-database-model` at `300ba63` before this report-only commit; report commit will be pushed next.
-- Worktree: clean after commit
+- Reviewed implementation commit: `300ba630941b1a7468b6a0e819e66d5ccc7d6810`
+- Current report/lifecycle commit: `561dc224694002a127d332302f3973f3edb9de13`
+- Remote branch: `origin/task/AR-101-core-database-model` at `561dc224694002a127d332302f3973f3edb9de13`
+- Worktree: clean
 
 ## Assumptions and risks
 
