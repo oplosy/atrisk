@@ -120,6 +120,17 @@ WHERE p.instrument_id=(SELECT id FROM instruments WHERE canonical_symbol='BTCUSD
 	if storedPages != 1 {
 		t.Fatalf("failed price persistence advanced checkpoint: pages=%d", storedPages)
 	}
+	unrelatedCheckpoint := binance.NewKlineCheckpoint(binance.KlineRequest{Symbol: "ETHUSDT"})
+	unrelatedCheckpoint.Pages = 99
+	if _, err := store.PersistPriceRecordsAndCheckpoint(ctx, runID, "BTCUSDT", records, unrelatedCheckpoint); err == nil {
+		t.Fatal("unrelated checkpoint was accepted with valid BTCUSDT prices")
+	}
+	if err := pool.QueryRow(ctx, `SELECT (coverage->'pages')::int FROM ingestion_runs WHERE id=$1::uuid`, runID).Scan(&storedPages); err != nil {
+		t.Fatal(err)
+	}
+	if storedPages != 1 {
+		t.Fatalf("unrelated checkpoint changed durable cursor: pages=%d", storedPages)
+	}
 
 	statusBody := []byte(`{"symbols":[{"symbol":"BTCUSDT","status":"TRADING","baseAsset":"BTC","quoteAsset":"USDT","permissions":["SPOT"],"isSpotTradingAllowed":true},{"symbol":"ETHUSDT","status":"BREAK","baseAsset":"ETH","quoteAsset":"USDT","permissions":["SPOT"],"isSpotTradingAllowed":false}]}`)
 	statusDigest := archive.SHA256Hex(statusBody)
@@ -132,6 +143,9 @@ WHERE p.instrument_id=(SELECT id FROM instruments WHERE canonical_symbol='BTCUSD
 	}
 	statusRecords, err := statusAdapter.Normalize(ctx, ingestion.RawPayload{Body: statusBody, MediaType: "application/json", Archive: archive.Reference{Key: archive.ObjectKey(statusDigest), ContentSHA256: statusDigest, ByteLength: int64(len(statusBody)), MediaType: "application/json"}})
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runStore.CompleteRun(ctx, runID, "succeeded", map[string]any{"records": len(records)}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.PersistInstrumentRecords(ctx, statusRecords); err != nil {
@@ -156,5 +170,13 @@ WHERE p.instrument_id=(SELECT id FROM instruments WHERE canonical_symbol='BTCUSD
 	}
 	if !foundMissing || !foundBreak {
 		t.Fatalf("missing/status evidence not durable: missing=%v break=%v", foundMissing, foundBreak)
+	}
+	var completedEvidence []byte
+	if err := pool.QueryRow(ctx, `SELECT coverage->'binance_status_evidence' FROM ingestion_runs WHERE id=$1::uuid`, runID).Scan(&completedEvidence); err != nil {
+		t.Fatal(err)
+	}
+	var completedItems []map[string]any
+	if err := json.Unmarshal(completedEvidence, &completedItems); err != nil || len(completedItems) != 3 {
+		t.Fatalf("completed run discarded status evidence: entries=%d err=%v", len(completedItems), err)
 	}
 }

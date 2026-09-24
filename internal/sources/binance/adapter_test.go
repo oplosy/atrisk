@@ -2,6 +2,7 @@ package binance
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -124,6 +125,26 @@ func TestBinanceCheckpointAdvancesAtDailyBoundary(t *testing.T) {
 	resumed, err := checkpoint.NextRequest(request, 2)
 	if err != nil || resumed.StartTime == nil || !resumed.StartTime.Equal(*checkpoint.NextStartTime) {
 		t.Fatalf("checkpoint did not resume exact daily boundary: %+v err=%v", resumed, err)
+	}
+}
+
+func TestBinanceCheckpointLeavesIncompleteCurrentCandleAsRestartBoundary(t *testing.T) {
+	cutoff := time.Date(2024, 1, 3, 12, 0, 0, 0, time.UTC)
+	request := KlineRequest{Symbol: "BTCUSDT", Limit: 3}
+	page := KlinePage{Request: request, Klines: []Kline{
+		{OpenTime: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC), CloseTime: time.Date(2024, 1, 1, 23, 59, 59, 999000000, time.UTC)},
+		{OpenTime: time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC), CloseTime: time.Date(2024, 1, 2, 23, 59, 59, 999000000, time.UTC)},
+		{OpenTime: time.Date(2024, 1, 3, 0, 0, 0, 0, time.UTC), CloseTime: time.Date(2024, 1, 3, 23, 59, 59, 999000000, time.UTC)},
+	}}
+	checkpoint := NewKlineCheckpoint(request).AdvanceComplete(page, cutoff)
+	if checkpoint.Completed || checkpoint.Candles != 2 || checkpoint.NextStartTime == nil || !checkpoint.NextStartTime.Equal(time.Date(2024, 1, 3, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("incomplete current candle advanced incorrectly: %+v", checkpoint)
+	}
+	if err := checkpoint.ValidateForSymbol("BTCUSDT"); err != nil {
+		t.Fatalf("valid checkpoint rejected: %v", err)
+	}
+	if err := checkpoint.ValidateForSymbol("ETHUSDT"); !errors.Is(err, ErrCheckpointMismatch) {
+		t.Fatalf("unrelated symbol accepted checkpoint: %v", err)
 	}
 }
 

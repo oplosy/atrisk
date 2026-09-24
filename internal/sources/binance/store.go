@@ -133,7 +133,7 @@ SET coverage = jsonb_set(
     COALESCE(coverage->'binance_status_evidence', '[]'::jsonb) || jsonb_build_array($2::jsonb),
     true
 )
-WHERE id = $1::uuid AND status = 'running'`, runID, encoded)
+WHERE id = $1::uuid AND status IN ('running', 'succeeded')`, runID, encoded)
 	if err != nil {
 		return err
 	}
@@ -181,6 +181,9 @@ func (s Store) PersistPriceRecordsAndCheckpoint(ctx context.Context, runID, symb
 	symbol = strings.ToUpper(strings.TrimSpace(symbol))
 	if !validSymbol(symbol) {
 		return 0, errors.New("Binance price symbol is required")
+	}
+	if err := checkpoint.ValidateForSymbol(symbol); err != nil {
+		return 0, err
 	}
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {

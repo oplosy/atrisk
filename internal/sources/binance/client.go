@@ -233,7 +233,7 @@ func (c *Client) FetchKlinePages(ctx context.Context, request KlineRequest) ([]K
 		pages = append(pages, current)
 		checkpoint := NewKlineCheckpoint(request)
 		for _, previous := range pages {
-			checkpoint = checkpoint.Advance(previous)
+			checkpoint = checkpoint.AdvanceComplete(previous, c.nowUTC())
 		}
 		if len(current.Klines) == 0 || len(current.Klines) < normalized.Limit || checkpoint.Completed {
 			return pages, nil
@@ -272,12 +272,13 @@ func RequestFingerprint(request KlineRequest, defaultLimit int) (string, error) 
 }
 
 type KlineCheckpoint struct {
-	Symbol             string     `json:"symbol"`
-	RequestFingerprint string     `json:"request_fingerprint"`
-	NextStartTime      *time.Time `json:"next_start_time,omitempty"`
-	Pages              int        `json:"pages"`
-	Candles            int        `json:"candles"`
-	Completed          bool       `json:"completed"`
+	Symbol             string       `json:"symbol"`
+	RequestFingerprint string       `json:"request_fingerprint"`
+	Request            KlineRequest `json:"request"`
+	NextStartTime      *time.Time   `json:"next_start_time,omitempty"`
+	Pages              int          `json:"pages"`
+	Candles            int          `json:"candles"`
+	Completed          bool         `json:"completed"`
 }
 
 func NewKlineCheckpoint(request KlineRequest) KlineCheckpoint {
@@ -290,7 +291,19 @@ func NewKlineCheckpoint(request KlineRequest) KlineCheckpoint {
 		return KlineCheckpoint{}
 	}
 	fingerprint, _ := RequestFingerprint(normalized, defaultLimit)
-	return KlineCheckpoint{Symbol: normalized.Symbol, RequestFingerprint: fingerprint, NextStartTime: normalized.StartTime}
+	return KlineCheckpoint{Symbol: normalized.Symbol, RequestFingerprint: fingerprint, Request: normalized, NextStartTime: normalized.StartTime}
+}
+
+func (c KlineCheckpoint) ValidateForSymbol(symbol string) error {
+	symbol = strings.ToUpper(strings.TrimSpace(symbol))
+	if !validSymbol(symbol) || c.Symbol != symbol || c.Request.Symbol != symbol || c.RequestFingerprint == "" {
+		return ErrCheckpointMismatch
+	}
+	fingerprint, err := RequestFingerprint(c.Request, maxKlineLimit)
+	if err != nil || fingerprint != c.RequestFingerprint {
+		return ErrCheckpointMismatch
+	}
+	return nil
 }
 
 func (c KlineCheckpoint) NextRequest(request KlineRequest, defaultLimit ...int) (KlineRequest, error) {
@@ -322,6 +335,42 @@ func (c KlineCheckpoint) Advance(page KlinePage) KlineCheckpoint {
 	}
 	last := page.Klines[len(page.Klines)-1]
 	next := last.OpenTime.UTC().AddDate(0, 0, 1)
+	c.NextStartTime = &next
+	return c
+}
+
+// AdvanceComplete advances only through candles accepted by normalization. An
+// incomplete current candle remains the restart boundary so it is retried.
+func (c KlineCheckpoint) AdvanceComplete(page KlinePage, cutoff time.Time) KlineCheckpoint {
+	cutoff = cutoff.UTC()
+	eligible := make([]Kline, 0, len(page.Klines))
+	for _, kline := range page.Klines {
+		if kline.CloseTime.Before(cutoff) {
+			eligible = append(eligible, kline)
+		}
+	}
+	c.Pages++
+	c.Candles += len(eligible)
+	if len(eligible) == 0 {
+		if len(page.Klines) > 0 {
+			next := page.Klines[0].OpenTime.UTC()
+			c.NextStartTime = &next
+		}
+		return c
+	}
+	last := eligible[len(eligible)-1]
+	next := last.OpenTime.UTC().AddDate(0, 0, 1)
+	if len(eligible) < len(page.Klines) {
+		for _, kline := range page.Klines {
+			if !kline.CloseTime.Before(cutoff) {
+				next = kline.OpenTime.UTC()
+				break
+			}
+		}
+		c.Completed = false
+	} else if len(page.Klines) < page.Request.Limit {
+		c.Completed = true
+	}
 	c.NextStartTime = &next
 	return c
 }
