@@ -57,7 +57,7 @@ tasks:
   generate:
     desc: Generate Go, TypeScript, and Python contract models
     cmds:
-      - sqlc generate -f db/queries/core/sqlc.yaml
+      - go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 generate -f db/queries/core/sqlc.yaml
       - node scripts/generate/contract-models.mjs
 
   test-integration:

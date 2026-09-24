@@ -42,7 +42,7 @@ checks and the remaining verify stages pass.
 
 | Command | Result |
 |---|---|
-| `sqlc generate -f db/queries/core/sqlc.yaml` | pass; generated query layer is deterministic and compiles. |
+| `go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 generate -f db/queries/core/sqlc.yaml` | pass; pinned sqlc v1.31.1 generated deterministic query output with no tracked query-file drift. |
 | `go test ./...` | pass. |
 | `go vet ./apps/... ./internal/... ./test/integration` | pass. |
 | `go test ./test/integration -run TestTestDatabaseDSNValidation -count=1` | pass; missing, substring-only, remote-host, missing-port, missing-user, query override, duplicate, service, and unsafe SSL DSNs are rejected without opening a connection; explicit URI fields remain isolated under conflicting PostgreSQL environment defaults; `database.Migrate` rejects them at its entrypoint too. |
@@ -53,6 +53,7 @@ checks and the remaining verify stages pass.
 | `go run github.com/go-task/task/v3/cmd/task@v3.44.1 test-go-integration TEST=CoreDatabase` with isolated DSN | pass against `atrisk_test`; revision, metadata, composite-FK, exact numeric, immutability, concurrency, as-of, and all price/FX index-plan assertions passed. |
 | `go run github.com/go-task/task/v3/cmd/task@v3.44.1 check-generated` | fails at the existing AR-005 contract generator: exactly four tracked contract outputs are rewritten on this Windows checkout; only those four outputs were restored. sqlc regeneration and all preceding gates are clean. |
 | `go run github.com/go-task/task/v3/cmd/task@v3.44.1 verify` with isolated DSN | format, lint, typecheck, unit, contract, AR-101 integration, and build stages pass; final `check-generated` fails only on the same four AR-005 contract outputs. No Docker or service lifecycle command ran. |
+| `go run github.com/go-task/task/v3/cmd/task@v3.44.1 migrate-test` and `test-go-integration TEST=CoreDatabase` after pinned-generator change | both pass against isolated `atrisk_test`; the database was removed afterward with zero active sessions. |
 | `psql ... -d atrisk ... to_regclass('public.goose_db_version')` | pass; returned `f`, confirming the running dev database was not migrated. The explicitly isolated `atrisk_test` database was removed after runtime acceptance with no active sessions. |
 | `git diff --check` | pass. |
 
@@ -66,8 +67,8 @@ checks and the remaining verify stages pass.
 
 - Branch: `task/AR-101-core-database-model`
 - Commit SHA: `6a8b2280c4dd35adc53f85f8665613029e5d0922` (latest substantive migration/upgrade implementation)
-- Remote branch: `origin/task/AR-101-core-database-model` verified at reviewed branch/report snapshot SHA `53f1078c30666883798061be99f66c504b829f7f`; local `HEAD` and the origin-tracking ref matched, and the push succeeded.
-- Report snapshot SHA: `53f1078c30666883798061be99f66c504b829f7f` (reviewed branch state; the report-only commit that records this line is reported separately in the handoff).
+- Remote branch: `origin/task/AR-101-core-database-model` verified at pre-pinned-generator SHA `7f6c477e75411f43eae72f4b6b5d0ce52ecce442`; local `HEAD` and the origin-tracking ref matched before this follow-up, and the follow-up push is reported separately in the handoff.
+- Report snapshot SHA: `7f6c477e75411f43eae72f4b6b5d0ce52ecce442` (last clean pre-follow-up branch state).
 - Live `ls-remote` was not independently verified because the proxy/remote endpoint remains unavailable.
 - Worktree: clean after restoring the four verification-generated contract outputs; report snapshot is recorded separately above.
 
