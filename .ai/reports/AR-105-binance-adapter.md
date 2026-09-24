@@ -17,15 +17,15 @@
 | Criterion | Evidence |
 |---|---|
 | AC-1 | `client.go` builds only HTTPS `/api/v3/exchangeInfo` with `permissions=SPOT` and `/api/v3/klines` with `interval=1d`; production defaults to `https://data-api.binance.vision`, and request-builder tests assert exact path/query allowlists. |
-| AC-2 | `adapter.go` uses an injectable UTC clock to exclude candles whose close time has not passed; exchange-info normalization emits explicit missing-symbol and upstream-status evidence without creating missing instruments. |
+| AC-2 | `adapter.go` uses an injectable UTC clock to exclude candles whose close time has not passed; `Store.PersistInstrumentRecords` appends missing-symbol and upstream-status evidence to `ingestion_runs.coverage.binance_status_evidence` without creating missing instruments. Integration assertions query both missing and `BREAK` evidence. |
 | AC-3 | Kline millisecond timestamps are parsed with `time.UnixMilli().UTC()` and decimal fields remain strings validated by a decimal grammar; no floating-point conversion is used. |
 | AC-4 | Price records retain `source_known_at` as nil and `first_observed_by_system`, with `source_publication_time_unknown` quality evidence. |
-| AC-5 | `internal/ingestion/fetcher.go` retries 429/418 and 5xx with bounded `Retry-After`; an oversized provider wait fails closed. `KlineCheckpoint.Advance` moves by one UTC daily period, and persistence is separate from checkpoint saving. |
+| AC-5 | `internal/ingestion/fetcher.go` retries 429/418 and 5xx with bounded `Retry-After`; an oversized provider wait fails closed. `KlineCheckpoint.Advance` moves by one UTC daily period, and `PersistPriceRecordsAndCheckpoint` commits accepted prices and the checkpoint in one transaction. Integration verifies a rejected symbol mismatch leaves the prior checkpoint unchanged. |
 | AC-6 | `Store.PersistPriceRecords` uses append-only `price_revisions` identity and raw SHA lookup; duplicate pages are idempotent and a changed raw candle can create a new revision. Integration assertions cover exact raw SHA joins and unknown publication time. |
 
 ## Stop-condition check
 
-- Decision or scope conflict: the existing core schema constrains `instruments.native_currency` and `price_revisions.quote_currency` to `CHAR(3)`, while Binance Spot commonly publishes four-character quote assets such as `USDT`. The packet does not authorize migrations, so this remains an orchestrator decision before merge.
+- Decision or scope conflict: the orchestrator has chosen to widen the asset-code model through a new ADR and migration, but that amendment is pending; this repair intentionally does not change schema or quote policy.
 - Missing dependency, unsafe migration, or unavailable verification: isolated PostgreSQL DSN is not configured; the integration command failed closed as required. The repository's `task` executable is also unavailable in this environment, so the packet task wrappers were run through equivalent Go commands where possible. No Docker or local service was started or changed.
 
 ## Verification
@@ -48,7 +48,7 @@
 ## Git state
 
 - Branch: `task/AR-105-binance-adapter`
-- Implementation/code tip: `b8394d0a6cd11a645b2c358f87f5239b0ff1902a`; a report-only handoff commit follows this implementation tip.
+- Implementation/code tip: `270d86ab5f046b6d91382ed3ea2cb8d4d7552b3d`; a report-only handoff commit follows this implementation tip.
 - Remote branch: `origin/task/AR-105-binance-adapter` is synchronized after the report-only handoff commit.
 - Worktree: clean after the report-only handoff commit.
 
@@ -56,4 +56,4 @@
 
 - Binance kline responses do not carry a source publication timestamp; the adapter intentionally records first-observed system knowledge rather than retrieval time.
 - Missing catalog symbols are emitted as quality/status records and are not inserted as synthetic instruments; explicit non-TRADING statuses are preserved as inactive evidence rather than inferred delistings.
-- The implementation resolves quote currency from the instrument row and therefore cannot durably persist a four-character Binance quote asset against the current `CHAR(3)` schema; resolving that incompatibility requires an authorized schema change or an explicit supported-quote policy.
+- The implementation resolves quote currency from the instrument row. The planned asset-code widening and final USDT integration assertions remain pending the orchestrator's ADR/migration amendment.
