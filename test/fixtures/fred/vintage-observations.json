@@ -1,0 +1,38 @@
+{
+  "realtime_start": "2025-01-01",
+  "realtime_end": "2025-02-28",
+  "observation_start": "2024-01-01",
+  "observation_end": "2024-02-01",
+  "units": "lin",
+  "frequency": "Monthly",
+  "output_type": 2,
+  "count": 4,
+  "limit": 1000,
+  "offset": 0,
+  "observations": [
+    {
+      "realtime_start": "2025-01-01",
+      "realtime_end": "2025-01-31",
+      "date": "2024-01-01",
+      "value": "100.123456789012345678"
+    },
+    {
+      "realtime_start": "2025-02-01",
+      "realtime_end": "2025-02-28",
+      "date": "2024-01-01",
+      "value": "101.987654321098765432"
+    },
+    {
+      "realtime_start": "2025-01-01",
+      "realtime_end": "2025-01-31",
+      "date": "2024-02-01",
+      "value": "."
+    },
+    {
+      "realtime_start": "2025-02-01",
+      "realtime_end": "2025-02-28",
+      "date": "2024-02-01",
+      "value": "2.5"
+    }
+  ]
+}
