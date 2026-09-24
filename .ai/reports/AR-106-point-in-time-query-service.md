@@ -51,9 +51,9 @@
 ## Git state
 
 - Branch: `task/AR-106-point-in-time-query-service`
-- Commit SHA: pending implementation and report commits
-- Remote branch: pending push
-- Worktree: staged implementation; clean after handoff commit
+- Commit SHA: `623458b84dec80e7b714c26a6fe0edda7bb8e2b8`; a report-only handoff commit follows.
+- Remote branch: pending push of implementation and report commits.
+- Worktree: clean after the report-only handoff commit.
 
 ## Assumptions and risks
 
