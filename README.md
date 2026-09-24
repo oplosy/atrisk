@@ -10,8 +10,8 @@ changes if conditions move against me?**
 
 ## Current status
 
-The repository is in the architecture and planning stage. Implementation must
-not begin until the applicable task packet in `.ai/tasks/` is marked `ready`.
+The repository is implementing the ready task packets in `.ai/tasks/`. The local
+infrastructure packet provides PostgreSQL 18 and Garage 2.x for later components.
 
 ## V1 scope
 
@@ -82,3 +82,32 @@ package unstable.
 The Go commands are toolchain-only entry points. Domain behavior, database
 access, network ingestion, risk calculations, and UI flows belong to later task
 packets.
+
+## Local infrastructure
+
+Copy `.env.example` to `.env` and keep the services on their loopback-only
+ports. Then use the Taskfile targets:
+
+```powershell
+task infra-start
+task infra-status
+task infra-logs
+task infra-stop
+task test-infra
+```
+
+`task test-infra` starts a separate Compose project (`atrisk-test`) with a
+separate database, bucket, ports, and named volumes. It proves the exact S3
+`PutObject`, `GetObject`, `HeadObject`, and `ListObjectsV2` operations used by
+the raw archive boundary, then removes the test volumes. Each Compose project
+also gets its own persistent `garage-rpc-secret` volume; the secret is generated
+on first start and is never stored in tracked configuration.
+The smoke runner uses asynchronous Docker child processes so Ctrl+C/SIGTERM can
+stop the active command before removing that unique test project. Forced host
+termination or SIGKILL cannot run cleanup handlers.
+
+`task infra-reset` is destructive: it removes the development containers and
+named volumes, including all local PostgreSQL and Garage data and the Garage RPC
+secret. Use it only when that data can be discarded. Starting the project again
+after reset generates a new RPC secret. The test project always uses its own
+secret volume and is removed by `task test-infra`.

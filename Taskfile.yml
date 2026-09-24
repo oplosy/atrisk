@@ -81,3 +81,34 @@ tasks:
       - task: test-integration
       - task: build
       - task: check-generated
+
+  infra-start:
+    desc: Start local PostgreSQL and Garage and wait for health
+    cmds:
+      - node scripts/infra/infra.mjs start
+
+  infra-stop:
+    desc: Stop local infrastructure without deleting volumes
+    cmds:
+      - node scripts/infra/infra.mjs stop
+
+  infra-status:
+    desc: Show local infrastructure container status
+    cmds:
+      - node scripts/infra/infra.mjs status
+
+  infra-logs:
+    desc: Show the last 100 lines of local infrastructure logs
+    cmds:
+      - node scripts/infra/infra.mjs logs
+
+  infra-reset:
+    desc: DESTRUCTIVE reset of local infrastructure containers and volumes
+    cmds:
+      - node scripts/infra/infra.mjs reset --confirm-reset
+
+  test-infra:
+    desc: Run isolated PostgreSQL and Garage integration smoke tests
+    cmds:
+      - node --test scripts/infra/infra.test.mjs
+      - node scripts/infra/infra.mjs test
