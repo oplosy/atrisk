@@ -1,7 +1,7 @@
 ---
 id: AR-101
 title: Implement the core point-in-time database model
-status: active
+status: review
 phase: 1
 depends_on: [AR-004, AR-005]
 branch: task/AR-101-core-database-model
@@ -32,11 +32,11 @@ runs, observation revisions, price revisions, and FX revisions with exact types.
 
 ## Acceptance criteria
 
-- [ ] Changed values insert new revisions; historical rows cannot be updated/deleted.
-- [ ] Identical normalized/raw identities are idempotent under concurrent insert.
-- [ ] Exact values round-trip without precision loss.
-- [ ] Source and system knowledge timestamps may differ or source time may be null.
-- [ ] Query plans use intended indexes for series/time/as-of fixture queries.
+- [x] Changed values insert new revisions; historical rows cannot be updated/deleted.
+- [x] Identical normalized/raw identities are idempotent under concurrent insert.
+- [x] Exact values round-trip without precision loss.
+- [x] Source and system knowledge timestamps may differ or source time may be null.
+- [x] Query plans use intended indexes for series/time/as-of fixture queries.
 
 ## Required verification
 
