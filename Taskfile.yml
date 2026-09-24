@@ -35,6 +35,11 @@ tasks:
       - go test -run '^$' ./apps/... ./internal/...
       - npm run typecheck
 
+  test-go:
+    desc: Run selected Go unit tests by name
+    cmds:
+      - go test ./apps/... ./internal/... -run "Test{{.TEST}}" -count=1
+
   unit:
     desc: Run Go, Python, and web unit tests
     cmds:
@@ -80,6 +85,8 @@ tasks:
       ATLASRISK_REQUIRE_TEST_DATABASE: "1"
     cmds:
       - go test ./test/integration -run "Test{{.TEST}}" -count=1
+      - go test ./internal/archive -run "Test{{.TEST}}" -count=1
+      - go test ./internal/ingestion -run "Test{{.TEST}}" -count=1
 
   build:
     desc: Build Go, Python, and web artifacts
