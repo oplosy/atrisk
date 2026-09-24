@@ -42,17 +42,18 @@
 
 ## Change inventory
 
-- Files changed: `.env.example`, `README.md`, `Taskfile.yml`, `infra/compose/compose.yaml`, `infra/compose/garage.toml`, `scripts/infra/infra.mjs`, `scripts/infra/infra.test.mjs`, and this report.
-- Orchestrator-only bookkeeping: `.ai/tasks/AR-003-ci-and-verification.md` is reviewed as `status: merged` from PR #4; it is not modified by AR-004 and no task status is changed here. Its inherited merged record explains why the existing `task verify` target is available to this task.
+- Files changed: `.ai/tasks/AR-003-ci-and-verification.md` (orchestrator-only lifecycle bookkeeping), `.ai/tasks/AR-004-local-infrastructure.md`, `.env.example`, `README.md`, `Taskfile.yml`, `infra/compose/compose.yaml`, `infra/compose/garage.toml`, `infra/compose/smoke-payload.txt`, `scripts/infra/infra.mjs`, `scripts/infra/infra.test.mjs`, and this report.
+- Orchestrator-only bookkeeping: `.ai/tasks/AR-003-ci-and-verification.md` changes `status: review` to `status: merged` after its PR #4 merge commit `fd2d7b5`; AR-004's activation commit records this dependency transition. The AR-004 task status is orchestrator-managed and set to `review` for independent review.
 - Schema/API changes: none.
 - Generated artifacts: none.
 
 ## Git state
 
 - Branch: `task/AR-004-local-infrastructure`
-- Commit SHA: `f6565876e7edb503e14f7dce170ee93c02653a71` (async cleanup implementation; report update follows in this handoff)
-- Remote branch: `origin/task/AR-004-local-infrastructure`, implementation SHA matches remote before report commit
-- Worktree: clean after the report commit
+- Implementation commit SHA: `f6565876e7edb503e14f7dce170ee93c02653a71`
+- Report/status handoff commit SHA: `ecd2efb1ccae0ae3135514cc97c452c4373ad12a`
+- Remote branch at worker handoff: `origin/task/AR-004-local-infrastructure`, SHA matches `ecd2efb1ccae0ae3135514cc97c452c4373ad12a`
+- Worktree: clean at worker handoff
 
 ## Assumptions and risks
 
