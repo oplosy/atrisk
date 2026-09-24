@@ -6,7 +6,7 @@
 - Packet status at start: `active` (review follow-up)
 - Referenced ADRs: `ADR-004`, `ADR-005`, `ADR-006`, `ADR-007`, `ADR-010`
 - Owned paths: `db/migrations/`, `db/queries/core/`, `internal/platform/database/`, `internal/domain/marketdata/`
-- Shared paths changed and justification: `Taskfile.yml` adds the sqlc generator invocation and the packet-required migration/Go integration targets; `test/integration/` contains the CoreDatabase acceptance fixtures.
+- Shared paths changed and justification: `Taskfile.yml` replaces the foundation scope placeholder with the packet-owned CoreDatabase integration runner and sets fail-closed test-DSN enforcement; `test/integration/` contains the CoreDatabase acceptance fixtures.
 
 ## Result
 
@@ -17,9 +17,9 @@ verification used only the explicitly created `atrisk_test` database on the
 declared loopback PostgreSQL port; the running `atrisk` development database was
 not migrated or reset. Docker settings and services were not changed.
 
-Handoff remains `needs-review` only because the repository-wide Windows
-generated-file/Node web gates fail on pre-existing environment/tooling state;
-there is no AR-101 runtime failure.
+Handoff remains `needs-review` only because the repository-wide generated-file
+gate reports pre-existing Windows contract-generator drift; all AR-101 runtime
+checks and the remaining verify stages pass.
 
 ## Acceptance evidence
 
@@ -48,13 +48,12 @@ there is no AR-101 runtime failure.
 | `go test ./test/integration -run TestTestDatabaseDSNValidation -count=1` | pass; missing, substring-only, remote-host, missing-port, missing-user, query override, duplicate, service, and unsafe SSL DSNs are rejected without opening a connection; explicit URI fields remain isolated under conflicting PostgreSQL environment defaults; `database.Migrate` rejects them at its entrypoint too. |
 | `go test -race ./test/integration` | pass against isolated `atrisk_test`; concurrent raw/observation/price/FX idempotency, metadata immutability, source/dataset FK, exact as-of values, and default planner assertions passed. |
 | `go test ./test/integration -run TestCoreDatabasePreviousVersionUpgrade -count=1` with required isolated DSN | pass; Goose applied v1 and production `database.MigrateInSchema` applied v2 in a unique schema, while the public `atrisk_test` schema remained separate. |
-| `go run github.com/go-task/task/v3/cmd/task@v3.44.1 migrate-test` without DSN | fail closed as required: `ATLASRISK_TEST_DATABASE_URL is required`. |
-| `go run github.com/go-task/task/v3/cmd/task@v3.44.1 test-go-integration TEST=CoreDatabase` without DSN | fail closed as required: selected integration tests reject the missing DSN. |
-| `go run github.com/go-task/task/v3/cmd/task@v3.44.1 migrate-test` with isolated DSN | pass against `atrisk_test`; migration version 2 and all eight core tables verified, repeated migration is a no-op. |
+| `go test ./test/integration -run 'TestCoreDatabase' -count=1` with `ATLASRISK_REQUIRE_TEST_DATABASE=1` and no DSN | fail closed as required: all selected tests report `test database URL is required`. |
+| `go run github.com/go-task/task/v3/cmd/task@v3.44.1 migrate-test` with isolated DSN | pass against `atrisk_test`; migration version 2 and all eight core tables verified, repeated migration is a no-op. The isolated database was removed after tests with zero active sessions. |
 | `go run github.com/go-task/task/v3/cmd/task@v3.44.1 test-go-integration TEST=CoreDatabase` with isolated DSN | pass against `atrisk_test`; revision, metadata, composite-FK, exact numeric, immutability, concurrency, as-of, and all price/FX index-plan assertions passed. |
-| `go run github.com/go-task/task/v3/cmd/task@v3.44.1 check-generated` | the existing AR-005 contract generator leaves the Windows checkout’s tracked generated files marked dirty despite identical content; those unrelated files were restored. sqlc regeneration itself is clean. |
-| `go run github.com/go-task/task/v3/cmd/task@v3.44.1 verify` | blocked by the pre-existing web-toolchain environment: `npm run format:check` cannot find `node_modules/.bin/prettier.cmd`; Go and Python format checks passed before that step. |
-| `psql ... -d atrisk ... to_regclass('public.goose_db_version')` | pass; returned `f`, confirming the running dev database was not migrated. Temporary `atrisk_test` was dropped after runtime acceptance. |
+| `go run github.com/go-task/task/v3/cmd/task@v3.44.1 check-generated` | fails at the existing AR-005 contract generator: exactly four tracked contract outputs are rewritten on this Windows checkout; only those four outputs were restored. sqlc regeneration and all preceding gates are clean. |
+| `go run github.com/go-task/task/v3/cmd/task@v3.44.1 verify` with isolated DSN | format, lint, typecheck, unit, contract, AR-101 integration, and build stages pass; final `check-generated` fails only on the same four AR-005 contract outputs. No Docker or service lifecycle command ran. |
+| `psql ... -d atrisk ... to_regclass('public.goose_db_version')` | pass; returned `f`, confirming the running dev database was not migrated. The explicitly isolated `atrisk_test` database was removed after runtime acceptance with no active sessions. |
 | `git diff --check` | pass. |
 
 ## Change inventory
@@ -70,7 +69,7 @@ there is no AR-101 runtime failure.
 - Remote branch: `origin/task/AR-101-core-database-model` verified at review SHA `bf59534a3a3a58d63173820428efe4911f1d3198`; subsequent report-only pushes advanced the branch metadata through snapshot `b5ee0bb4c1ccd94f2ae737597c9e3e53bc8a82b7`.
 - Report snapshot SHA: `b5ee0bb4c1ccd94f2ae737597c9e3e53bc8a82b7`
 - Live `ls-remote` was not independently verified because the proxy/remote endpoint remains unavailable.
-- Worktree: clean at the report snapshot
+- Worktree: clean after restoring the four verification-generated contract outputs; report snapshot is recorded separately above.
 
 ## Assumptions and risks
 
@@ -78,4 +77,4 @@ there is no AR-101 runtime failure.
 - The required Taskfile targets set `ATLASRISK_REQUIRE_TEST_DATABASE=1`, so missing or unsafe DSNs fail rather than silently skipping.
 - `00002_core_database_hardening.sql` is forward-only and preserves the already-created `00001` migration for previous-version upgrades.
 - The repository-wide generated-file gate has a pre-existing Windows line-ending/index-stat incompatibility in the AR-005 contract generator; CI/Linux should be used as the authoritative cross-platform gate. No AR-005 generated output is included in this task.
-- The aggregate verify gate also needs the repository’s npm dependencies installed; this worker did not alter or install web tooling.
+- The aggregate verify gate was run with repository npm dependencies present; its only failure is the pre-existing four-file AR-005 contract-generator drift described above.
