@@ -3,6 +3,7 @@ package integration
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,7 +14,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/oplosy/atrisk/internal/platform/database"
+	"github.com/pressly/goose/v3"
 )
 
 const testDatabaseEnv = "ATLASRISK_TEST_DATABASE_URL"
@@ -176,6 +179,132 @@ func TestCoreDatabaseMigrations(t *testing.T) {
 	// A second forward migration must be a no-op, proving the version table and
 	// migration are safe to run from a previously migrated test database.
 	migrateTestDatabase(t)
+}
+
+func TestCoreDatabasePreviousVersionUpgrade(t *testing.T) {
+	dsn := isolatedTestDSN(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	schemaName := fmt.Sprintf("ar101_upgrade_%d", time.Now().UnixNano())
+
+	setupPool, err := database.OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("open isolated database for upgrade schema: %v", err)
+	}
+	if _, err := setupPool.Exec(ctx, "CREATE SCHEMA "+schemaName); err != nil {
+		setupPool.Close()
+		t.Fatalf("create isolated upgrade schema: %v", err)
+	}
+	setupPool.Close()
+
+	t.Cleanup(func() {
+		cleanupPool, cleanupErr := database.OpenPool(context.Background(), dsn)
+		if cleanupErr != nil {
+			t.Errorf("open isolated database for upgrade-schema cleanup: %v", cleanupErr)
+			return
+		}
+		defer cleanupPool.Close()
+		if _, cleanupErr := cleanupPool.Exec(context.Background(), "DROP SCHEMA IF EXISTS "+schemaName+" CASCADE"); cleanupErr != nil {
+			t.Errorf("drop isolated upgrade schema: %v", cleanupErr)
+		}
+	})
+
+	versionDB, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open SQL migration connection: %v", err)
+	}
+	versionDB.SetMaxOpenConns(1)
+	versionDB.SetMaxIdleConns(1)
+	if err := versionDB.PingContext(ctx); err != nil {
+		versionDB.Close()
+		t.Fatalf("ping SQL migration connection: %v", err)
+	}
+	if _, err := versionDB.ExecContext(ctx, "SET search_path TO "+schemaName+", public"); err != nil {
+		versionDB.Close()
+		t.Fatalf("set v1 migration schema: %v", err)
+	}
+	var currentSchema, currentSearchPath string
+	if err := versionDB.QueryRowContext(ctx, "SELECT current_schema(), current_setting('search_path')").Scan(&currentSchema, &currentSearchPath); err != nil {
+		versionDB.Close()
+		t.Fatalf("inspect v1 migration schema: %v", err)
+	}
+	if currentSchema != schemaName {
+		versionDB.Close()
+		t.Fatalf("v1 migration connection did not select isolated schema: current=%q search_path=%q", currentSchema, currentSearchPath)
+	}
+	if err := goose.SetDialect("postgres"); err != nil {
+		versionDB.Close()
+		t.Fatalf("set Goose dialect: %v", err)
+	}
+	goose.SetTableName(schemaName + "." + goose.DefaultTablename)
+	defer goose.SetTableName(goose.DefaultTablename)
+	if err := goose.UpToContext(ctx, versionDB, migrationDir(t), 1); err != nil {
+		versionDB.Close()
+		t.Fatalf("apply v1 migration in isolated schema: %v", err)
+	}
+	var version int64
+	if err := versionDB.QueryRowContext(ctx, "SELECT max(version_id) FROM "+schemaName+"."+goose.DefaultTablename).Scan(&version); err != nil {
+		versionDB.Close()
+		t.Fatalf("inspect v1 schema migration version: %v", err)
+	}
+	if version != 1 {
+		versionDB.Close()
+		t.Fatalf("expected isolated schema at migration version 1, got %d", version)
+	}
+	versionDB.Close()
+
+	var hardeningConstraints int
+	checkPool, err := database.OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("open isolated database before upgrade: %v", err)
+	}
+	if err := checkPool.QueryRow(ctx, `
+		SELECT count(*)::int
+		FROM pg_constraint c
+		JOIN pg_class r ON r.oid = c.conrelid
+		JOIN pg_namespace n ON n.oid = r.relnamespace
+		WHERE n.nspname = $1 AND c.conname = 'ingestion_runs_source_dataset_fk'`, schemaName).Scan(&hardeningConstraints); err != nil {
+		checkPool.Close()
+		t.Fatalf("inspect pre-upgrade hardening constraint: %v", err)
+	}
+	checkPool.Close()
+	if hardeningConstraints != 0 {
+		t.Fatalf("v1 schema unexpectedly contains v2 hardening constraint: %d", hardeningConstraints)
+	}
+
+	if err := database.MigrateInSchema(ctx, dsn, migrationDir(t), schemaName); err != nil {
+		t.Fatalf("upgrade isolated v1 schema through production migration path: %v", err)
+	}
+	upgradedDB, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open isolated database after upgrade: %v", err)
+	}
+	upgradedDB.SetMaxOpenConns(1)
+	upgradedDB.SetMaxIdleConns(1)
+	defer upgradedDB.Close()
+	if err := upgradedDB.PingContext(ctx); err != nil {
+		t.Fatalf("ping isolated database after upgrade: %v", err)
+	}
+	if _, err := upgradedDB.ExecContext(ctx, "SET search_path TO "+schemaName+", public"); err != nil {
+		t.Fatalf("set upgraded migration schema: %v", err)
+	}
+	if err := upgradedDB.QueryRowContext(ctx, "SELECT max(version_id) FROM "+schemaName+"."+goose.DefaultTablename).Scan(&version); err != nil {
+		t.Fatalf("inspect upgraded schema migration version: %v", err)
+	}
+	if version != 2 {
+		t.Fatalf("expected isolated schema at migration version 2, got %d", version)
+	}
+	if err := upgradedDB.QueryRowContext(ctx, `
+		SELECT count(*)::int
+		FROM pg_constraint c
+		JOIN pg_class r ON r.oid = c.conrelid
+		JOIN pg_namespace n ON n.oid = r.relnamespace
+		WHERE n.nspname = $1 AND c.conname = 'ingestion_runs_source_dataset_fk'`, schemaName).Scan(&hardeningConstraints); err != nil {
+		t.Fatalf("inspect upgraded hardening constraint: %v", err)
+	}
+	if hardeningConstraints != 1 {
+		t.Fatalf("v2 upgrade did not add source/dataset hardening constraint: %d", hardeningConstraints)
+	}
 }
 
 func TestCoreDatabase(t *testing.T) {
@@ -553,8 +682,19 @@ func TestCoreDatabase(t *testing.T) {
 		SELECT $1, TIMESTAMPTZ '2026-01-01T00:00:00Z' + (g * INTERVAL '1 minute'), g::numeric,
 			TIMESTAMPTZ '2100-01-01T00:00:00Z' + (g * INTERVAL '1 day'),
 			TIMESTAMPTZ '2999-01-01T00:00:00Z', 'source_published_at', $2
-		FROM generate_series(1, 1000) AS g`, seriesID, rawID); err != nil {
+		FROM generate_series(1, 100) AS g`, seriesID, rawID); err != nil {
 		t.Fatalf("seed observation planner rows: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO observation_revisions (
+			series_id, observation_time, value, source_known_at, system_known_at,
+			knowledge_time_basis, raw_object_id
+		)
+		SELECT $1, TIMESTAMPTZ '2000-01-01T00:00:00Z' + (g * INTERVAL '1 day'), g::numeric,
+			TIMESTAMPTZ '2100-01-01T00:00:00Z' + (g * INTERVAL '1 day'),
+			TIMESTAMPTZ '2999-01-01T00:00:00Z', 'source_published_at', $2
+		FROM generate_series(1, 5000) AS g`, seriesID, rawID); err != nil {
+		t.Fatalf("seed observation planner background rows: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO price_revisions (
@@ -563,8 +703,18 @@ func TestCoreDatabase(t *testing.T) {
 		)
 		SELECT $1, 'TRY', TIMESTAMPTZ '2026-01-01T00:00:00Z' + (g * INTERVAL '1 minute'), g::numeric,
 			TIMESTAMPTZ '2999-01-01T00:00:00Z', 'first_observed_by_system', $2
-		FROM generate_series(1, 1000) AS g`, validUUID(t, instrument.ID), rawID); err != nil {
+		FROM generate_series(1, 100) AS g`, validUUID(t, instrument.ID), rawID); err != nil {
 		t.Fatalf("seed price planner rows: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO price_revisions (
+			instrument_id, quote_currency, observation_time, price, system_known_at,
+			knowledge_time_basis, raw_object_id
+		)
+		SELECT $1, 'TRY', TIMESTAMPTZ '2000-01-01T00:00:00Z' + (g * INTERVAL '1 day'), g::numeric,
+			TIMESTAMPTZ '2999-01-01T00:00:00Z', 'first_observed_by_system', $2
+		FROM generate_series(1, 5000) AS g`, validUUID(t, instrument.ID), rawID); err != nil {
+		t.Fatalf("seed price planner background rows: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO fx_quote_revisions (
@@ -573,8 +723,18 @@ func TestCoreDatabase(t *testing.T) {
 		)
 		SELECT $1, $2, TIMESTAMPTZ '2026-01-01T00:00:00Z' + (g * INTERVAL '1 minute'), g::numeric,
 			TIMESTAMPTZ '2999-01-01T00:00:00Z', 'first_observed_by_system', $3
-		FROM generate_series(1, 1000) AS g`, fxBaseCurrency, fxQuoteCurrency, rawID); err != nil {
+		FROM generate_series(1, 100) AS g`, fxBaseCurrency, fxQuoteCurrency, rawID); err != nil {
 		t.Fatalf("seed FX planner rows: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO fx_quote_revisions (
+			base_currency, quote_currency, observation_time, rate, system_known_at,
+			knowledge_time_basis, raw_object_id
+		)
+		SELECT $1, $2, TIMESTAMPTZ '2000-01-01T00:00:00Z' + (g * INTERVAL '1 day'), g::numeric,
+			TIMESTAMPTZ '2999-01-01T00:00:00Z', 'first_observed_by_system', $3
+		FROM generate_series(1, 5000) AS g`, fxBaseCurrency, fxQuoteCurrency, rawID); err != nil {
+		t.Fatalf("seed FX planner background rows: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `ANALYZE observation_revisions, price_revisions, fx_quote_revisions`); err != nil {
 		t.Fatalf("analyze revision planner fixtures: %v", err)
@@ -599,7 +759,7 @@ func TestCoreDatabase(t *testing.T) {
 		`EXPLAIN (FORMAT TEXT) SELECT id FROM observation_revisions WHERE series_id = $1 AND source_known_at IS NOT NULL AND source_known_at <= $2`, seriesID, timestamp("2026-01-03T00:00:00Z"))
 	instrumentID := validUUID(t, instrument.ID)
 	assertPlanIndex(t, conn, "price_revisions_instrument_time_idx",
-		`EXPLAIN (FORMAT TEXT) SELECT id FROM price_revisions WHERE instrument_id = $1 AND quote_currency = $2 AND observation_time >= $3 AND observation_time < $4 ORDER BY observation_time`, instrumentID, "TRY", timestamp("2025-12-31T00:00:00Z"), timestamp("2026-01-02T00:00:00Z"))
+		`EXPLAIN (FORMAT TEXT) SELECT id FROM price_revisions WHERE instrument_id = $1 AND quote_currency = $2 AND observation_time >= $3 AND observation_time < $4 ORDER BY observation_time, system_known_at`, instrumentID, "TRY", timestamp("2025-12-31T00:00:00Z"), timestamp("2026-01-02T00:00:00Z"))
 	assertPlanIndex(t, conn, "price_revisions_instrument_system_asof_idx",
 		`EXPLAIN (FORMAT TEXT) SELECT id FROM price_revisions WHERE instrument_id = $1 AND system_known_at <= $2`, instrumentID, timestamp("2026-01-03T00:00:00Z"))
 	assertPlanIndex(t, conn, "price_revisions_instrument_source_asof_idx",
