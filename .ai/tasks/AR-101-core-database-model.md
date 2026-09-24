@@ -1,12 +1,13 @@
 ---
 id: AR-101
 title: Implement the core point-in-time database model
-status: draft
+status: review
 phase: 1
 depends_on: [AR-004, AR-005]
 branch: task/AR-101-core-database-model
+base_sha: dff9950f4b24e7d2c942599c1cc56e8122aea636
 owned_paths: [db/migrations/, db/queries/core/, internal/platform/database/, internal/domain/marketdata/]
-shared_paths: [Taskfile.yml, test/integration/]
+shared_paths: [Taskfile.yml, test/integration/, .github/workflows/ci.yml]
 adrs: [ADR-004, ADR-005, ADR-006, ADR-007, ADR-010]
 ---
 
@@ -31,11 +32,11 @@ runs, observation revisions, price revisions, and FX revisions with exact types.
 
 ## Acceptance criteria
 
-- [ ] Changed values insert new revisions; historical rows cannot be updated/deleted.
-- [ ] Identical normalized/raw identities are idempotent under concurrent insert.
-- [ ] Exact values round-trip without precision loss.
-- [ ] Source and system knowledge timestamps may differ or source time may be null.
-- [ ] Query plans use intended indexes for series/time/as-of fixture queries.
+- [x] Changed values insert new revisions; historical rows cannot be updated/deleted.
+- [x] Identical normalized/raw identities are idempotent under concurrent insert.
+- [x] Exact values round-trip without precision loss.
+- [x] Source and system knowledge timestamps may differ or source time may be null.
+- [x] Query plans use intended indexes for series/time/as-of fixture queries.
 
 ## Required verification
 
