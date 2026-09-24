@@ -48,8 +48,8 @@
 ## Git state
 
 - Branch: `task/AR-104-tcmb-adapter`
-- Commit SHA: `c6af80d0314a36f021328f6d6848fed2286d9d84` (includes `619bb80`, `78c574f`, `ee60abc`, `8b22cc4`, `8f32506`, and `70c6d75`).
-- Remote branch: `origin/task/AR-104-tcmb-adapter` synchronized at `c6af80d0314a36f021328f6d6848fed2286d9d84`.
+- Implementation/code tip: `c6af80d0314a36f021328f6d6848fed2286d9d84`.
+- Report-only handoff commits: `8b22cc4`, `8f32506`, and `d6d47f1` follow the implementation tip; the remote branch was synchronized and clean at handoff.
 - Worktree: clean.
 
 ## Assumptions and risks
