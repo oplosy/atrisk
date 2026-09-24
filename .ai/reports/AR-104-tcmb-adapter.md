@@ -49,7 +49,7 @@
 
 - Branch: `task/AR-104-tcmb-adapter`
 - Commit SHA: `619bb80`, `78c574f`, `ee60abc`.
-- Remote branch: `origin/task/AR-104-tcmb-adapter` will be updated with the three task commits.
+- Remote branch: `origin/task/AR-104-tcmb-adapter` at `8b22cc4` (push succeeded; a subsequent `git ls-remote` probe was blocked by the local proxy).
 - Worktree: clean after the report handoff commit and push.
 
 ## Assumptions and risks
