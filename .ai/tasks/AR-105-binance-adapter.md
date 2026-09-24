@@ -7,8 +7,8 @@ depends_on: [AR-102]
 branch: task/AR-105-binance-adapter
 base_sha: aca562e2777f078277535db74e90934f51091963
 owned_paths: [internal/sources/binance/, test/fixtures/binance/]
-shared_paths: [apps/collector/, db/queries/, contracts/, test/integration/, internal/ingestion/]
-adrs: [ADR-002, ADR-005, ADR-006, ADR-011]
+shared_paths: [apps/collector/, db/migrations/, db/queries/, contracts/, test/integration/, internal/ingestion/]
+adrs: [ADR-002, ADR-005, ADR-006, ADR-011, ADR-024]
 ---
 
 # AR-105: Add Binance Spot public market data
@@ -35,6 +35,10 @@ the market-data-only endpoint with deterministic time and rate-limit handling.
   exchange-info response. Missing requested symbols and explicit upstream
   status changes must produce observable status/quality evidence, not synthetic
   instruments or prices.
+- Preserve provider asset tickers as exact unit codes. The authorized migration
+  widens `instruments.native_currency` and `price_revisions.quote_currency` to
+  uppercase text codes; `fx_quote_revisions` remains ISO 4217 fiat-only. Never
+  equate an asset such as USDT with USD or invent a conversion rate.
 - Shared-path rationale: the common HTTP fetcher currently retries HTTP 429 and
   5xx but not Binance HTTP 418. Authorize `internal/ingestion/` only to add
   bounded HTTP 418 retry handling using the upstream `Retry-After` value, with
@@ -55,12 +59,15 @@ the market-data-only endpoint with deterministic time and rate-limit handling.
 - [ ] Unknown source publication time remains null with an explicit first-observed system basis.
 - [ ] HTTP 429/418 responses respect `Retry-After`; if its duration exceeds configured wait bounds, fail without retrying early. Rate limits never advance a checkpoint before data is durably accepted.
 - [ ] Duplicate pages are idempotent and changed historical candles create append-only price revisions retaining raw provenance.
+- [ ] `BTCUSDT` metadata and prices persist `USDT` exactly as the denomination/quote-unit code; migration preserves existing values and fresh-database migration tests pass.
 
 ## Required verification
 
 ```text
+task migrate-test
 task test-go TEST=Binance
 task test-go-integration TEST=BinanceMarketData
+task test-contract
 rg -n "TRADE|USER_DATA|apiKey|secret" internal/sources/binance
 ```
 
