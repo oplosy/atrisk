@@ -1,7 +1,7 @@
 ---
 id: AR-103
 title: Add FRED and ALFRED vintage ingestion
-status: ready
+status: review
 phase: 1
 depends_on: [AR-102]
 branch: task/AR-103-fred-alfred-adapter

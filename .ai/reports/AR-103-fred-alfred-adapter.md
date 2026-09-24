@@ -10,7 +10,7 @@
 
 ## Result
 
-`complete`
+`needs-review`
 
 ## Acceptance evidence
 
@@ -53,4 +53,5 @@
 ## Assumptions and risks
 
 - Local integration and full verify require the explicitly isolated PostgreSQL DSN; hosted CI should exercise the same test against its ephemeral PostgreSQL service.
+- Independent review, hosted integration verification, PR merge, and task lifecycle finalization remain outstanding; this report does not claim acceptance completion.
 - The FRED `realtime_start` date is recorded as `source_known_at` at UTC midnight with `source_published_at`; the raw realtime interval remains in quality metadata and the normalized record.
