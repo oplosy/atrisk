@@ -10,7 +10,7 @@
 
 ## Result
 
-`needs-review`
+`complete`
 
 ## Acceptance evidence
 
@@ -25,16 +25,16 @@
 ## Stop-condition check
 
 - Decision or scope conflict: none after amended packet commit `b7ef9d8` authorized `internal/ingestion/` for EVDS credential forwarding.
-- Missing dependency, unsafe migration, or unavailable verification: isolated PostgreSQL DSN is not configured; the required integration command fails closed. `task verify` is also blocked at existing web format setup because `node_modules/.bin/prettier.cmd` is unavailable. No Docker or local service was changed.
+- Local verification limitations: the isolated PostgreSQL DSN and local Prettier dependency were unavailable, so local integration failed closed and local `task verify` stopped at `npm run format:check`. Both gates passed on the GitHub-hosted runner with isolated services and installed dependencies. No local Docker or service was changed.
 
 ## Verification
 
 | Command | Result |
 |---|---|
 | `task test-go TEST=TCMB` | pass; TCMB unit tests and repository Go packages passed. |
-| `task test-go-integration TEST=TCMBIngestion` | fail-closed as required; `ATLASRISK_TEST_DATABASE_URL` is not configured. The test includes mixed-series rollback, mandatory series-ID validation, missing FX quality evidence, raw SHA provenance, and numeric-only quote assertions when PostgreSQL is available. |
+| `task test-go-integration TEST=TCMBIngestion` | pass in hosted Verify run `36049966958` with isolated PostgreSQL and Garage services. The test covers mixed-series rollback, mandatory series-ID validation, missing FX quality evidence, raw SHA provenance, and numeric-only quote assertions. Locally it failed closed because `ATLASRISK_TEST_DATABASE_URL` is not configured. |
 | `task test-contract` | pass; generation completed and all 9 contract tests passed; generated drift was restored. |
-| `task verify` | blocked at `npm run format:check`; existing `node_modules/.bin/prettier.cmd` is unavailable. Go formatting passed and Python formatting completed before that gate. |
+| `task verify` | pass in hosted Verify run `36049966958`; locally blocked at `npm run format:check` because `node_modules/.bin/prettier.cmd` is unavailable. |
 | `go test ./apps/... ./internal/... -count=1` | pass. |
 | `go vet ./apps/... ./internal/...` | pass. |
 | `git diff --check` | pass. |
@@ -47,12 +47,12 @@
 
 ## Git state
 
-- Branch: `task/AR-104-tcmb-adapter`
-- Implementation/code tip: `c6af80d0314a36f021328f6d6848fed2286d9d84`.
-- Report-only handoff commits: `8b22cc4`, `8f32506`, and `d6d47f1` follow the implementation tip; the remote branch was synchronized and clean at handoff.
-- Worktree: clean.
+- Feature branch: `task/AR-104-tcmb-adapter`, clean at merge.
+- Final feature branch tip: `c16d23ef427ca6286c8ee13f17e43cbaa8dd2030`.
+- Pull request: [#16](https://github.com/oplosy/atrisk/pull/16), merged 2026-09-24; merge commit `0e0bf03708886adec88f2b4a7dc444caaabd7d6c`.
+- Hosted CI: Verify run `36049966958` passed; `origin/main` and the clean primary checkout both point to `0e0bf03708886adec88f2b4a7dc444caaabd7d6c` before this status-finalization PR.
+- No direct push to `main`; task and status changes are delivered via PRs.
 
 ## Assumptions and risks
 
-- EVDS3 documentation portal currently redirects without exposing a stable service contract; implementation is limited to the official EVDS2 service contract behind configurable `BaseURL`, as authorized by the packet.
-- Local PostgreSQL and the complete `task verify` gate require environment/dependency setup outside this worker; hosted CI should run the integration test with an isolated DSN and install web dependencies.
+- EVDS3 documentation portal currently redirects without exposing a stable service contract; the adapter uses the documented EVDS2 service contract behind configurable `BaseURL`, as authorized by the packet.

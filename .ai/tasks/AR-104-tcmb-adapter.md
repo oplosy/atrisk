@@ -1,7 +1,7 @@
 ---
 id: AR-104
 title: Add TCMB EVDS ingestion
-status: review
+status: merged
 phase: 1
 depends_on: [AR-102]
 branch: task/AR-104-tcmb-adapter
@@ -37,11 +37,11 @@ honest publication-time precision, and visible delayed/missing periods.
 
 ## Acceptance criteria
 
-- [ ] Unknown source publication time remains null with an explicit basis; retrieval time is never substituted for publication time.
-- [ ] Decimal separators and locale/date rules normalize deterministically.
-- [ ] Missing/late expected periods create quality evidence, not zero values.
-- [ ] Re-fetched changed values create append-only revisions retaining raw provenance; unchanged values are idempotent.
-- [ ] Logs, raw metadata, and redirected requests contain no EVDS key.
+- [x] Unknown source publication time remains null with an explicit basis; retrieval time is never substituted for publication time.
+- [x] Decimal separators and locale/date rules normalize deterministically.
+- [x] Missing/late expected periods create quality evidence, not zero values.
+- [x] Re-fetched changed values create append-only revisions retaining raw provenance; unchanged values are idempotent.
+- [x] Logs, raw metadata, and redirected requests contain no EVDS key.
 
 ## Required verification
 
