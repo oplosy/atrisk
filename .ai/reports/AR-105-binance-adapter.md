@@ -44,7 +44,7 @@
 
 ## Change inventory
 
-- Files changed: `db/migrations/00003_asset_unit_codes.sql`, `internal/sources/binance/client.go`, `internal/sources/binance/adapter.go`, `internal/sources/binance/store.go`, `internal/sources/binance/adapter_test.go`, `internal/ingestion/fetcher.go`, `internal/ingestion/fetcher_test.go`, `test/fixtures/binance/exchange-info.json`, `test/fixtures/binance/daily-klines.json`, `test/integration/binance_market_data_test.go`, `test/integration/core_database_test.go`, and this report.
+- Files changed: `db/migrations/00003_asset_unit_codes.sql`, `internal/sources/binance/client.go`, `internal/sources/binance/adapter.go`, `internal/sources/binance/store.go`, `internal/sources/binance/adapter_test.go`, `internal/ingestion/fetcher.go`, `internal/ingestion/fetcher_test.go`, `internal/ingestion/pipeline.go`, `test/fixtures/binance/exchange-info.json`, `test/fixtures/binance/daily-klines.json`, `test/integration/binance_market_data_test.go`, `test/integration/core_database_test.go`, and this report.
 - Schema/API changes: forward migration widens `instruments.native_currency` and `price_revisions.quote_currency` to normalized uppercase `TEXT`; existing values are preserved, and `fx_quote_revisions` remains unchanged.
 - Generated artifacts: none changed.
 
@@ -52,6 +52,7 @@
 
 - Branch: `task/AR-105-binance-adapter`
 - Implementation/code tip: `4f6af16941740ab9b20669ff6a4e9294787e7ed1`; a report-only handoff commit follows this implementation tip.
+- Report-only handoff tip before this correction: `2889c7e2ad278c35f668edb3d8e679fe9c71a25d`; the current report-only correction commit follows.
 - Remote branch: `origin/task/AR-105-binance-adapter` is synchronized after the report-only handoff commit.
 - Worktree: clean after the report-only handoff commit.
 
