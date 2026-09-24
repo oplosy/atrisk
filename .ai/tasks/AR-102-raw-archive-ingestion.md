@@ -1,12 +1,13 @@
 ---
 id: AR-102
 title: Build raw archive and ingestion framework
-status: draft
+status: ready
 phase: 1
 depends_on: [AR-101]
 branch: task/AR-102-raw-archive-ingestion
+base_sha: 76b0877574de6c609433eb9a893fcb9817ca07ef
 owned_paths: [apps/collector/, internal/archive/, internal/ingestion/, test/fixtures/http/]
-shared_paths: [db/migrations/, db/queries/, Taskfile.yml]
+shared_paths: [db/migrations/, db/queries/, Taskfile.yml, .github/workflows/ci.yml]
 adrs: [ADR-005, ADR-006, ADR-007, ADR-017]
 ---
 
