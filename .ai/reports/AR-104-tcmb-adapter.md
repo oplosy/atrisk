@@ -48,7 +48,7 @@
 ## Git state
 
 - Feature branch: `task/AR-104-tcmb-adapter`, clean at merge.
-- Final feature branch tip: `c16d23ef427ca6286c8ee13f17e43cbaa8dd2030`.
+- Final feature PR branch tip: `19410229c7de68b0ce820f77ea47ffb604e36331` (includes the orchestrator's `review` lifecycle commit after implementation/report tip `c16d23ef427ca6286c8ee13f17e43cbaa8dd2030`).
 - Pull request: [#16](https://github.com/oplosy/atrisk/pull/16), merged 2026-09-24; merge commit `0e0bf03708886adec88f2b4a7dc444caaabd7d6c`.
 - Hosted CI: Verify run `36049966958` passed; `origin/main` and the clean primary checkout both point to `0e0bf03708886adec88f2b4a7dc444caaabd7d6c` before this status-finalization PR.
 - No direct push to `main`; task and status changes are delivered via PRs.
