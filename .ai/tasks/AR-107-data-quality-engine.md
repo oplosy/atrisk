@@ -1,7 +1,7 @@
 ---
 id: AR-107
 title: Implement data-quality gates
-status: review
+status: merged
 phase: 1
 depends_on: [AR-101, AR-106]
 branch: task/AR-107-data-quality-engine
