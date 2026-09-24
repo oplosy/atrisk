@@ -11,7 +11,43 @@
       "description": "Local development server"
     }
   ],
-  "paths": {},
+  "paths": {
+    "/api/v1/series": {
+      "get": {
+        "operationId": "listSeries",
+        "parameters": [{ "$ref": "#/components/parameters/Limit" }, { "$ref": "#/components/parameters/Cursor" }],
+        "responses": { "200": { "description": "Stable series page", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SeriesPage" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" } }
+      }
+    },
+    "/api/v1/series/{series_id}": {
+      "get": {
+        "operationId": "getSeries",
+        "parameters": [{ "$ref": "#/components/parameters/SeriesId" }],
+        "responses": { "200": { "description": "Series metadata", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Series" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" }, "404": { "$ref": "#/components/responses/NotFound" } }
+      }
+    },
+    "/api/v1/series/{series_id}/observations": {
+      "get": {
+        "operationId": "listObservations",
+        "parameters": [{ "$ref": "#/components/parameters/SeriesId" }, { "$ref": "#/components/parameters/ObservationMode" }, { "$ref": "#/components/parameters/From" }, { "$ref": "#/components/parameters/To" }, { "$ref": "#/components/parameters/AsOf" }, { "$ref": "#/components/parameters/Limit" }, { "$ref": "#/components/parameters/Cursor" }],
+        "responses": { "200": { "description": "Point-in-time observation page", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ObservationPage" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" }, "404": { "$ref": "#/components/responses/NotFound" }, "409": { "$ref": "#/components/responses/SourceAsOfUnsupported" } }
+      }
+    },
+    "/api/v1/series/{series_id}/revisions": {
+      "get": {
+        "operationId": "listObservationRevisions",
+        "parameters": [{ "$ref": "#/components/parameters/SeriesId" }, { "$ref": "#/components/parameters/From" }, { "$ref": "#/components/parameters/To" }, { "$ref": "#/components/parameters/Limit" }, { "$ref": "#/components/parameters/Cursor" }],
+        "responses": { "200": { "description": "Append-only revision page", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ObservationPage" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" }, "404": { "$ref": "#/components/responses/NotFound" } }
+      }
+    },
+    "/api/v1/timeline": {
+      "get": {
+        "operationId": "listCrossSourceTimeline",
+        "parameters": [{ "name": "series_id", "in": "query", "required": true, "schema": { "type": "string", "minLength": 1 } }, { "$ref": "#/components/parameters/Mode" }, { "$ref": "#/components/parameters/From" }, { "$ref": "#/components/parameters/To" }, { "$ref": "#/components/parameters/AsOf" }, { "$ref": "#/components/parameters/Limit" }, { "$ref": "#/components/parameters/Cursor" }],
+        "responses": { "200": { "description": "Cross-source timeline page", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ObservationPage" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" }, "404": { "$ref": "#/components/responses/NotFound" }, "409": { "$ref": "#/components/responses/SourceAsOfUnsupported" } }
+      }
+    }
+  },
   "components": {
     "schemas": {
       "ErrorEnvelope": { "$ref": "../schemas/error-envelope.schema.json" },
@@ -24,9 +60,23 @@
           "next_cursor": { "type": "string", "minLength": 1 },
           "has_more": { "type": "boolean" }
         }
-      }
+      },
+      "Problem": { "type": "object", "required": ["code", "message", "request_id"], "properties": { "code": { "type": "string" }, "message": { "type": "string" }, "request_id": { "type": "string" }, "details": { "type": "object", "additionalProperties": true } } },
+      "Series": { "type": "object", "required": ["id", "source_code", "name", "unit", "frequency", "capabilities"], "properties": { "id": { "type": "string", "format": "uuid" }, "dataset_id": { "type": "string", "format": "uuid" }, "source_code": { "type": "string" }, "source_name": { "type": "string" }, "dataset_external_key": { "type": "string" }, "name": { "type": "string" }, "unit": { "type": "string" }, "frequency": { "type": "string" }, "seasonal_adjustment": { "type": "string" }, "source_timezone": { "type": "string" }, "freshness_policy": { "type": "object", "additionalProperties": true }, "capabilities": { "$ref": "#/components/schemas/TimelineCapabilities" } } },
+      "TimelineCapabilities": { "type": "object", "required": ["latest", "source_as_of", "system_as_of", "revisions"], "properties": { "latest": { "type": "boolean" }, "source_as_of": { "type": "boolean" }, "system_as_of": { "type": "boolean" }, "revisions": { "type": "boolean" } } },
+      "Observation": { "type": "object", "required": ["id", "series_id", "observation_time", "unit", "frequency", "data_source_code", "clocks", "quality", "raw_provenance_id", "raw_object_sha256"], "properties": { "id": { "type": "string", "format": "uuid" }, "series_id": { "type": "string", "format": "uuid" }, "observation_time": { "type": "string", "format": "date-time" }, "value": { "type": "string" }, "value_text": { "type": "string" }, "unit": { "type": "string" }, "frequency": { "type": "string" }, "data_source_code": { "type": "string" }, "clocks": { "type": "object", "additionalProperties": true }, "quality": { "type": "object", "additionalProperties": true }, "raw_provenance_id": { "type": "string", "format": "uuid" }, "raw_object_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } } },
+      "SeriesPage": { "type": "object", "required": ["items", "limit", "has_more"], "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/Series" } }, "limit": { "type": "integer" }, "next_cursor": { "type": "string" }, "has_more": { "type": "boolean" } } },
+      "ObservationPage": { "type": "object", "required": ["items", "limit", "has_more"], "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/Observation" } }, "limit": { "type": "integer" }, "next_cursor": { "type": "string" }, "has_more": { "type": "boolean" } } }
     },
     "parameters": {
+      "SeriesId": { "name": "series_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+      "ObservationMode": { "name": "mode", "in": "query", "required": false, "description": "Clock used for a per-series observation query.", "schema": { "type": "string", "enum": ["latest", "source-as-of", "system-as-of"], "default": "latest" } },
+      "Mode": { "name": "mode", "in": "query", "required": false, "description": "Clock used for the cross-source timeline; combined is an alias for latest across the selected series.", "schema": { "type": "string", "enum": ["latest", "source-as-of", "system-as-of", "combined"], "default": "latest" } },
+      "From": { "name": "from", "in": "query", "required": false, "schema": { "type": "string", "format": "date-time" } },
+      "To": { "name": "to", "in": "query", "required": false, "schema": { "type": "string", "format": "date-time" } },
+      "AsOf": { "name": "as_of", "in": "query", "required": false, "schema": { "type": "string", "format": "date-time" } },
+      "Limit": { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 } },
+      "Cursor": { "name": "cursor", "in": "query", "required": false, "schema": { "type": "string", "minLength": 1 } },
       "RequestId": {
         "name": "X-Request-ID", "in": "header", "required": false,
         "schema": { "type": "string", "minLength": 1, "maxLength": 128 },
@@ -37,6 +87,11 @@
         "schema": { "type": "string", "minLength": 1, "maxLength": 255 },
         "description": "Stable key for retry-safe mutating requests."
       }
+    },
+    "responses": {
+      "InvalidRequest": { "description": "Invalid series identifier, mode, limit, cursor, or time window", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Problem" } } } },
+      "NotFound": { "description": "Resource not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Problem" } } } },
+      "SourceAsOfUnsupported": { "description": "The source has no defensible source-vintage clock", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Problem" } } } }
     },
     "headers": {
       "RequestId": {

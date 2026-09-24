@@ -22,6 +22,7 @@ type Querier interface {
 	GetRawObjectBySHA256(ctx context.Context, contentSha256 string) (RawObject, error)
 	GetSeries(ctx context.Context, id pgtype.UUID) (Series, error)
 	GetSeriesBySourceCode(ctx context.Context, arg GetSeriesBySourceCodeParams) (Series, error)
+	GetTimelineSeries(ctx context.Context, id pgtype.UUID) (GetTimelineSeriesRow, error)
 	InsertDataSource(ctx context.Context, arg InsertDataSourceParams) (int64, error)
 	InsertDataset(ctx context.Context, arg InsertDatasetParams) (int64, error)
 	InsertFXQuoteRevision(ctx context.Context, arg InsertFXQuoteRevisionParams) (int64, error)
@@ -40,6 +41,14 @@ type Querier interface {
 	ListPricesSourceAsOf(ctx context.Context, arg ListPricesSourceAsOfParams) ([]PriceRevision, error)
 	ListPricesSystemAsOf(ctx context.Context, arg ListPricesSystemAsOfParams) ([]PriceRevision, error)
 	ListSeriesByDataset(ctx context.Context, datasetID pgtype.UUID) ([]Series, error)
+	ListTimelineObservationRevisions(ctx context.Context, arg ListTimelineObservationRevisionsParams) ([]ListTimelineObservationRevisionsRow, error)
+	ListTimelineObservationsCombinedLatest(ctx context.Context, arg ListTimelineObservationsCombinedLatestParams) ([]ListTimelineObservationsCombinedLatestRow, error)
+	ListTimelineObservationsCombinedSourceAsOf(ctx context.Context, arg ListTimelineObservationsCombinedSourceAsOfParams) ([]ListTimelineObservationsCombinedSourceAsOfRow, error)
+	ListTimelineObservationsCombinedSystemAsOf(ctx context.Context, arg ListTimelineObservationsCombinedSystemAsOfParams) ([]ListTimelineObservationsCombinedSystemAsOfRow, error)
+	ListTimelineObservationsLatest(ctx context.Context, arg ListTimelineObservationsLatestParams) ([]ListTimelineObservationsLatestRow, error)
+	ListTimelineObservationsSourceAsOf(ctx context.Context, arg ListTimelineObservationsSourceAsOfParams) ([]ListTimelineObservationsSourceAsOfRow, error)
+	ListTimelineObservationsSystemAsOf(ctx context.Context, arg ListTimelineObservationsSystemAsOfParams) ([]ListTimelineObservationsSystemAsOfRow, error)
+	ListTimelineSeries(ctx context.Context, arg ListTimelineSeriesParams) ([]ListTimelineSeriesRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

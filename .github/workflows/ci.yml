@@ -127,6 +127,9 @@ jobs:
       - name: Run raw archive integration
         run: task test-go-integration TEST=RawArchive
 
+      - name: Run point-in-time API integration
+        run: task test-go-integration TEST=PointInTimeAPI
+
       - name: Run verification gate
         run: task verify
 

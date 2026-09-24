@@ -2,7 +2,9 @@ version: "2"
 sql:
   - engine: postgresql
     schema: "../../../db/migrations"
-    queries: "."
+    queries:
+      - "."
+      - "../timeline"
     gen:
       go:
         package: database
