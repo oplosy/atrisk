@@ -186,6 +186,13 @@ func TestCoreDatabaseMigrations(t *testing.T) {
 	if fxUnitType != "character" {
 		t.Fatalf("FX quote currency was widened unexpectedly: %q", fxUnitType)
 	}
+	var latestPriceViewCount int
+	if err := pool.QueryRow(ctx, `SELECT count(*)::int FROM pg_views WHERE schemaname='public' AND viewname='latest_price_revisions'`).Scan(&latestPriceViewCount); err != nil {
+		t.Fatalf("inspect latest price view: %v", err)
+	}
+	if latestPriceViewCount != 1 {
+		t.Fatalf("latest price projection was not recreated after asset-unit migration: %d", latestPriceViewCount)
+	}
 	var compositeForeignKeys int
 	if err := pool.QueryRow(ctx, `SELECT count(*)::int FROM pg_constraint WHERE conname = 'ingestion_runs_source_dataset_fk'`).Scan(&compositeForeignKeys); err != nil {
 		t.Fatalf("inspect source/dataset foreign key: %v", err)
