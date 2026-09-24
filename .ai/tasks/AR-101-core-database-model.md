@@ -1,7 +1,7 @@
 ---
 id: AR-101
 title: Implement the core point-in-time database model
-status: review
+status: active
 phase: 1
 depends_on: [AR-004, AR-005]
 branch: task/AR-101-core-database-model
