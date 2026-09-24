@@ -92,16 +92,16 @@ func TestPointInTimeAPI(t *testing.T) {
 		return body
 	}
 	latest := get("/v1/series/" + series.ID.String() + "/observations?from=2024-01-01T00:00:00Z&to=2024-01-02T00:00:00Z")
-	if got := latest["items"].([]any)[0].(map[string]any)["value"]; got != "110" {
-		t.Fatalf("latest=%v want 110", got)
+	if got := latest["items"].([]any)[0].(map[string]any)["value"]; got != "110.000000000000000000" {
+		t.Fatalf("latest=%v want 110.000000000000000000", got)
 	}
 	sourceAsOf := get("/v1/series/" + series.ID.String() + "/observations?mode=source-as-of&as_of=2024-01-15T00:00:00Z&from=2024-01-01T00:00:00Z&to=2024-01-02T00:00:00Z")
-	if got := sourceAsOf["items"].([]any)[0].(map[string]any)["value"]; got != "100" {
-		t.Fatalf("source-as-of=%v want 100", got)
+	if got := sourceAsOf["items"].([]any)[0].(map[string]any)["value"]; got != "100.000000000000000000" {
+		t.Fatalf("source-as-of=%v want 100.000000000000000000", got)
 	}
 	systemAsOf := get("/v1/series/" + series.ID.String() + "/observations?mode=system-as-of&as_of=2024-01-15T00:00:00Z&from=2024-01-01T00:00:00Z&to=2024-01-02T00:00:00Z")
-	if got := systemAsOf["items"].([]any)[0].(map[string]any)["value"]; got != "90" {
-		t.Fatalf("system-as-of=%v want 90", got)
+	if got := systemAsOf["items"].([]any)[0].(map[string]any)["value"]; got != "90.000000000000000000" {
+		t.Fatalf("system-as-of=%v want 90.000000000000000000", got)
 	}
 	if got := systemAsOf["items"].([]any)[0].(map[string]any)["raw_provenance_id"]; got != rawID3 {
 		t.Fatalf("provenance=%v want %s", got, rawID3)
