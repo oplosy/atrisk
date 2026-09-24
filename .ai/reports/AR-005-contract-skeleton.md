@@ -48,9 +48,9 @@
 
 - Branch: `task/AR-005-contract-skeleton`
 - Implementation commits: `57ec8d3` (`feat(contracts): add contract-first skeleton [AR-005]`), `f05df4b` (`fix(contracts): validate generated Python models [AR-005]`)
-- Report commits: `cfaf0ed` (`docs(contracts): record AR-005 handoff [AR-005]`), `490d9b0` (`docs(contracts): refresh AR-005 review evidence [AR-005]`), plus this final report metadata update.
-- Remote branch: `origin/task/AR-005-contract-skeleton` was verified at `490d9b0` immediately before this final report metadata update; the metadata update is pushed with the handoff.
-- Worktree: clean after the final report metadata update.
+- Report commits: `cfaf0ed` (`docs(contracts): record AR-005 handoff [AR-005]`), `490d9b0` (`docs(contracts): refresh AR-005 review evidence [AR-005]`), and `9b799e0` (`docs(contracts): correct AR-005 test count [AR-005]`).
+- Remote branch: `origin/task/AR-005-contract-skeleton` verified at `9b799e0233497a43ade905cf94d6bce7a2455706`.
+- Worktree: clean at handoff commit `9b799e0233497a43ade905cf94d6bce7a2455706`.
 
 ## Assumptions and risks
 

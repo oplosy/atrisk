@@ -1,7 +1,7 @@
 ---
 id: AR-005
 title: Establish contract-first interfaces
-status: ready
+status: review
 phase: 0
 depends_on: [AR-002, AR-003]
 branch: task/AR-005-contract-skeleton
