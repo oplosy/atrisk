@@ -99,8 +99,12 @@ task test-infra
 `task test-infra` starts a separate Compose project (`atrisk-test`) with a
 separate database, bucket, ports, and named volumes. It proves the exact S3
 `PutObject`, `GetObject`, `HeadObject`, and `ListObjectsV2` operations used by
-the raw archive boundary, then removes the test volumes.
+the raw archive boundary, then removes the test volumes. Each Compose project
+also gets its own persistent `garage-rpc-secret` volume; the secret is generated
+on first start and is never stored in tracked configuration.
 
 `task infra-reset` is destructive: it removes the development containers and
-named volumes, including all local PostgreSQL and Garage data. Use it only when
-that data can be discarded.
+named volumes, including all local PostgreSQL and Garage data and the Garage RPC
+secret. Use it only when that data can be discarded. Starting the project again
+after reset generates a new RPC secret. The test project always uses its own
+secret volume and is removed by `task test-infra`.

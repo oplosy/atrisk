@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -51,20 +52,27 @@ if (!command) {
   }
 } else if (command === "test") {
   const smokeDir = mkdtempSync(resolve(tmpdir(), "atrisk-infra-smoke-"));
+  // Keep the project name bounded for Docker resource-name limits while making
+  // concurrent runs independent on the same host.
+  const runToken = randomBytes(8).toString("hex");
+  const testProject = `atrisk-test-${runToken}`;
+  if (testProject.length > 63) {
+    throw new Error(`Generated Compose project name is too long: ${testProject}`);
+  }
   const testEnvironment = {
     ...process.env,
-    COMPOSE_PROJECT_NAME: "atrisk-test",
+    COMPOSE_PROJECT_NAME: testProject,
     POSTGRES_DB: "atrisk_test",
     POSTGRES_USER: "atrisk_test",
     POSTGRES_PASSWORD: "atlasrisk-test-only",
-    POSTGRES_PORT: "55433",
+    POSTGRES_PORT: "",
     GARAGE_ACCESS_KEY: "GKatrisktest",
     GARAGE_SECRET_KEY: "atlasrisk-garage-test-only-secret",
     GARAGE_BUCKET: "atrisk-test-raw",
-    GARAGE_S3_PORT: "53901",
+    GARAGE_S3_PORT: "",
     SMOKE_OUTPUT_DIR: smokeDir,
   };
-  const testBase = ["compose", "-f", composeFile, "--project-name", "atrisk-test"];
+  const testBase = ["compose", "-f", composeFile, "--project-name", testProject];
   const runTest = (args, capture = false) => {
     const result = spawnSync("docker", [...testBase, "--profile", "test", ...args], {
       cwd: repoRoot,
@@ -86,7 +94,31 @@ if (!command) {
   const payload = readFileSync(resolve(repoRoot, "infra/compose/smoke-payload.txt"));
   const outputFile = resolve(smokeDir, "received.txt");
   let failure;
+  let testStarted = false;
+  let cleanupDone = false;
+  const cleanupTest = () => {
+    if (cleanupDone) return;
+    cleanupDone = true;
+    if (testStarted) {
+      try {
+        runTest(["down", "--volumes", "--remove-orphans"]);
+      } catch (cleanupError) {
+        console.error(`Test cleanup failed: ${cleanupError.message}`);
+        failure ||= cleanupError;
+      }
+    }
+    rmSync(smokeDir, { recursive: true, force: true });
+  };
+  const handleSignal = (signal) => {
+    console.warn(`Received ${signal}; cleaning up test project ${testProject}.`);
+    cleanupTest();
+    process.exitCode = signal === "SIGINT" ? 130 : 143;
+  };
+  process.once("SIGINT", handleSignal);
+  process.once("SIGTERM", handleSignal);
+  process.once("exit", () => rmSync(smokeDir, { recursive: true, force: true }));
   try {
+    testStarted = true;
     runTest(["up", "-d", "--wait", "postgres", "garage"]);
     runTest(["ps"]);
     smoke(["s3api", "put-object", "--bucket", bucket, "--key", key, "--body", "/aws/smoke-payload.txt", ...endpoint]);
@@ -101,13 +133,9 @@ if (!command) {
   } catch (error) {
     failure = error;
   } finally {
-    try {
-      runTest(["down", "--volumes", "--remove-orphans"]);
-    } catch (cleanupError) {
-      console.error(`Test cleanup failed: ${cleanupError.message}`);
-      failure ||= cleanupError;
-    }
-    rmSync(smokeDir, { recursive: true, force: true });
+    cleanupTest();
+    process.removeListener("SIGINT", handleSignal);
+    process.removeListener("SIGTERM", handleSignal);
   }
   if (failure) {
     console.error(failure.message);

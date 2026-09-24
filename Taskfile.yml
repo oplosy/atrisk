@@ -110,4 +110,5 @@ tasks:
   test-infra:
     desc: Run isolated PostgreSQL and Garage integration smoke tests
     cmds:
+      - node --test scripts/infra/infra.test.mjs
       - node scripts/infra/infra.mjs test
