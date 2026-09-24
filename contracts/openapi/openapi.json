@@ -16,35 +16,35 @@
       "get": {
         "operationId": "listSeries",
         "parameters": [{ "$ref": "#/components/parameters/Limit" }, { "$ref": "#/components/parameters/Cursor" }],
-        "responses": { "200": { "description": "Stable series page", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SeriesPage" } } } } }
+        "responses": { "200": { "description": "Stable series page", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SeriesPage" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" } }
       }
     },
     "/api/v1/series/{series_id}": {
       "get": {
         "operationId": "getSeries",
         "parameters": [{ "$ref": "#/components/parameters/SeriesId" }],
-        "responses": { "200": { "description": "Series metadata", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Series" } } } }, "404": { "$ref": "#/components/responses/NotFound" } }
+        "responses": { "200": { "description": "Series metadata", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Series" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" }, "404": { "$ref": "#/components/responses/NotFound" } }
       }
     },
     "/api/v1/series/{series_id}/observations": {
       "get": {
         "operationId": "listObservations",
         "parameters": [{ "$ref": "#/components/parameters/SeriesId" }, { "$ref": "#/components/parameters/Mode" }, { "$ref": "#/components/parameters/From" }, { "$ref": "#/components/parameters/To" }, { "$ref": "#/components/parameters/AsOf" }, { "$ref": "#/components/parameters/Limit" }, { "$ref": "#/components/parameters/Cursor" }],
-        "responses": { "200": { "description": "Point-in-time observation page", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ObservationPage" } } } }, "409": { "$ref": "#/components/responses/SourceAsOfUnsupported" } }
+        "responses": { "200": { "description": "Point-in-time observation page", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ObservationPage" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" }, "409": { "$ref": "#/components/responses/SourceAsOfUnsupported" } }
       }
     },
     "/api/v1/series/{series_id}/revisions": {
       "get": {
         "operationId": "listObservationRevisions",
         "parameters": [{ "$ref": "#/components/parameters/SeriesId" }, { "$ref": "#/components/parameters/From" }, { "$ref": "#/components/parameters/To" }, { "$ref": "#/components/parameters/Limit" }, { "$ref": "#/components/parameters/Cursor" }],
-        "responses": { "200": { "description": "Append-only revision page", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ObservationPage" } } } } }
+        "responses": { "200": { "description": "Append-only revision page", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ObservationPage" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" } }
       }
     },
     "/api/v1/timeline": {
       "get": {
         "operationId": "listCrossSourceTimeline",
         "parameters": [{ "name": "series_id", "in": "query", "required": true, "schema": { "type": "string", "minLength": 1 } }, { "$ref": "#/components/parameters/Mode" }, { "$ref": "#/components/parameters/From" }, { "$ref": "#/components/parameters/To" }, { "$ref": "#/components/parameters/AsOf" }, { "$ref": "#/components/parameters/Limit" }, { "$ref": "#/components/parameters/Cursor" }],
-        "responses": { "200": { "description": "Cross-source timeline page", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ObservationPage" } } } } }
+        "responses": { "200": { "description": "Cross-source timeline page", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ObservationPage" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" } }
       }
     }
   },
@@ -70,7 +70,7 @@
     },
     "parameters": {
       "SeriesId": { "name": "series_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
-      "Mode": { "name": "mode", "in": "query", "required": false, "description": "combined is valid only for /api/v1/timeline and unions the selected series using the requested latest/source-as-of/system-as-of clock.", "schema": { "type": "string", "enum": ["latest", "source-as-of", "system-as-of", "revisions", "combined"], "default": "latest" } },
+      "Mode": { "name": "mode", "in": "query", "required": false, "description": "latest, source-as-of, and system-as-of are valid for observation and cross-source timeline requests; revisions is exposed by /api/v1/series/{series_id}/revisions; combined is valid only for /api/v1/timeline.", "schema": { "type": "string", "enum": ["latest", "source-as-of", "system-as-of", "revisions", "combined"], "default": "latest" } },
       "From": { "name": "from", "in": "query", "required": false, "schema": { "type": "string", "format": "date-time" } },
       "To": { "name": "to", "in": "query", "required": false, "schema": { "type": "string", "format": "date-time" } },
       "AsOf": { "name": "as_of", "in": "query", "required": false, "schema": { "type": "string", "format": "date-time" } },
@@ -88,6 +88,7 @@
       }
     },
     "responses": {
+      "InvalidRequest": { "description": "Invalid series identifier, mode, limit, cursor, or time window", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Problem" } } } },
       "NotFound": { "description": "Resource not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Problem" } } } },
       "SourceAsOfUnsupported": { "description": "The source has no defensible source-vintage clock", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Problem" } } } }
     },

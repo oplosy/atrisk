@@ -740,13 +740,20 @@ SELECT s.id, s.dataset_id, s.source_code, s.name, s.unit, s.frequency,
 FROM series AS s
 JOIN datasets AS d ON d.id = s.dataset_id
 JOIN data_sources AS ds ON ds.id = d.source_id
+WHERE ($1::boolean = false OR
+       (ds.code > $2 OR
+        (ds.code = $2 AND s.source_code > $3) OR
+        (ds.code = $2 AND s.source_code = $3 AND s.id > $4::uuid)))
 ORDER BY ds.code, s.source_code, s.id
-LIMIT $1 OFFSET $2
+LIMIT $5
 `
 
 type ListTimelineSeriesParams struct {
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	Column1    bool        `json:"column_1"`
+	Code       string      `json:"code"`
+	SourceCode string      `json:"source_code"`
+	Column4    pgtype.UUID `json:"column_4"`
+	Limit      int32       `json:"limit"`
 }
 
 type ListTimelineSeriesRow struct {
@@ -767,7 +774,13 @@ type ListTimelineSeriesRow struct {
 }
 
 func (q *Queries) ListTimelineSeries(ctx context.Context, arg ListTimelineSeriesParams) ([]ListTimelineSeriesRow, error) {
-	rows, err := q.db.Query(ctx, listTimelineSeries, arg.Limit, arg.Offset)
+	rows, err := q.db.Query(ctx, listTimelineSeries,
+		arg.Column1,
+		arg.Code,
+		arg.SourceCode,
+		arg.Column4,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}

@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -27,10 +26,14 @@ const (
 )
 
 var (
-	ErrNotFound              = errors.New("timeline resource not found")
-	ErrInvalidCursor         = errors.New("invalid timeline cursor")
-	ErrInvalidWindow         = errors.New("invalid timeline observation window")
-	ErrSourceAsOfUnsupported = errors.New("source-as-of is unsupported for this source")
+	ErrNotFound               = errors.New("timeline resource not found")
+	ErrInvalidCursor          = errors.New("invalid timeline cursor")
+	ErrInvalidWindow          = errors.New("invalid timeline observation window")
+	ErrInvalidLimit           = errors.New("invalid timeline limit")
+	ErrInvalidMode            = errors.New("invalid timeline mode")
+	ErrInvalidSeriesID        = errors.New("invalid timeline series id")
+	ErrInvalidSeriesSelection = errors.New("invalid timeline series selection")
+	ErrSourceAsOfUnsupported  = errors.New("source-as-of is unsupported for this source")
 )
 
 type Service struct{ Queries *database.Queries }
@@ -101,16 +104,31 @@ type observationCursor struct {
 	ID              string    `json:"id"`
 }
 
+type seriesCursor struct {
+	DataSourceCode string `json:"data_source_code"`
+	SourceCode     string `json:"source_code"`
+	ID             string `json:"id"`
+}
+
 func (s Service) ListSeries(ctx context.Context, limit int, cursor string) (Page[Series], error) {
-	if s.Queries == nil {
-		return Page[Series]{}, errors.New("timeline database is required")
+	if err := validateLimit(limit); err != nil {
+		return Page[Series]{}, err
 	}
-	limit = normalizeLimit(limit)
-	offset, err := decodeCursor(cursor)
+	pageCursor, err := decodeSeriesCursor(cursor)
 	if err != nil {
 		return Page[Series]{}, err
 	}
-	rows, err := s.Queries.ListTimelineSeries(ctx, database.ListTimelineSeriesParams{Limit: int32(limit + 1), Offset: int32(offset)})
+	if s.Queries == nil {
+		return Page[Series]{}, errors.New("timeline database is required")
+	}
+	cursorID := pgtype.UUID{}
+	if pageCursor.ID != "" {
+		cursorID, err = parseUUID(pageCursor.ID)
+		if err != nil {
+			return Page[Series]{}, ErrInvalidCursor
+		}
+	}
+	rows, err := s.Queries.ListTimelineSeries(ctx, database.ListTimelineSeriesParams{Column1: cursor != "", Code: pageCursor.DataSourceCode, SourceCode: pageCursor.SourceCode, Column4: cursorID, Limit: int32(limit + 1)})
 	if err != nil {
 		return Page[Series]{}, fmt.Errorf("list timeline series: %w", err)
 	}
@@ -121,7 +139,8 @@ func (s Service) ListSeries(ctx context.Context, limit int, cursor string) (Page
 	page.HasMore = len(page.Items) > limit
 	if page.HasMore {
 		page.Items = page.Items[:limit]
-		page.NextCursor = encodeCursor(offset + limit)
+		last := rows[limit-1]
+		page.NextCursor = encodeSeriesCursor(seriesCursor{DataSourceCode: last.DataSourceCode, SourceCode: last.SourceCode, ID: last.ID.String()})
 	}
 	if page.Items == nil {
 		page.Items = []Series{}
@@ -130,12 +149,12 @@ func (s Service) ListSeries(ctx context.Context, limit int, cursor string) (Page
 }
 
 func (s Service) GetSeries(ctx context.Context, rawID string) (Series, error) {
-	if s.Queries == nil {
-		return Series{}, errors.New("timeline database is required")
-	}
 	id, err := parseUUID(rawID)
 	if err != nil {
 		return Series{}, err
+	}
+	if s.Queries == nil {
+		return Series{}, errors.New("timeline database is required")
 	}
 	row, err := s.Queries.GetTimelineSeries(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -148,12 +167,18 @@ func (s Service) GetSeries(ctx context.Context, rawID string) (Series, error) {
 }
 
 func (s Service) Observations(ctx context.Context, rawID string, request ObservationRequest) (Page[Observation], error) {
-	if s.Queries == nil {
-		return Page[Observation]{}, errors.New("timeline database is required")
+	if err := validateLimit(request.Limit); err != nil {
+		return Page[Observation]{}, err
+	}
+	if request.Mode != "" && request.Mode != ModeLatest && request.Mode != ModeSourceAsOf && request.Mode != ModeSystemAsOf && request.Mode != ModeRevisions {
+		return Page[Observation]{}, ErrInvalidMode
 	}
 	seriesID, err := parseUUID(rawID)
 	if err != nil {
 		return Page[Observation]{}, err
+	}
+	if s.Queries == nil {
+		return Page[Observation]{}, errors.New("timeline database is required")
 	}
 	series, err := s.Queries.GetTimelineSeries(ctx, seriesID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -180,7 +205,7 @@ func (s Service) Observations(ctx context.Context, rawID string, request Observa
 	if request.Mode != ModeLatest && request.Mode != ModeRevisions && request.Mode != ModeCombined && request.AsOf.IsZero() {
 		return Page[Observation]{}, ErrInvalidWindow
 	}
-	limit := normalizeLimit(request.Limit)
+	limit := request.Limit
 	rowsLimit := int32(limit + 1)
 	cursor, err := decodeObservationCursor(request.Cursor)
 	if err != nil {
@@ -220,9 +245,9 @@ func (s Service) Observations(ctx context.Context, rawID string, request Observa
 		}
 		items = observationsFromRevisions(rows)
 	case ModeCombined:
-		return Page[Observation]{}, errors.New("combined mode is only available on the cross-source timeline endpoint")
+		return Page[Observation]{}, ErrInvalidMode
 	default:
-		return Page[Observation]{}, fmt.Errorf("unsupported timeline mode %q", request.Mode)
+		return Page[Observation]{}, ErrInvalidMode
 	}
 	page := Page[Observation]{Limit: limit, Items: items}
 	page.HasMore = len(page.Items) > limit
@@ -241,13 +266,16 @@ func (s Service) Observations(ctx context.Context, rawID string, request Observa
 // clocks. Each source keeps its own provenance and quality fields.
 func (s Service) CrossSource(ctx context.Context, ids []string, request ObservationRequest) (Page[Observation], error) {
 	if len(ids) == 0 {
-		return Page[Observation]{Items: []Observation{}, Limit: normalizeLimit(request.Limit)}, errors.New("at least one series_id is required")
+		return Page[Observation]{Items: []Observation{}, Limit: request.Limit}, ErrInvalidSeriesSelection
+	}
+	if err := validateLimit(request.Limit); err != nil {
+		return Page[Observation]{}, err
 	}
 	if request.Mode == "" || request.Mode == ModeCombined {
 		request.Mode = ModeLatest
 	}
 	if request.Mode != ModeLatest && request.Mode != ModeSourceAsOf && request.Mode != ModeSystemAsOf {
-		return Page[Observation]{}, fmt.Errorf("unsupported combined timeline mode %q", request.Mode)
+		return Page[Observation]{}, ErrInvalidMode
 	}
 	if request.From.IsZero() {
 		request.From = time.Unix(0, 0).UTC()
@@ -266,7 +294,7 @@ func (s Service) CrossSource(ctx context.Context, ids []string, request Observat
 	for _, id := range ids {
 		parsed, err := parseUUID(id)
 		if err != nil {
-			return Page[Observation]{}, ErrInvalidCursor
+			return Page[Observation]{}, err
 		}
 		key := parsed.String()
 		if _, exists := seen[key]; exists {
@@ -287,7 +315,7 @@ func (s Service) CrossSource(ctx context.Context, ids []string, request Observat
 			}
 		}
 	}
-	limit := normalizeLimit(request.Limit)
+	limit := request.Limit
 	rowsLimit := int32(limit + 1)
 	cursor, err := decodeObservationCursor(request.Cursor)
 	if err != nil {
@@ -341,31 +369,31 @@ func (s Service) CrossSource(ctx context.Context, ids []string, request Observat
 	return page, nil
 }
 
-func normalizeLimit(value int) int {
-	if value < 1 {
-		return 50
+func validateLimit(value int) error {
+	if value < 1 || value > 200 {
+		return ErrInvalidLimit
 	}
-	if value > 200 {
-		return 200
-	}
-	return value
+	return nil
 }
-func encodeCursor(offset int) string {
-	return base64.RawURLEncoding.EncodeToString([]byte(strconv.Itoa(offset)))
+
+func encodeSeriesCursor(cursor seriesCursor) string {
+	b, _ := json.Marshal(cursor)
+	return base64.RawURLEncoding.EncodeToString(b)
 }
-func decodeCursor(cursor string) (int, error) {
-	if cursor == "" {
-		return 0, nil
+
+func decodeSeriesCursor(raw string) (seriesCursor, error) {
+	if raw == "" {
+		return seriesCursor{}, nil
 	}
-	b, err := base64.RawURLEncoding.DecodeString(cursor)
+	b, err := base64.RawURLEncoding.DecodeString(raw)
 	if err != nil {
-		return 0, ErrInvalidCursor
+		return seriesCursor{}, ErrInvalidCursor
 	}
-	n, err := strconv.Atoi(string(b))
-	if err != nil || n < 0 {
-		return 0, ErrInvalidCursor
+	var cursor seriesCursor
+	if err := json.Unmarshal(b, &cursor); err != nil || cursor.DataSourceCode == "" || cursor.SourceCode == "" || cursor.ID == "" {
+		return seriesCursor{}, ErrInvalidCursor
 	}
-	return n, nil
+	return cursor, nil
 }
 
 func encodeObservationCursor(cursor observationCursor) string {
@@ -390,7 +418,7 @@ func decodeObservationCursor(raw string) (observationCursor, error) {
 func parseUUID(value string) (pgtype.UUID, error) {
 	var id pgtype.UUID
 	if err := id.Scan(strings.TrimSpace(value)); err != nil {
-		return id, fmt.Errorf("invalid series id: %w", err)
+		return id, fmt.Errorf("%w: %v", ErrInvalidSeriesID, err)
 	}
 	return id, nil
 }

@@ -26,7 +26,11 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path = strings.Trim(path, "/")
 	parts := strings.Split(path, "/")
 	if path == "series" {
-		limit := parseInt(r.URL.Query().Get("limit"), 50)
+		limit, err := parseLimit(r.URL.Query().Get("limit"))
+		if err != nil {
+			h.writeServiceError(w, err)
+			return
+		}
 		page, err := h.Service.ListSeries(r.Context(), limit, r.URL.Query().Get("cursor"))
 		if err != nil {
 			h.writeServiceError(w, err)
@@ -37,9 +41,9 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if path == "timeline" {
 		ids := strings.Split(r.URL.Query().Get("series_id"), ",")
-		query, err := parseObservationRequest(r, "observations")
+		query, err := parseObservationRequest(r, "timeline")
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "INVALID_QUERY", err.Error())
+			h.writeServiceError(w, err)
 			return
 		}
 		page, err := h.Service.CrossSource(r.Context(), ids, query)
@@ -70,7 +74,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	query, err := parseObservationRequest(r, parts[2])
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_QUERY", err.Error())
+		h.writeServiceError(w, err)
 		return
 	}
 	page, err := h.Service.Observations(r.Context(), seriesID, query)
@@ -83,22 +87,34 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func parseObservationRequest(r *http.Request, route string) (application.ObservationRequest, error) {
 	q := r.URL.Query()
-	result := application.ObservationRequest{Mode: application.Mode(q.Get("mode")), Limit: parseInt(q.Get("limit"), 50), Cursor: q.Get("cursor")}
+	limit, err := parseLimit(q.Get("limit"))
+	if err != nil {
+		return application.ObservationRequest{}, err
+	}
+	result := application.ObservationRequest{Mode: application.Mode(q.Get("mode")), Limit: limit, Cursor: q.Get("cursor")}
 	if route == "revisions" {
 		// The revisions resource has one unambiguous clock contract.
 		result.Mode = application.ModeRevisions
+	} else {
+		allowed := result.Mode == "" || result.Mode == application.ModeLatest || result.Mode == application.ModeSourceAsOf || result.Mode == application.ModeSystemAsOf
+		if route == "timeline" {
+			allowed = allowed || result.Mode == application.ModeCombined
+		}
+		if !allowed {
+			return result, application.ErrInvalidMode
+		}
 	}
 	if result.Mode == "" {
 		result.Mode = application.ModeLatest
 	}
-	var err error
-	if result.From, err = parseTime(q.Get("from")); err != nil {
+	var parseErr error
+	if result.From, parseErr = parseTime(q.Get("from")); parseErr != nil {
 		return result, errors.New("from must be RFC3339")
 	}
-	if result.To, err = parseTime(q.Get("to")); err != nil {
+	if result.To, parseErr = parseTime(q.Get("to")); parseErr != nil {
 		return result, errors.New("to must be RFC3339")
 	}
-	if result.AsOf, err = parseTime(q.Get("as_of")); err != nil {
+	if result.AsOf, parseErr = parseTime(q.Get("as_of")); parseErr != nil {
 		return result, errors.New("as_of must be RFC3339")
 	}
 	return result, nil
@@ -110,15 +126,15 @@ func parseTime(value string) (time.Time, error) {
 	}
 	return time.Parse(time.RFC3339, value)
 }
-func parseInt(value string, fallback int) int {
+func parseLimit(value string) (int, error) {
 	if value == "" {
-		return fallback
+		return 50, nil
 	}
 	n, err := strconv.Atoi(value)
-	if err != nil {
-		return fallback
+	if err != nil || n < 1 || n > 200 {
+		return 0, application.ErrInvalidLimit
 	}
-	return n
+	return n, nil
 }
 
 func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
@@ -132,6 +148,14 @@ func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
 		})
 	case errors.Is(err, application.ErrInvalidCursor), errors.Is(err, application.ErrInvalidWindow):
 		writeError(w, http.StatusBadRequest, "INVALID_QUERY", err.Error())
+	case errors.Is(err, application.ErrInvalidLimit):
+		writeError(w, http.StatusBadRequest, "INVALID_LIMIT", "limit must be between 1 and 200")
+	case errors.Is(err, application.ErrInvalidMode):
+		writeError(w, http.StatusBadRequest, "INVALID_MODE", "unsupported timeline mode")
+	case errors.Is(err, application.ErrInvalidSeriesID):
+		writeError(w, http.StatusBadRequest, "INVALID_SERIES_ID", "series_id must be a UUID")
+	case errors.Is(err, application.ErrInvalidSeriesSelection):
+		writeError(w, http.StatusBadRequest, "INVALID_SERIES_SELECTION", "at least one series_id is required")
 	default:
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "timeline query failed")
 	}

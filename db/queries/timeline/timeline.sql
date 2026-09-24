@@ -9,8 +9,12 @@ SELECT s.id, s.dataset_id, s.source_code, s.name, s.unit, s.frequency,
 FROM series AS s
 JOIN datasets AS d ON d.id = s.dataset_id
 JOIN data_sources AS ds ON ds.id = d.source_id
+WHERE ($1::boolean = false OR
+       (ds.code > $2 OR
+        (ds.code = $2 AND s.source_code > $3) OR
+        (ds.code = $2 AND s.source_code = $3 AND s.id > $4::uuid)))
 ORDER BY ds.code, s.source_code, s.id
-LIMIT $1 OFFSET $2;
+LIMIT $5;
 
 -- name: GetTimelineSeries :one
 SELECT s.id, s.dataset_id, s.source_code, s.name, s.unit, s.frequency,

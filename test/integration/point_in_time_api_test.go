@@ -106,6 +106,14 @@ func TestPointInTimeAPI(t *testing.T) {
 	if got := systemAsOf["items"].([]any)[0].(map[string]any)["raw_provenance_id"]; got != rawID3 {
 		t.Fatalf("provenance=%v want %s", got, rawID3)
 	}
+	revisions := get("/v1/series/" + series.ID.String() + "/revisions?from=2024-01-01T00:00:00Z&to=2024-01-02T00:00:00Z&limit=2")
+	if len(revisions["items"].([]any)) != 2 || revisions["has_more"] != true || revisions["next_cursor"] == nil {
+		t.Fatalf("revisions endpoint did not expose stable page: %v", revisions)
+	}
+	revisionsNext := get("/v1/series/" + series.ID.String() + "/revisions?from=2024-01-01T00:00:00Z&to=2024-01-02T00:00:00Z&limit=2&cursor=" + revisions["next_cursor"].(string))
+	if len(revisionsNext["items"].([]any)) != 1 || revisionsNext["has_more"] != false {
+		t.Fatalf("revisions cursor did not return final revision: %v", revisionsNext)
+	}
 	if rows, err := queries.InsertDataSource(ctx, database.InsertDataSourceParams{Code: "tcmb-" + fixture, Name: "TCMB fixture", AdapterVersion: "test", Metadata: []byte(`{}`)}); err != nil || rows != 1 {
 		t.Fatalf("insert TCMB source: %d %v", rows, err)
 	}
@@ -146,7 +154,11 @@ func TestPointInTimeAPI(t *testing.T) {
 		t.Fatalf("combined cursor did not advance to second series: %v", combinedSecond)
 	}
 	page := get("/v1/series?limit=1")
-	if page["has_more"] != false && page["next_cursor"] == nil {
-		t.Fatal("series page did not expose stable pagination metadata")
+	if page["has_more"] != true || page["next_cursor"] == nil || len(page["items"].([]any)) != 1 {
+		t.Fatalf("series page did not expose stable pagination metadata: %v", page)
+	}
+	nextPage := get("/v1/series?limit=1&cursor=" + page["next_cursor"].(string))
+	if len(nextPage["items"].([]any)) != 1 || nextPage["items"].([]any)[0].(map[string]any)["id"] == page["items"].([]any)[0].(map[string]any)["id"] {
+		t.Fatalf("series keyset cursor did not advance: first=%v next=%v", page, nextPage)
 	}
 }
