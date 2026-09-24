@@ -1,0 +1,82 @@
+version: "3"
+
+tasks:
+  format:
+    desc: Check Go, Python, and web formatting without changing files
+    cmds:
+      - task: format-go
+      - task: format-python
+      - npm run format:check
+
+  format-go:
+    cmds:
+      - node scripts/verify/check-go-format.mjs
+
+  format-python:
+    dir: risk-engine
+    cmds:
+      - uv run --locked ruff format --check src tests
+
+  lint:
+    desc: Run Go, Python, and web linters
+    cmds:
+      - go vet ./apps/... ./internal/...
+      - task: lint-python
+      - npm run lint
+
+  lint-python:
+    dir: risk-engine
+    cmds:
+      - uv run --locked ruff check src tests
+
+  typecheck:
+    desc: Compile Go packages and typecheck the web application
+    cmds:
+      - go test -run '^$' ./apps/... ./internal/...
+      - npm run typecheck
+
+  unit:
+    desc: Run Go, Python, and web unit tests
+    cmds:
+      - go test ./apps/... ./internal/...
+      - task: unit-python
+      - npm test -- --run
+
+  unit-python:
+    dir: risk-engine
+    cmds:
+      - uv run --locked pytest
+
+  test-contract:
+    desc: Run contract tests when contract sources exist
+    cmds:
+      - node scripts/verify/check-scope.mjs contract contracts test/contract
+
+  test-integration:
+    desc: Run integration tests when integration sources exist
+    cmds:
+      - node scripts/verify/check-scope.mjs integration test/integration
+
+  build:
+    desc: Build Go, Python, and web artifacts
+    cmds:
+      - go build ./apps/...
+      - uv build --project risk-engine
+      - npm run build
+
+  check-generated:
+    desc: Fail when generated paths have uncommitted drift
+    cmds:
+      - node scripts/verify/check-generated.mjs
+
+  verify:
+    desc: Run the complete deterministic local verification gate
+    cmds:
+      - task: format
+      - task: lint
+      - task: typecheck
+      - task: unit
+      - task: test-contract
+      - task: test-integration
+      - task: build
+      - task: check-generated
