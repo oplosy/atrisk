@@ -1,0 +1,1 @@
+{"timezone":"UTC","serverTime":1728000000000,"symbols":[{"symbol":"BTCUSDT","status":"TRADING","baseAsset":"BTC","quoteAsset":"USDT","permissions":["SPOT"],"isSpotTradingAllowed":true},{"symbol":"ETHUSDT","status":"BREAK","baseAsset":"ETH","quoteAsset":"USDT","permissions":["SPOT"],"isSpotTradingAllowed":false}]}

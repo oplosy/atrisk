@@ -29,6 +29,7 @@ not reopen these decisions implicitly.
 | ADR-021 | Maximum three concurrent workers | Parallelism is limited to independent tasks with disjoint owned paths; review/merge remains serial. |
 | ADR-022 | LLM enrichment deferred | A future LLM may classify sourced news/theses or draft explanations, but cannot supply prices, predictions, shocks, or risk numbers. |
 | ADR-023 | Durable database schedules | Collector schedules/checkpoints are claimed from PostgreSQL with leases and idempotency; V1 does not depend on OS cron or an external scheduler. |
+| ADR-024 | Financial unit codes distinguish fiat currencies from asset tickers | Instrument denomination and price quote-unit fields use normalized uppercase text codes so digital assets such as `USDT` are preserved exactly; FX quote revisions remain ISO 4217 fiat currencies. No asset peg or conversion is inferred: valuation into a reporting currency requires an explicit, persisted price/FX path, otherwise the result is degraded or blocked. |
 
 ## Decision quality gate
 

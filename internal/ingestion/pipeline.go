@@ -296,7 +296,7 @@ func (s DatabaseStore) CompleteRun(ctx context.Context, runID, status string, co
 	if err != nil {
 		return err
 	}
-	_, err = s.Pool.Exec(ctx, `UPDATE ingestion_runs SET status=$2, coverage=$3, completed_at=clock_timestamp() WHERE id=$1::uuid`, runID, status, data)
+	_, err = s.Pool.Exec(ctx, `UPDATE ingestion_runs SET status=$2, coverage=coverage || $3::jsonb, completed_at=clock_timestamp() WHERE id=$1::uuid`, runID, status, data)
 	return err
 }
 

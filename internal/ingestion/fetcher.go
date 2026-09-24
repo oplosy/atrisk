@@ -171,7 +171,11 @@ func (f HTTPFetcher) Fetch(ctx context.Context, request FetchRequest) (FetchedRe
 		}
 		if response.StatusCode < 200 || response.StatusCode >= 300 {
 			if retryableStatus(response.StatusCode) && attempt < policy.MaxAttempts {
-				if err := sleep(ctx, retryAfter(response.Header, policy, attempt)); err != nil {
+				delay, delayErr := retryAfter(response.Header, policy, attempt)
+				if delayErr != nil {
+					return FetchedResponse{}, delayErr
+				}
+				if err := sleep(ctx, delay); err != nil {
 					return FetchedResponse{}, err
 				}
 				continue
@@ -230,7 +234,9 @@ func readBounded(body io.Reader, maxBytes int64) ([]byte, error) {
 	return data, nil
 }
 
-func retryableStatus(status int) bool { return status == http.StatusTooManyRequests || status >= 500 }
+func retryableStatus(status int) bool {
+	return status == http.StatusTooManyRequests || status == http.StatusTeapot || status >= 500
+}
 
 func retryDelay(policy RetryPolicy, attempt int) time.Duration {
 	delay := float64(policy.BaseDelay) * math.Pow(2, float64(attempt-1))
@@ -240,15 +246,16 @@ func retryDelay(policy RetryPolicy, attempt int) time.Duration {
 	return time.Duration(delay)
 }
 
-func retryAfter(headers http.Header, policy RetryPolicy, attempt int) time.Duration {
+func retryAfter(headers http.Header, policy RetryPolicy, attempt int) (time.Duration, error) {
 	if seconds, err := strconv.Atoi(strings.TrimSpace(headers.Get("Retry-After"))); err == nil && seconds >= 0 {
 		delay := time.Duration(seconds) * time.Second
 		if delay > policy.MaxDelay {
-			return policy.MaxDelay
+			return 0, fmt.Errorf("source retry-after exceeds configured maximum")
 		}
-		return delay
+		return delay, nil
 	}
-	return retryDelay(policy, attempt)
+	delay := retryDelay(policy, attempt)
+	return delay, nil
 }
 
 func normalizeMediaType(value string) string {

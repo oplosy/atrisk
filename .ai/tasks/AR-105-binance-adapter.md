@@ -1,13 +1,14 @@
 ---
 id: AR-105
 title: Add Binance Spot public market data
-status: draft
+status: review
 phase: 1
 depends_on: [AR-102]
 branch: task/AR-105-binance-adapter
+base_sha: aca562e2777f078277535db74e90934f51091963
 owned_paths: [internal/sources/binance/, test/fixtures/binance/]
-shared_paths: [apps/collector/, db/queries/, contracts/]
-adrs: [ADR-002, ADR-005, ADR-006, ADR-011]
+shared_paths: [apps/collector/, db/migrations/, db/queries/, contracts/, test/integration/, internal/ingestion/]
+adrs: [ADR-002, ADR-005, ADR-006, ADR-011, ADR-024]
 ---
 
 # AR-105: Add Binance Spot public market data
@@ -22,23 +23,55 @@ the market-data-only endpoint with deterministic time and rate-limit handling.
 - Exchange info and daily kline parsing, symbol lifecycle, UTC normalization,
   request-weight throttling, pagination, checkpoints, and public fixtures.
 - Delisted/missing symbol and incomplete-current-candle behavior.
+- Use only `https://data-api.binance.vision` with public `GET /api/v3/exchangeInfo`
+  (request only `permissions=SPOT`) and `GET /api/v3/klines` (request only
+  interval `1d`). Use the Binance data-only API contract documented at
+  [Market Data Only URLs](https://developers.binance.com/en/docs/products/spot/faqs/market_data_only)
+  and [Spot Market REST endpoints](https://developers.binance.com/en/docs/catalog/core-trading-spot-trading/api/rest-api/market).
+- Preserve source publication semantics honestly: where Binance supplies no
+  publication timestamp, store `source_known_at` as null and use the existing
+  first-observed-by-system basis; never substitute retrieval time.
+- Do not infer that a symbol is delisted solely because it is absent from one
+  exchange-info response. Missing requested symbols and explicit upstream
+  status changes must produce observable status/quality evidence, not synthetic
+  instruments or prices.
+- Preserve provider asset tickers as exact unit codes. The authorized migration
+  widens `instruments.native_currency` and `price_revisions.quote_currency` to
+  uppercase text codes; `fx_quote_revisions` remains ISO 4217 fiat-only. Never
+  equate an asset such as USDT with USD or invent a conversion rate.
+- Shared-path rationale: the common HTTP fetcher currently retries HTTP 429 and
+  5xx but not Binance HTTP 418. Authorize `internal/ingestion/` only to add
+  bounded HTTP 418 retry handling using the upstream `Retry-After` value, with
+  tests. If the requested wait exceeds the configured maximum, fail closed
+  rather than retry early; never advance a checkpoint before persisted data.
 
 ## Out of scope
 
-- API keys, account/user data, orders, websockets, futures, or intraday storage.
+- Any host or endpoint other than the exact data-only host and two public GET
+  endpoints above; API keys/secrets, account/user data, orders, websockets,
+  futures, margin, or intraday storage.
 
 ## Acceptance criteria
 
-- [ ] Only documented public market-data hosts/endpoints are callable.
-- [ ] The current incomplete daily candle is excluded or explicitly provisional.
-- [ ] Millisecond timestamps and decimal prices round-trip correctly.
-- [ ] Rate-limit responses back off without losing checkpoint integrity.
-- [ ] Duplicate pages are idempotent and changed historical candles create revisions.
+- [ ] Requests are restricted to `data-api.binance.vision`, `GET /api/v3/exchangeInfo?permissions=SPOT`, and `GET /api/v3/klines?interval=1d`; no authenticated/private or trading API is callable.
+- [ ] The current incomplete UTC daily candle is excluded using an injectable clock, and missing/delisted symbols are visible without inferring delisting from a single omission.
+- [ ] Millisecond open/close timestamps normalize to UTC; source decimal strings round-trip through exact decimal storage without floating-point conversion.
+- [ ] Unknown source publication time remains null with an explicit first-observed system basis.
+- [ ] HTTP 429/418 responses respect `Retry-After`; if its duration exceeds configured wait bounds, fail without retrying early. Rate limits never advance a checkpoint before data is durably accepted.
+- [ ] Duplicate pages are idempotent and changed historical candles create append-only price revisions retaining raw provenance.
+- [ ] `BTCUSDT` metadata and prices persist `USDT` exactly as the denomination/quote-unit code; migration preserves existing values and fresh-database migration tests pass.
 
 ## Required verification
 
 ```text
+task migrate-test
 task test-go TEST=Binance
 task test-go-integration TEST=BinanceMarketData
+task test-contract
 rg -n "TRADE|USER_DATA|apiKey|secret" internal/sources/binance
 ```
+
+The official documentation states that the data-only host requires no
+authentication and serves only public market data; Spot rate-limit responses
+include `Retry-After` for HTTP 429/418 [as specified in the Spot REST API guide](https://developers.binance.com/en/docs/products/spot/rest-api). The public kline response represents
+prices as decimal strings and timestamps in milliseconds by default.
