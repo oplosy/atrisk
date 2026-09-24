@@ -15,7 +15,7 @@
 ## Review follow-up
 
 - Independent review found five blocking issues. Redirect/error redaction, conditional S3 create/content validation, database conflict validation, and the required PostgreSQL integration proof are now implemented. No local Docker or service action was used.
-- Second review found one remaining Garage proof gap, and hosted CI exposed an idempotent PostgreSQL-registration test failure; both are being fixed on this task branch before another review.
+- Second review found one remaining Garage proof gap, and hosted CI exposed an idempotent PostgreSQL-registration test failure. The Garage test now pre-seeds a same-size conflicting object and verifies `ErrContentMismatch` plus byte preservation; PostgreSQL conflict comparison now uses native `jsonb` equality. These fixes are in `1eb95e7aebd97bec9a66a4f20a87808a61895e1a`.
 
 ## Acceptance evidence
 
@@ -39,9 +39,9 @@
 | `go run github.com/go-task/task/v3/cmd/task@v3.44.1 test-go TEST=Ingestion` | pass; Go ingestion tests passed. |
 | `go test ./...` | pass; all Go packages passed. |
 | `go vet ./apps/... ./internal/...` | pass. |
-| `go run github.com/go-task/task/v3/cmd/task@v3.44.1 test-go TEST=Ingestion` | pass after review fixes. |
+| `go run github.com/go-task/task/v3/cmd/task@v3.44.1 test-go TEST=Ingestion` | pass after remediation. |
 | `go run github.com/go-task/task/v3/cmd/task@v3.44.1 test-go-integration TEST=RawArchive` | blocked locally; the new PostgreSQL integration test correctly failed closed because `ATLASRISK_TEST_DATABASE_URL` was not configured. No Docker command was run. |
-| `go run github.com/go-task/task/v3/cmd/task@v3.44.1 verify` | partial; format, lint, typecheck, unit, and contract checks passed, then PostgreSQL integration stopped because `ATLASRISK_TEST_DATABASE_URL` was not configured. |
+| `go run github.com/go-task/task/v3/cmd/task@v3.44.1 verify` | partial after remediation; format, lint, typecheck, unit, and contract checks passed, then PostgreSQL integration stopped because `ATLASRISK_TEST_DATABASE_URL` was not configured. Generated artifacts were restored after the check. |
 | `go test ./internal/archive ./internal/ingestion -run 'Test(Ingestion|RawArchive)' -count=1` | pass; archive and ingestion tests passed. |
 | `git diff --check` | pass. |
 
@@ -54,8 +54,8 @@
 ## Git state
 
 - Branch: `task/AR-102-raw-archive-ingestion`
-- Implementation commit SHA: `d70efec25438087c65a37798823706ed50dee1be` (adds the required PostgreSQL integration proof on top of `f004d3e2136eccaf5415d7ae3062bccdea50fba6`)
-- Final implementation/report snapshot at worker handoff: `3bf934beebe3032b246876a2e8f4dfed8ccd49d1`; local and remote matched and the worktree was clean.
+- Implementation commit SHA: `1eb95e7aebd97bec9a66a4f20a87808a61895e1a` (remediates hosted PostgreSQL idempotency and Garage conflict proof on top of `d70efec25438087c65a37798823706ed50dee1be`)
+- Remote branch: push pending for this remediation commit; worktree is clean before push.
 - Orchestrator review-status update follows on the same task branch.
 
 ## Assumptions and risks
