@@ -1,7 +1,7 @@
 ---
 id: AR-102
 title: Build raw archive and ingestion framework
-status: ready
+status: review
 phase: 1
 depends_on: [AR-101]
 branch: task/AR-102-raw-archive-ingestion

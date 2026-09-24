@@ -47,9 +47,9 @@
 ## Git state
 
 - Branch: `task/AR-102-raw-archive-ingestion`
-- Commit SHA: pending commit
-- Remote branch: pending push
-- Worktree: clean after commit
+- Implementation commit SHA: `c91c37ea2b42e61e9a1622aba0a3f7fb5fd572a8`
+- Remote branch: `origin/task/AR-102-raw-archive-ingestion` matched the implementation commit at worker handoff; orchestrator review-status update follows on the same branch.
+- Worktree: clean at worker handoff; lifecycle/report update is an orchestrator-only review commit.
 
 ## Assumptions and risks
 
