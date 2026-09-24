@@ -1,6 +1,7 @@
 package ingestion
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,9 +11,12 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/oplosy/atrisk/internal/archive"
 )
+
+var ErrRawObjectConflict = errors.New("raw object conflicts with existing content address")
 
 type NormalizedRecord struct {
 	Kind            string
@@ -245,7 +249,46 @@ ON CONFLICT (content_sha256) DO NOTHING
 		return "", fmt.Errorf("register raw object: %w", err)
 	}
 	err = s.Pool.QueryRow(ctx, `SELECT id::text FROM raw_objects WHERE content_sha256=$1`, item.Reference.ContentSHA256).Scan(&id)
-	return id, err
+	if err != nil {
+		return "", err
+	}
+	if err := s.validateRawObject(ctx, id, item, metadata); err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+func (s DatabaseStore) validateRawObject(ctx context.Context, id string, item RawObjectRegistration, expectedMetadata []byte) error {
+	var (
+		objectKey       string
+		mediaType       string
+		byteLength      int64
+		retrievedAt     time.Time
+		requestURI      string
+		storedMetadata  []byte
+		storedIngestion pgtype.Text
+	)
+	err := s.Pool.QueryRow(ctx, `
+SELECT object_key, media_type, byte_length, retrieved_at, COALESCE(request_uri, ''), request_metadata, ingestion_run_id::text
+FROM raw_objects
+WHERE id = $1::uuid AND content_sha256 = $2`, id, item.Reference.ContentSHA256).
+		Scan(&objectKey, &mediaType, &byteLength, &retrievedAt, &requestURI, &storedMetadata, &storedIngestion)
+	if err != nil {
+		return fmt.Errorf("validate raw object registration: %w", err)
+	}
+	if objectKey != item.Reference.Key || mediaType != item.Reference.MediaType || byteLength != item.Reference.ByteLength ||
+		!retrievedAt.Equal(item.RetrievedAt.UTC().Truncate(time.Microsecond)) || requestURI != archive.RedactedURL(item.RequestURI) ||
+		!bytes.Equal(storedMetadata, expectedMetadata) || !sameIngestionRun(storedIngestion, item.IngestionRunID) {
+		return ErrRawObjectConflict
+	}
+	return nil
+}
+
+func sameIngestionRun(stored pgtype.Text, expected *string) bool {
+	if expected == nil {
+		return !stored.Valid
+	}
+	return stored.Valid && stored.String == *expected
 }
 
 func (s DatabaseStore) CompleteRun(ctx context.Context, runID, status string, coverage map[string]any) error {

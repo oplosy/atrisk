@@ -77,10 +77,7 @@ func (s *S3Store) Put(ctx context.Context, object Object) error {
 	// If-None-Match. The conditional PUT closes the normal race.
 	head, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(object.Key)})
 	if err == nil {
-		if aws.ToInt64(head.ContentLength) != int64(len(object.Body)) || metadataValue(head.Metadata, "sha256") != object.ContentSHA256 {
-			return ErrContentMismatch
-		}
-		return nil
+		return s.verifyExisting(ctx, object, head)
 	}
 	if !isNotFound(err) {
 		return fmt.Errorf("head archive object: %w", err)
@@ -88,12 +85,40 @@ func (s *S3Store) Put(ctx context.Context, object Object) error {
 
 	_, err = s.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(s.bucket), Key: aws.String(object.Key), Body: bytes.NewReader(object.Body),
-		ContentType: aws.String(object.MediaType), Metadata: metadata,
+		ContentType: aws.String(object.MediaType), Metadata: metadata, IfNoneMatch: aws.String("*"),
 	})
 	if err == nil {
 		return nil
 	}
+	if isConditionalConflict(err) {
+		winner, headErr := s.client.HeadObject(ctx, &s3.HeadObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(object.Key)})
+		if headErr == nil {
+			return s.verifyExisting(ctx, object, winner)
+		}
+	}
 	return fmt.Errorf("put archive object: %w", err)
+}
+
+func (s *S3Store) verifyExisting(ctx context.Context, object Object, head *s3.HeadObjectOutput) error {
+	if head == nil || aws.ToInt64(head.ContentLength) != int64(len(object.Body)) || aws.ToString(head.ContentType) != object.MediaType {
+		return ErrContentMismatch
+	}
+	result, err := s.client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(object.Key)})
+	if err != nil {
+		return fmt.Errorf("get existing archive object: %w", err)
+	}
+	if result == nil || result.Body == nil {
+		return ErrContentMismatch
+	}
+	defer result.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(result.Body, int64(len(object.Body))+1))
+	if err != nil {
+		return fmt.Errorf("read existing archive object: %w", err)
+	}
+	if !bytes.Equal(body, object.Body) {
+		return ErrContentMismatch
+	}
+	return nil
 }
 
 func (s *S3Store) Get(ctx context.Context, key string) (io.ReadCloser, error) {
@@ -166,13 +191,13 @@ func isNotFound(err error) bool {
 	return false
 }
 
-func metadataValue(metadata map[string]string, key string) string {
-	for candidate, value := range metadata {
-		if strings.EqualFold(candidate, key) {
-			return value
-		}
+func isConditionalConflict(err error) bool {
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		code := apiErr.ErrorCode()
+		return code == "PreconditionFailed" || code == "ConditionalRequestConflict" || code == "412" || code == "409"
 	}
-	return ""
+	return false
 }
 
 var secretName = regexp.MustCompile(`(?i)(authorization|api[-_]?key|access[-_]?key|secret|token|password|credential|cookie|session)`)

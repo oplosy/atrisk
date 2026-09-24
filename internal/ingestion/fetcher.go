@@ -102,6 +102,18 @@ func (f HTTPFetcher) Fetch(ctx context.Context, request FetchRequest) (FetchedRe
 	if client == nil {
 		client = http.DefaultClient
 	}
+	clientCopy := *client
+	existingRedirectPolicy := clientCopy.CheckRedirect
+	clientCopy.CheckRedirect = func(redirectRequest *http.Request, via []*http.Request) error {
+		if _, redirectErr := validateRequestURL(redirectRequest.URL.String(), f.AllowedHosts); redirectErr != nil {
+			return fmt.Errorf("source redirect rejected: %w", redirectErr)
+		}
+		if existingRedirectPolicy != nil {
+			return existingRedirectPolicy(redirectRequest, via)
+		}
+		return nil
+	}
+	client = &clientCopy
 	policy := f.Retry.normalized()
 	sleep := f.Sleep
 	if sleep == nil {
@@ -136,7 +148,7 @@ func (f HTTPFetcher) Fetch(ctx context.Context, request FetchRequest) (FetchedRe
 		if doErr != nil {
 			cancel()
 			if attempt == policy.MaxAttempts {
-				return FetchedResponse{}, fmt.Errorf("fetch source: %w", doErr)
+				return FetchedResponse{}, fmt.Errorf("fetch source: %w", sanitizedTransportError(doErr))
 			}
 			if err := sleep(ctx, retryDelay(policy, attempt)); err != nil {
 				return FetchedResponse{}, err
@@ -176,6 +188,16 @@ func (f HTTPFetcher) Fetch(ctx context.Context, request FetchRequest) (FetchedRe
 		}, nil
 	}
 	return FetchedResponse{}, errors.New("source fetch exhausted retries")
+}
+
+func sanitizedTransportError(err error) error {
+	if errors.Is(err, context.Canceled) {
+		return context.Canceled
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return context.DeadlineExceeded
+	}
+	return errors.New("source request failed")
 }
 
 func validateRequestURL(raw string, allowed map[string]struct{}) (*url.URL, error) {

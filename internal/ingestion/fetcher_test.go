@@ -95,3 +95,43 @@ func TestHTTPFetcherHonorsTimeout(t *testing.T) {
 		t.Fatal("timed-out response unexpectedly succeeded")
 	}
 }
+
+func TestHTTPFetcherValidatesEveryRedirectHop(t *testing.T) {
+	downgradeTarget := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer downgradeTarget.Close()
+	downgradeSource, downgradeClient := testFetcherServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, downgradeTarget.URL, http.StatusFound)
+	}))
+	defer downgradeSource.Close()
+	fetcher := HTTPFetcher{Client: downgradeClient, AllowedHosts: map[string]struct{}{"127.0.0.1": {}}, Retry: RetryPolicy{MaxAttempts: 1}}
+	if _, err := fetcher.Fetch(context.Background(), FetchRequest{URL: downgradeSource.URL}); err == nil {
+		t.Fatal("HTTPS downgrade redirect unexpectedly succeeded")
+	}
+
+	allowlistedSource, allowlistedClient := testFetcherServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "https://unallowlisted.example.test/data", http.StatusFound)
+	}))
+	defer allowlistedSource.Close()
+	fetcher.Client = allowlistedClient
+	if _, err := fetcher.Fetch(context.Background(), FetchRequest{URL: allowlistedSource.URL}); err == nil {
+		t.Fatal("unallowlisted redirect unexpectedly succeeded")
+	}
+}
+
+type leakingTransport struct{}
+
+func (leakingTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	return nil, fmt.Errorf("upstream api_key=source-secret failed for %s", request.URL.String())
+}
+
+func TestHTTPFetcherSanitizesTransportErrors(t *testing.T) {
+	fetcher := HTTPFetcher{
+		Client:       &http.Client{Transport: leakingTransport{}},
+		AllowedHosts: map[string]struct{}{"example.test": {}},
+		Retry:        RetryPolicy{MaxAttempts: 1},
+	}
+	_, err := fetcher.Fetch(context.Background(), FetchRequest{URL: "https://example.test/data?api_key=source-secret"})
+	if err == nil || strings.Contains(err.Error(), "source-secret") || strings.Contains(err.Error(), "api_key") {
+		t.Fatalf("transport error leaked request credentials: %v", err)
+	}
+}
