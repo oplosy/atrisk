@@ -10,7 +10,7 @@
 
 ## Result
 
-`needs-review`
+`review` — independent code review is clear on implementation commit `5dce42810113708ef3e3facc87c4ad9a527b9715`; hosted PostgreSQL CI is pending.
 
 ## Acceptance evidence
 
@@ -20,8 +20,7 @@
 | AC-2 | `TestPointInTimeAPI` requests source-as-of for a series with no `source_known_at` values and asserts HTTP 409, `SOURCE_AS_OF_UNSUPPORTED`, `request_id`, and explicit capability details. Series metadata derives this capability from persisted evidence rather than provider-name heuristics. |
 | AC-3 | Observation responses include unit, frequency, nested source/system clocks and knowledge basis, quality JSON, raw object UUID, and raw SHA-256. The integration fixture asserts the raw provenance UUID is not combined with the SHA. |
 | AC-4 | Latest, source-as-of, system-as-of, revisions, and combined cross-source routes are explicit in `apps/api/handlers/timeline/handler.go` and `contracts/openapi/openapi.json`; route-specific mode schemas match handler acceptance, combined mode is restricted to the cross-source endpoint, and every distinct cross-source series ID is existence-validated before querying. |
-| AC-5 | `db/queries/timeline/timeline.sql` applies keyset predicates after `DISTINCT ON` winner selection, and series listing uses a composite keyset over data-source code, source code, and UUID rather than offset pagination. The integration fixture requests two combined pages, two series-list pages, and two revisions pages with stable cursors. |
-| AC-6 | SQLC output is regenerated from the timeline query source; OpenAPI is updated for routes, schemas, capabilities, errors, and mode semantics. Contract tests and generated-file verification were run. |
+| AC-5 | `db/queries/timeline/timeline.sql` applies keyset predicates after `DISTINCT ON` winner selection; series listing uses a composite keyset rather than offsets. Integration coverage exercises combined, series-list, and revision pagination. SQLC/OpenAPI are updated, with contract tests and generated-file drift checks passing. |
 
 ## Stop-condition check
 
@@ -36,7 +35,7 @@
 | `task test-go-integration TEST=PointInTimeAPI` | unavailable: `task` is not installed; fail-closed equivalent reports isolated database URL required. |
 | `task test-contract` | unavailable: `task` is not installed; `node --test test/contract/contract.test.mjs` passed, 9 tests. |
 | `task check-generated` | unavailable: `task` is not installed; `node scripts/verify/check-generated.mjs` passed after staging generated-state normalization. |
-| `go test ./... -count=1` | pass. |
+| `go test ./apps/... ./internal/... -count=1` | pass. |
 | `go vet ./apps/... ./internal/...` | pass. |
 | `sqlc generate -f db/queries/core/sqlc.yaml` | pass; local SQLC v1.31.1 regenerated the timeline query output. |
 | `ATLASRISK_REQUIRE_TEST_DATABASE=1 go test ./test/integration -run '^TestPointInTimeAPI$' -count=1` | fail-closed as expected: test database URL is required. |
@@ -51,9 +50,9 @@
 ## Git state
 
 - Branch: `task/AR-106-point-in-time-query-service`
-- Implementation/code tip: `5dce42810113708ef3e3facc87c4ad9a527b9715`; the report-only handoff commit follows.
-- Remote branch: synchronized with `origin/task/AR-106-point-in-time-query-service` at final handoff.
-- Worktree: clean after the report-only handoff commit.
+- Implementation/code tip: `5dce42810113708ef3e3facc87c4ad9a527b9715`; the review-lifecycle/report commit follows.
+- Remote branch: synchronized with `origin/task/AR-106-point-in-time-query-service` at implementation handoff; lifecycle/report commit is pending push.
+- Worktree: clean before the review-lifecycle/report commit; expected clean after push.
 
 ## Assumptions and risks
 
