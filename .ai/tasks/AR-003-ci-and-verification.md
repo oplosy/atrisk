@@ -1,10 +1,11 @@
 ---
 id: AR-003
 title: Build CI and verification targets
-status: draft
+status: ready
 phase: 0
 depends_on: [AR-002]
 branch: task/AR-003-ci-and-verification
+base_sha: ae36677feff56bf05c961820ff09ef73d6c65089
 owned_paths: [Taskfile.yml, .github/workflows/, scripts/verify/]
 shared_paths: [go.mod, risk-engine/pyproject.toml, package.json]
 adrs: [ADR-018, ADR-019]
