@@ -1,7 +1,7 @@
 ---
 id: AR-104
 title: Add TCMB EVDS ingestion
-status: ready
+status: review
 phase: 1
 depends_on: [AR-102]
 branch: task/AR-104-tcmb-adapter
