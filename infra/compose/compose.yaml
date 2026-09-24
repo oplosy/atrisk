@@ -1,0 +1,68 @@
+name: ${COMPOSE_PROJECT_NAME:-atrisk}
+
+services:
+  postgres:
+    image: postgres:18.6-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-atrisk}
+      POSTGRES_USER: ${POSTGRES_USER:-atrisk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-atlasrisk-local-only}
+      PGDATA: /var/lib/postgresql/18/docker
+    ports:
+      - 127.0.0.1:${POSTGRES_PORT:-55432}:5432
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  garage:
+    # Garage's official image is FROM scratch and has no alternate non-root user.
+    # Keep its RPC port internal; only the S3 API is published on loopback.
+    image: dxflrs/garage:v2.4.1@sha256:9c96caa2612d3411acc5b0e6701fb238dbfba33e533a6d7d3d811a4b12d0d020
+    restart: unless-stopped
+    command: [/garage, server, --single-node, --default-bucket, --default-access-key]
+    environment:
+      GARAGE_DEFAULT_ACCESS_KEY: ${GARAGE_ACCESS_KEY:-GKatlasrisklocal}
+      GARAGE_DEFAULT_SECRET_KEY: ${GARAGE_SECRET_KEY:-atlasrisk-garage-local-only-secret}
+      GARAGE_DEFAULT_BUCKET: ${GARAGE_BUCKET:-atlasrisk-raw}
+    ports:
+      - 127.0.0.1:${GARAGE_S3_PORT:-53900}:3900
+    volumes:
+      - ./garage.toml:/etc/garage.toml:ro
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: [CMD, /garage, status]
+      interval: 5s
+      timeout: 10s
+      retries: 12
+      start_period: 15s
+
+  s3-smoke:
+    profiles: [test]
+    image: amazon/aws-cli:2.36.10@sha256:1ce4fd2ea9b640019af76a94e91adeed901d20363b4bb2ed095b45c75e5565cc
+    depends_on:
+      garage:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: ${GARAGE_ACCESS_KEY:-GKatlasrisklocal}
+      AWS_SECRET_ACCESS_KEY: ${GARAGE_SECRET_KEY:-atlasrisk-garage-local-only-secret}
+      AWS_DEFAULT_REGION: garage
+      AWS_EC2_METADATA_DISABLED: "true"
+    volumes:
+      - ./smoke-payload.txt:/aws/smoke-payload.txt:ro
+      - ${SMOKE_OUTPUT_DIR:-./.smoke-output}:/aws/smoke-output
+
+volumes:
+  postgres-data:
+  garage-meta:
+  garage-data:
