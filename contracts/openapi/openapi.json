@@ -44,7 +44,7 @@
       "get": {
         "operationId": "listCrossSourceTimeline",
         "parameters": [{ "name": "series_id", "in": "query", "required": true, "schema": { "type": "string", "minLength": 1 } }, { "$ref": "#/components/parameters/Mode" }, { "$ref": "#/components/parameters/From" }, { "$ref": "#/components/parameters/To" }, { "$ref": "#/components/parameters/AsOf" }, { "$ref": "#/components/parameters/Limit" }, { "$ref": "#/components/parameters/Cursor" }],
-        "responses": { "200": { "description": "Cross-source timeline page", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ObservationPage" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" } }
+        "responses": { "200": { "description": "Cross-source timeline page", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ObservationPage" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" }, "404": { "$ref": "#/components/responses/NotFound" } }
       }
     }
   },
