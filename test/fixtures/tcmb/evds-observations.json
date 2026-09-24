@@ -1,0 +1,10 @@
+{
+  "totalCount": 5,
+  "items": [
+    {"Tarih": "02-01-2024", "TP_DK_USD_A": "29,4381", "TP_FAIZ_O1": "42,50"},
+    {"Tarih": "03-01-2024", "TP_DK_USD_A": null, "TP_FAIZ_O1": "42,50"},
+    {"Tarih": "04-01-2024", "TP_DK_USD_A": "29,5127", "TP_FAIZ_O1": "42,75"},
+    {"Tarih": "05-01-2024", "TP_DK_USD_A": "29,6170", "TP_FAIZ_O1": "42,75"},
+    {"Tarih": "08-01-2024", "TP_DK_USD_A": "29,8214", "TP_FAIZ_O1": "43,00"}
+  ]
+}

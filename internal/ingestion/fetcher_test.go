@@ -47,6 +47,46 @@ func TestHTTPFetcherAllowsOnlyBoundedHTTPSAndSafeMetadata(t *testing.T) {
 	}
 }
 
+func TestHTTPFetcherForwardsProviderKeyButNeverReturnsIt(t *testing.T) {
+	server, client := testFetcherServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("key") != "source-secret" {
+			t.Errorf("provider key was not forwarded upstream: headers=%v", r.Header)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("key", "response-should-not-be-recorded")
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+	fetcher := HTTPFetcher{Client: client, AllowedHosts: map[string]struct{}{"127.0.0.1": {}}}
+	response, err := fetcher.Fetch(context.Background(), FetchRequest{URL: server.URL, Headers: http.Header{"key": []string{"source-secret"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, leaked := response.Headers["key"]; leaked || strings.Contains(response.RequestURI, "source-secret") {
+		t.Fatalf("provider key leaked into response metadata: headers=%v uri=%q", response.Headers, response.RequestURI)
+	}
+}
+
+func TestHTTPFetcherStripsProviderKeyBeforeRedirect(t *testing.T) {
+	var server *httptest.Server
+	server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/start" {
+			http.Redirect(w, r, server.URL+"/target", http.StatusFound)
+			return
+		}
+		if got := r.Header.Get("key"); got != "" {
+			t.Errorf("provider key crossed redirect: %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"redirected":true}`))
+	}))
+	defer server.Close()
+	fetcher := HTTPFetcher{Client: server.Client(), AllowedHosts: map[string]struct{}{"127.0.0.1": {}}}
+	if _, err := fetcher.Fetch(context.Background(), FetchRequest{URL: server.URL + "/start", Headers: http.Header{"key": []string{"source-secret"}}}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestHTTPFetcherRetriesRateLimitAndRejectsMediaType(t *testing.T) {
 	var calls atomic.Int32
 	server, client := testFetcherServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
