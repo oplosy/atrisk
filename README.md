@@ -50,7 +50,7 @@ The repository pins the supported runtime families in the component manifests:
 - Python 3.14.7 is pinned by `risk-engine/.python-version`; `risk-engine/uv.lock`
   locks the Python project and development dependencies.
 - Node.js 24.16.0 is pinned by `apps/web/.node-version`, and npm 12.0.1 is pinned
-  by `package.json`; `package-lock.json` locks the workspace dependencies.
+  by `package.json`; `package-lock.json` locks the web dependencies.
 
 From a clean clone, install and verify each component with:
 

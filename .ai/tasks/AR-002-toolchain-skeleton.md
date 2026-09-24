@@ -1,7 +1,7 @@
 ---
 id: AR-002
 title: Create the polyglot toolchain skeleton
-status: ready
+status: review
 phase: 0
 depends_on: [AR-001]
 branch: task/AR-002-toolchain-skeleton
@@ -32,11 +32,11 @@ locked dependencies, without implementing domain behavior.
 
 ## Acceptance criteria
 
-- [ ] Clean installs use committed lockfiles and documented commands.
-- [ ] Each component has a minimal passing test and production build.
-- [ ] No component depends on another component's internal source files.
-- [ ] Repository ignores build output, environments, secrets, and local worktrees.
-- [ ] Runtime and dependency versions are reported by a diagnostic command.
+- [x] Clean installs use committed lockfiles and documented commands.
+- [x] Each component has a minimal passing test and production build.
+- [x] No component depends on another component's internal source files.
+- [x] Repository ignores build output, environments, secrets, and local worktrees.
+- [x] Runtime and dependency versions are reported by a diagnostic command.
 
 ## Required verification
 
