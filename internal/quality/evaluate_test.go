@@ -42,6 +42,36 @@ func TestQualityEvaluateMissingExpectedBusinessDayIsPartialAndBlocksRequired(t *
 	if len(got.Reasons) == 0 || got.Reasons[0].Code != "EXPECTED_PERIOD_GAP" {
 		t.Fatalf("expected structured gap reason, got %+v", got.Reasons)
 	}
+	optional := Evaluate("daily", "", json.RawMessage(businessPolicy), instant("2024-07-03T00:00:00Z"), instant("2024-07-06T00:00:00Z"), instant("2024-07-06T00:00:00Z"), []Sample{
+		sample("2024-07-03T00:00:00Z", false, `{}`),
+	}, false)
+	if optional.Classification != Partial || optional.State != Degraded {
+		t.Fatalf("got %+v, want optional partial/degraded", optional)
+	}
+}
+
+func TestQualityEvaluateWeeklyMonthlyAndQuarterlyCalendarSlots(t *testing.T) {
+	tests := []struct {
+		name      string
+		frequency string
+		policy    string
+		from      string
+		to        string
+		cutoff    string
+		observed  string
+	}{
+		{name: "weekly Friday", frequency: "weekly", policy: `{"version":"w1","max_age":"240h"}`, from: "2024-01-08T00:00:00Z", to: "2024-01-15T00:00:00Z", cutoff: "2024-01-15T00:00:00Z", observed: "2024-01-12T00:00:00Z"},
+		{name: "monthly first day", frequency: "monthly", policy: `{"version":"m1","max_age":"1080h"}`, from: "2024-01-01T00:00:00Z", to: "2024-02-01T00:00:00Z", cutoff: "2024-02-01T00:00:00Z", observed: "2024-01-01T00:00:00Z"},
+		{name: "quarterly first day", frequency: "quarterly", policy: `{"version":"q1","max_age":"3000h"}`, from: "2024-01-01T00:00:00Z", to: "2024-04-01T00:00:00Z", cutoff: "2024-04-01T00:00:00Z", observed: "2024-01-01T00:00:00Z"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := Evaluate(tc.frequency, "", json.RawMessage(tc.policy), instant(tc.from), instant(tc.to), instant(tc.cutoff), []Sample{sample(tc.observed, false, `{}`)}, true)
+			if got.Classification != Fresh || got.State != Valid {
+				t.Fatalf("got %+v, want fresh/valid", got)
+			}
+		})
+	}
 }
 
 func TestQualityEvaluateUsesSourceTimezoneForCalendarDates(t *testing.T) {
