@@ -57,12 +57,23 @@ tasks:
   generate:
     desc: Generate Go, TypeScript, and Python contract models
     cmds:
+      - sqlc generate -f db/queries/core/sqlc.yaml
       - node scripts/generate/contract-models.mjs
 
   test-integration:
     desc: Run integration tests when integration sources exist
     cmds:
       - node scripts/verify/check-scope.mjs integration test/integration
+
+  migrate-test:
+    desc: Apply migrations to an explicitly isolated test database and verify schema
+    cmds:
+      - go test ./test/integration -run '^TestCoreDatabaseMigrations$' -count=1
+
+  test-go-integration:
+    desc: Run Go integration tests selected by TEST against an isolated database
+    cmds:
+      - go test ./test/integration -run "Test{{.TEST}}" -count=1
 
   build:
     desc: Build Go, Python, and web artifacts
