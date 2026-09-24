@@ -68,6 +68,16 @@ func TestTestDatabaseDSNValidation(t *testing.T) {
 	if err := database.ValidateIsolatedTestDatabaseURL(valid); err != nil {
 		t.Fatalf("valid isolated DSN rejected: %v", err)
 	}
+	t.Setenv("PGHOST", "remote.example")
+	t.Setenv("PGPORT", "65432")
+	t.Setenv("PGDATABASE", "remote_database")
+	t.Setenv("PGUSER", "remote_user")
+	t.Setenv("PGSSLMODE", "require")
+	t.Setenv("PGSERVICE", "")
+	t.Setenv("PGSERVICEFILE", "")
+	if err := database.ValidateIsolatedTestDatabaseURL(valid); err != nil {
+		t.Fatalf("explicit isolated URI was affected by PostgreSQL environment defaults: %v", err)
+	}
 	unsafe := []string{
 		"",
 		"postgres://test-user:test-password@127.0.0.1:55432/contest",
@@ -75,6 +85,19 @@ func TestTestDatabaseDSNValidation(t *testing.T) {
 		"postgres://test-user:test-password@db.example.test:55432/atrisk_test",
 		"postgres://test-user:test-password/atrisk_test",
 		"postgres://127.0.0.1:55432/atrisk_test",
+		"postgres://test-user:test-password@127.0.0.1:55432/atrisk_test?host=remote.example&sslmode=disable",
+		"postgres://test-user:test-password@127.0.0.1:55432/atrisk_test?sslmode=disable&host=remote.example",
+		"postgres://test-user:test-password@127.0.0.1:55432/atrisk_test?port=65432",
+		"postgres://test-user:test-password@127.0.0.1:55432/atrisk_test?dbname=remote_database",
+		"postgres://test-user:test-password@127.0.0.1:55432/atrisk_test?database=remote_database",
+		"postgres://test-user:test-password@127.0.0.1:55432/atrisk_test?user=remote_user",
+		"postgres://test-user:test-password@127.0.0.1:55432/atrisk_test?service=remote",
+		"postgres://test-user:test-password@127.0.0.1:55432/atrisk_test?servicefile=%2Ftmp%2Fremote.conf",
+		"postgres://test-user:test-password@127.0.0.1:55432/atrisk_test?options=-c%20search_path%3Dpublic",
+		"postgres://test-user:test-password@127.0.0.1:55432/atrisk_test?sslmode=require",
+		"postgres://test-user:test-password@127.0.0.1:55432/atrisk_test?sslmode=disable&sslmode=require",
+		"postgres://test-user:test-password@127.0.0.1:55432/atrisk_test?SSLMode=disable",
+		"postgres://test-user:test-password@127.0.0.1:55432/atrisk_test?ssl=disable",
 		"not-a-dsn",
 	}
 	for _, dsn := range unsafe {
@@ -101,6 +124,15 @@ func decimal(value string) pgtype.Numeric {
 		panic(fmt.Sprintf("invalid test decimal %q: %v", value, err))
 	}
 	return n
+}
+
+func assertDecimal(t *testing.T, got pgtype.Numeric, want string) {
+	t.Helper()
+	expected := decimal(want)
+	if !got.Valid || got.NaN != expected.NaN || got.InfinityModifier != expected.InfinityModifier || got.Exp != expected.Exp ||
+		(got.Int == nil) != (expected.Int == nil) || (got.Int != nil && got.Int.Cmp(expected.Int) != 0) {
+		t.Fatalf("numeric value mismatch: got=%+v want=%+v", got, expected)
+	}
 }
 
 func timestamp(value string) pgtype.Timestamptz {
@@ -271,6 +303,8 @@ func TestCoreDatabase(t *testing.T) {
 
 	digest := sha256.Sum256([]byte(fixtureName))
 	sha := fmt.Sprintf("%x", digest)
+	fxBaseCurrency := fmt.Sprintf("X%02X", digest[0])
+	fxQuoteCurrency := fmt.Sprintf("Y%02X", digest[1])
 	if rows, err := queries.InsertRawObject(ctx, database.InsertRawObjectParams{
 		ContentSha256: sha, ObjectKey: "sha256/" + sha, MediaType: "application/json", ByteLength: 13, RetrievedAt: timestamp("2026-01-01T00:00:00Z"), RequestMetadata: []byte(`{"source":"fixture"}`),
 	}); err != nil || rows != 1 {
@@ -290,6 +324,43 @@ func TestCoreDatabase(t *testing.T) {
 	}
 	if _, err := pool.Exec(ctx, `DELETE FROM raw_objects WHERE id = $1`, validUUID(t, raw.ID)); err == nil {
 		t.Fatal("raw object delete unexpectedly succeeded")
+	}
+	runConcurrentInsert := func(label string, insert func() (int64, error)) int64 {
+		var workers sync.WaitGroup
+		results := make(chan int64, 8)
+		errors := make(chan error, 8)
+		for range 8 {
+			workers.Add(1)
+			go func() {
+				defer workers.Done()
+				rows, insertErr := insert()
+				if insertErr != nil {
+					errors <- insertErr
+					return
+				}
+				results <- rows
+			}()
+		}
+		workers.Wait()
+		close(results)
+		close(errors)
+		var inserted int64
+		for rows := range results {
+			inserted += rows
+		}
+		for insertErr := range errors {
+			t.Fatalf("concurrent %s insert: %v", label, insertErr)
+		}
+		return inserted
+	}
+	concurrentRawDigest := sha256.Sum256([]byte(fixtureName + "-concurrent-raw"))
+	concurrentRawSHA := fmt.Sprintf("%x", concurrentRawDigest)
+	if inserted := runConcurrentInsert("raw object", func() (int64, error) {
+		return queries.InsertRawObject(ctx, database.InsertRawObjectParams{
+			ContentSha256: concurrentRawSHA, ObjectKey: "sha256/" + concurrentRawSHA, MediaType: "application/json", ByteLength: 13, RetrievedAt: timestamp("2026-01-01T00:00:00Z"), RequestMetadata: []byte(`{"source":"concurrent-fixture"}`),
+		})
+	}); inserted != 1 {
+		t.Fatalf("concurrent identical raw object insert affected %d rows, want 1", inserted)
 	}
 
 	observationTime := timestamp("2026-01-01T00:00:00Z")
@@ -350,12 +421,14 @@ func TestCoreDatabase(t *testing.T) {
 	if err != nil || len(sourceAsOf) != 1 || !sourceAsOf[0].SourceKnownAt.Valid {
 		t.Fatalf("source-as-of did not select source-known revision: count=%d err=%v rows=%+v", len(sourceAsOf), err, sourceAsOf)
 	}
+	assertDecimal(t, sourceAsOf[0].Value, "123.456789012345678902")
 	systemAsOf, err := queries.ListObservationsSystemAsOf(ctx, database.ListObservationsSystemAsOfParams{
 		SeriesID: seriesID, ObservationTime: timestamp("2025-12-31T00:00:00Z"), ObservationTime_2: timestamp("2026-01-02T00:00:00Z"), SystemKnownAt: timestamp("2999-01-01T00:00:00Z"),
 	})
 	if err != nil || len(systemAsOf) != 1 || systemAsOf[0].SourceKnownAt.Valid || systemAsOf[0].KnowledgeTimeBasis != "first_observed_by_system" {
 		t.Fatalf("system-as-of did not select latest captured revision: count=%d err=%v rows=%+v", len(systemAsOf), err, systemAsOf)
 	}
+	assertDecimal(t, systemAsOf[0].Value, "321.000000000000000000")
 
 	var stored string
 	if err := pool.QueryRow(ctx, `SELECT value::text FROM observation_revisions WHERE series_id = $1 AND value = $2`, seriesID, value).Scan(&stored); err != nil {
@@ -373,6 +446,14 @@ func TestCoreDatabase(t *testing.T) {
 	}
 	if rows, err := queries.InsertPriceRevision(ctx, priceParams); err != nil || rows != 0 {
 		t.Fatalf("duplicate price revision was not idempotently rejected: rows=%d err=%v", rows, err)
+	}
+	concurrentPriceParams := database.InsertPriceRevisionParams{
+		InstrumentID: validUUID(t, instrument.ID), QuoteCurrency: "TRY", ObservationTime: timestamp("2026-01-03T00:00:00Z"), Price: decimal("100.000000000000000001"), KnowledgeTimeBasis: "first_observed_by_system", RawObjectID: validUUID(t, raw.ID), QualityFlags: []byte(`{"concurrent":true}`),
+	}
+	if inserted := runConcurrentInsert("price revision", func() (int64, error) {
+		return queries.InsertPriceRevision(ctx, concurrentPriceParams)
+	}); inserted != 1 {
+		t.Fatalf("concurrent identical price revision insert affected %d rows, want 1", inserted)
 	}
 	priceRevision, err := queries.ListPriceRevisions(ctx, database.ListPriceRevisionsParams{
 		InstrumentID: validUUID(t, instrument.ID), QuoteCurrency: "TRY", ObservationTime: timestamp("2025-12-31T00:00:00Z"), ObservationTime_2: timestamp("2026-01-02T00:00:00Z"),
@@ -396,12 +477,14 @@ func TestCoreDatabase(t *testing.T) {
 	if err != nil || len(priceSourceAsOf) != 1 || !priceSourceAsOf[0].SourceKnownAt.Valid {
 		t.Fatalf("price source-as-of did not select source-known revision: count=%d err=%v rows=%+v", len(priceSourceAsOf), err, priceSourceAsOf)
 	}
+	assertDecimal(t, priceSourceAsOf[0].Price, "98765.432300000000000000")
 	priceSystemAsOf, err := queries.ListPricesSystemAsOf(ctx, database.ListPricesSystemAsOfParams{
 		InstrumentID: validUUID(t, instrument.ID), QuoteCurrency: "TRY", ObservationTime: timestamp("2025-12-31T00:00:00Z"), ObservationTime_2: timestamp("2026-01-02T00:00:00Z"), SystemKnownAt: timestamp("2999-01-01T00:00:00Z"),
 	})
 	if err != nil || len(priceSystemAsOf) != 1 || !priceSystemAsOf[0].SourceKnownAt.Valid {
 		t.Fatalf("price system-as-of did not select latest captured revision: count=%d err=%v rows=%+v", len(priceSystemAsOf), err, priceSystemAsOf)
 	}
+	assertDecimal(t, priceSystemAsOf[0].Price, "98765.432300000000000000")
 	if _, err := pool.Exec(ctx, `UPDATE price_revisions SET price = 1 WHERE instrument_id = $1`, validUUID(t, instrument.ID)); err == nil {
 		t.Fatal("price revision update unexpectedly succeeded")
 	}
@@ -410,7 +493,7 @@ func TestCoreDatabase(t *testing.T) {
 	}
 
 	fxParams := database.InsertFXQuoteRevisionParams{
-		BaseCurrency: "USD", QuoteCurrency: "TRY", ObservationTime: observationTime, Rate: decimal("34.123456789012345678"), SourceKnownAt: sourceTime, KnowledgeTimeBasis: "source_published_at", RawObjectID: validUUID(t, raw.ID), QualityFlags: []byte(`{}`),
+		BaseCurrency: fxBaseCurrency, QuoteCurrency: fxQuoteCurrency, ObservationTime: observationTime, Rate: decimal("34.123456789012345678"), SourceKnownAt: sourceTime, KnowledgeTimeBasis: "source_published_at", RawObjectID: validUUID(t, raw.ID), QualityFlags: []byte(`{}`),
 	}
 	if rows, err := queries.InsertFXQuoteRevision(ctx, fxParams); err != nil || rows != 1 {
 		t.Fatalf("insert FX revision: rows=%d err=%v", rows, err)
@@ -418,27 +501,37 @@ func TestCoreDatabase(t *testing.T) {
 	if rows, err := queries.InsertFXQuoteRevision(ctx, fxParams); err != nil || rows != 0 {
 		t.Fatalf("duplicate FX revision was not idempotently rejected: rows=%d err=%v", rows, err)
 	}
+	concurrentFXParams := database.InsertFXQuoteRevisionParams{
+		BaseCurrency: fxBaseCurrency, QuoteCurrency: fxQuoteCurrency, ObservationTime: timestamp("2026-01-03T00:00:00Z"), Rate: decimal("35.000000000000000001"), KnowledgeTimeBasis: "first_observed_by_system", RawObjectID: validUUID(t, raw.ID), QualityFlags: []byte(`{"concurrent":true}`),
+	}
+	if inserted := runConcurrentInsert("FX revision", func() (int64, error) {
+		return queries.InsertFXQuoteRevision(ctx, concurrentFXParams)
+	}); inserted != 1 {
+		t.Fatalf("concurrent identical FX revision insert affected %d rows, want 1", inserted)
+	}
 	if rows, err := queries.InsertFXQuoteRevision(ctx, database.InsertFXQuoteRevisionParams{
-		BaseCurrency: "USD", QuoteCurrency: "TRY", ObservationTime: observationTime, Rate: decimal("34.223456789012345678"), SourceKnownAt: sourceTime, KnowledgeTimeBasis: "source_published_at", RawObjectID: validUUID(t, raw.ID), QualityFlags: []byte(`{"revised":true}`),
+		BaseCurrency: fxBaseCurrency, QuoteCurrency: fxQuoteCurrency, ObservationTime: observationTime, Rate: decimal("34.223456789012345678"), SourceKnownAt: sourceTime, KnowledgeTimeBasis: "source_published_at", RawObjectID: validUUID(t, raw.ID), QualityFlags: []byte(`{"revised":true}`),
 	}); err != nil || rows != 1 {
 		t.Fatalf("revised FX insert: rows=%d err=%v", rows, err)
 	}
 	fxSourceAsOf, err := queries.ListFXQuotesSourceAsOf(ctx, database.ListFXQuotesSourceAsOfParams{
-		BaseCurrency: "USD", QuoteCurrency: "TRY", ObservationTime: timestamp("2025-12-31T00:00:00Z"), ObservationTime_2: timestamp("2026-01-02T00:00:00Z"), SourceKnownAt: timestamp("2026-01-03T00:00:00Z"),
+		BaseCurrency: fxBaseCurrency, QuoteCurrency: fxQuoteCurrency, ObservationTime: timestamp("2025-12-31T00:00:00Z"), ObservationTime_2: timestamp("2026-01-02T00:00:00Z"), SourceKnownAt: timestamp("2026-01-03T00:00:00Z"),
 	})
 	if err != nil || len(fxSourceAsOf) != 1 || !fxSourceAsOf[0].SourceKnownAt.Valid {
 		t.Fatalf("FX source-as-of did not select source-known revision: count=%d err=%v rows=%+v", len(fxSourceAsOf), err, fxSourceAsOf)
 	}
+	assertDecimal(t, fxSourceAsOf[0].Rate, "34.223456789012345678")
 	fxSystemAsOf, err := queries.ListFXQuotesSystemAsOf(ctx, database.ListFXQuotesSystemAsOfParams{
-		BaseCurrency: "USD", QuoteCurrency: "TRY", ObservationTime: timestamp("2025-12-31T00:00:00Z"), ObservationTime_2: timestamp("2026-01-02T00:00:00Z"), SystemKnownAt: timestamp("2999-01-01T00:00:00Z"),
+		BaseCurrency: fxBaseCurrency, QuoteCurrency: fxQuoteCurrency, ObservationTime: timestamp("2025-12-31T00:00:00Z"), ObservationTime_2: timestamp("2026-01-02T00:00:00Z"), SystemKnownAt: timestamp("2999-01-01T00:00:00Z"),
 	})
 	if err != nil || len(fxSystemAsOf) != 1 || !fxSystemAsOf[0].SourceKnownAt.Valid {
 		t.Fatalf("FX system-as-of did not select latest captured revision: count=%d err=%v rows=%+v", len(fxSystemAsOf), err, fxSystemAsOf)
 	}
-	if _, err := pool.Exec(ctx, `UPDATE fx_quote_revisions SET rate = 1 WHERE base_currency = 'USD' AND quote_currency = 'TRY'`); err == nil {
+	assertDecimal(t, fxSystemAsOf[0].Rate, "34.223456789012345678")
+	if _, err := pool.Exec(ctx, `UPDATE fx_quote_revisions SET rate = 1 WHERE base_currency = $1 AND quote_currency = $2`, fxBaseCurrency, fxQuoteCurrency); err == nil {
 		t.Fatal("FX revision update unexpectedly succeeded")
 	}
-	if _, err := pool.Exec(ctx, `DELETE FROM fx_quote_revisions WHERE base_currency = 'USD' AND quote_currency = 'TRY'`); err == nil {
+	if _, err := pool.Exec(ctx, `DELETE FROM fx_quote_revisions WHERE base_currency = $1 AND quote_currency = $2`, fxBaseCurrency, fxQuoteCurrency); err == nil {
 		t.Fatal("FX revision delete unexpectedly succeeded")
 	}
 
@@ -448,6 +541,44 @@ func TestCoreDatabase(t *testing.T) {
 	if _, err := pool.Exec(ctx, `DELETE FROM observation_revisions WHERE series_id = $1`, seriesID); err == nil {
 		t.Fatal("observation delete unexpectedly succeeded")
 	}
+	// Add selective planner fixtures in the tested time window. Keeping the rows
+	// in the same series/pair makes the default planner choose the intended
+	// indexes without disabling sequential scans artificially; future knowledge
+	// clocks keep them out of the as-of result assertions above.
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO observation_revisions (
+			series_id, observation_time, value, source_known_at, system_known_at,
+			knowledge_time_basis, raw_object_id
+		)
+		SELECT $1, TIMESTAMPTZ '2026-01-01T00:00:00Z' + (g * INTERVAL '1 minute'), g::numeric,
+			TIMESTAMPTZ '2100-01-01T00:00:00Z' + (g * INTERVAL '1 day'),
+			TIMESTAMPTZ '2999-01-01T00:00:00Z', 'source_published_at', $2
+		FROM generate_series(1, 1000) AS g`, seriesID, rawID); err != nil {
+		t.Fatalf("seed observation planner rows: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO price_revisions (
+			instrument_id, quote_currency, observation_time, price, system_known_at,
+			knowledge_time_basis, raw_object_id
+		)
+		SELECT $1, 'TRY', TIMESTAMPTZ '2026-01-01T00:00:00Z' + (g * INTERVAL '1 minute'), g::numeric,
+			TIMESTAMPTZ '2999-01-01T00:00:00Z', 'first_observed_by_system', $2
+		FROM generate_series(1, 1000) AS g`, validUUID(t, instrument.ID), rawID); err != nil {
+		t.Fatalf("seed price planner rows: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO fx_quote_revisions (
+			base_currency, quote_currency, observation_time, rate, system_known_at,
+			knowledge_time_basis, raw_object_id
+		)
+		SELECT $1, $2, TIMESTAMPTZ '2026-01-01T00:00:00Z' + (g * INTERVAL '1 minute'), g::numeric,
+			TIMESTAMPTZ '2999-01-01T00:00:00Z', 'first_observed_by_system', $3
+		FROM generate_series(1, 1000) AS g`, fxBaseCurrency, fxQuoteCurrency, rawID); err != nil {
+		t.Fatalf("seed FX planner rows: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `ANALYZE observation_revisions, price_revisions, fx_quote_revisions`); err != nil {
+		t.Fatalf("analyze revision planner fixtures: %v", err)
+	}
 
 	var plan string
 	conn, err := pool.Acquire(ctx)
@@ -455,10 +586,8 @@ func TestCoreDatabase(t *testing.T) {
 		t.Fatalf("acquire plan connection: %v", err)
 	}
 	defer conn.Release()
-	if _, err := conn.Exec(ctx, `SET enable_seqscan = off`); err != nil {
-		t.Fatalf("disable sequential scan for plan assertion: %v", err)
-	}
-	if err := conn.QueryRow(ctx, `EXPLAIN (FORMAT TEXT) SELECT id FROM observation_revisions WHERE series_id = $1 AND observation_time >= $2 AND observation_time < $3`, seriesID, observationTime, timestamp("2026-01-02T00:00:00Z")).Scan(&plan); err != nil {
+	plan, err = explainPlan(ctx, conn, `EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) SELECT id FROM observation_revisions WHERE series_id = $1 AND observation_time >= $2 AND observation_time < $3`, seriesID, observationTime, timestamp("2026-01-02T00:00:00Z"))
+	if err != nil {
 		t.Fatalf("explain observation query: %v", err)
 	}
 	if !strings.Contains(plan, "observation_revisions_series_time_idx") {
@@ -472,24 +601,45 @@ func TestCoreDatabase(t *testing.T) {
 	assertPlanIndex(t, conn, "price_revisions_instrument_time_idx",
 		`EXPLAIN (FORMAT TEXT) SELECT id FROM price_revisions WHERE instrument_id = $1 AND quote_currency = $2 AND observation_time >= $3 AND observation_time < $4 ORDER BY observation_time`, instrumentID, "TRY", timestamp("2025-12-31T00:00:00Z"), timestamp("2026-01-02T00:00:00Z"))
 	assertPlanIndex(t, conn, "price_revisions_instrument_system_asof_idx",
-		`EXPLAIN (FORMAT TEXT) SELECT id FROM price_revisions WHERE instrument_id = $1 AND system_known_at <= $2`, instrumentID, timestamp("2999-01-01T00:00:00Z"))
+		`EXPLAIN (FORMAT TEXT) SELECT id FROM price_revisions WHERE instrument_id = $1 AND system_known_at <= $2`, instrumentID, timestamp("2026-01-03T00:00:00Z"))
 	assertPlanIndex(t, conn, "price_revisions_instrument_source_asof_idx",
 		`EXPLAIN (FORMAT TEXT) SELECT id FROM price_revisions WHERE instrument_id = $1 AND source_known_at IS NOT NULL AND source_known_at <= $2`, instrumentID, timestamp("2026-01-03T00:00:00Z"))
 	assertPlanIndex(t, conn, "fx_quote_revisions_pair_time_idx",
-		`EXPLAIN (FORMAT TEXT) SELECT id FROM fx_quote_revisions WHERE base_currency = $1 AND quote_currency = $2 AND observation_time >= $3 AND observation_time < $4 ORDER BY observation_time`, "USD", "TRY", timestamp("2025-12-31T00:00:00Z"), timestamp("2026-01-02T00:00:00Z"))
+		`EXPLAIN (FORMAT TEXT) SELECT id FROM fx_quote_revisions WHERE base_currency = $1 AND quote_currency = $2 AND observation_time >= $3 AND observation_time < $4 ORDER BY observation_time`, fxBaseCurrency, fxQuoteCurrency, timestamp("2025-12-31T00:00:00Z"), timestamp("2026-01-02T00:00:00Z"))
 	assertPlanIndex(t, conn, "fx_quote_revisions_pair_system_asof_idx",
-		`EXPLAIN (FORMAT TEXT) SELECT id FROM fx_quote_revisions WHERE base_currency = $1 AND quote_currency = $2 AND system_known_at <= $3`, "USD", "TRY", timestamp("2999-01-01T00:00:00Z"))
+		`EXPLAIN (FORMAT TEXT) SELECT id FROM fx_quote_revisions WHERE base_currency = $1 AND quote_currency = $2 AND system_known_at <= $3`, fxBaseCurrency, fxQuoteCurrency, timestamp("2026-01-03T00:00:00Z"))
 	assertPlanIndex(t, conn, "fx_quote_revisions_pair_source_asof_idx",
-		`EXPLAIN (FORMAT TEXT) SELECT id FROM fx_quote_revisions WHERE base_currency = $1 AND quote_currency = $2 AND source_known_at IS NOT NULL AND source_known_at <= $3`, "USD", "TRY", timestamp("2026-01-03T00:00:00Z"))
+		`EXPLAIN (FORMAT TEXT) SELECT id FROM fx_quote_revisions WHERE base_currency = $1 AND quote_currency = $2 AND source_known_at IS NOT NULL AND source_known_at <= $3`, fxBaseCurrency, fxQuoteCurrency, timestamp("2026-01-03T00:00:00Z"))
 }
 
 func assertPlanIndex(t *testing.T, conn *pgxpool.Conn, indexName, statement string, args ...any) {
 	t.Helper()
-	var plan string
-	if err := conn.QueryRow(context.Background(), statement, args...).Scan(&plan); err != nil {
+	statement = strings.Replace(statement, "EXPLAIN (FORMAT TEXT)", "EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)", 1)
+	plan, err := explainPlan(context.Background(), conn, statement, args...)
+	if err != nil {
 		t.Fatalf("explain query for %s: %v", indexName, err)
 	}
 	if !strings.Contains(plan, indexName) {
 		t.Fatalf("query did not use intended index %s: %s", indexName, plan)
 	}
+}
+
+func explainPlan(ctx context.Context, conn *pgxpool.Conn, statement string, args ...any) (string, error) {
+	rows, err := conn.Query(ctx, statement, args...)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	var lines []string
+	for rows.Next() {
+		var line string
+		if err := rows.Scan(&line); err != nil {
+			return "", err
+		}
+		lines = append(lines, line)
+	}
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+	return strings.Join(lines, "\n"), nil
 }
