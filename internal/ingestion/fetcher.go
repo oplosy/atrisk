@@ -105,6 +105,9 @@ func (f HTTPFetcher) Fetch(ctx context.Context, request FetchRequest) (FetchedRe
 	clientCopy := *client
 	existingRedirectPolicy := clientCopy.CheckRedirect
 	clientCopy.CheckRedirect = func(redirectRequest *http.Request, via []*http.Request) error {
+		// Credentials are scoped to the original request. Never forward a
+		// provider key to a redirect target, even when the host is allowlisted.
+		redirectRequest.Header.Del("key")
 		if _, redirectErr := validateRequestURL(redirectRequest.URL.String(), f.AllowedHosts); redirectErr != nil {
 			return fmt.Errorf("source redirect rejected: %w", redirectErr)
 		}
@@ -255,11 +258,12 @@ func normalizeMediaType(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
-var safeRequestHeaders = map[string]struct{}{"accept": {}, "content-type": {}, "user-agent": {}, "etag": {}, "last-modified": {}, "content-length": {}, "retry-after": {}}
+var outboundRequestHeaders = map[string]struct{}{"accept": {}, "content-type": {}, "user-agent": {}, "key": {}}
+var responseMetadataHeaders = map[string]struct{}{"accept": {}, "content-type": {}, "user-agent": {}, "etag": {}, "last-modified": {}, "content-length": {}, "retry-after": {}}
 
 func copySafeHeaders(destination, source http.Header) {
 	for key, values := range source {
-		if _, ok := safeRequestHeaders[strings.ToLower(key)]; !ok {
+		if _, ok := outboundRequestHeaders[strings.ToLower(key)]; !ok {
 			continue
 		}
 		for _, value := range values {
@@ -271,7 +275,7 @@ func copySafeHeaders(destination, source http.Header) {
 func safeHeaders(headers http.Header) map[string]string {
 	result := make(map[string]string)
 	for key, values := range headers {
-		if _, ok := safeRequestHeaders[strings.ToLower(key)]; !ok || len(values) == 0 {
+		if _, ok := responseMetadataHeaders[strings.ToLower(key)]; !ok || len(values) == 0 {
 			continue
 		}
 		result[strings.ToLower(key)] = values[0]
