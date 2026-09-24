@@ -1,7 +1,6 @@
 package ingestion
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -265,20 +264,21 @@ func (s DatabaseStore) validateRawObject(ctx context.Context, id string, item Ra
 		byteLength      int64
 		retrievedAt     time.Time
 		requestURI      string
-		storedMetadata  []byte
+		metadataMatches bool
 		storedIngestion pgtype.Text
 	)
 	err := s.Pool.QueryRow(ctx, `
-SELECT object_key, media_type, byte_length, retrieved_at, COALESCE(request_uri, ''), request_metadata, ingestion_run_id::text
+SELECT object_key, media_type, byte_length, retrieved_at, COALESCE(request_uri, ''),
+       request_metadata = $3::jsonb, ingestion_run_id::text
 FROM raw_objects
-WHERE id = $1::uuid AND content_sha256 = $2`, id, item.Reference.ContentSHA256).
-		Scan(&objectKey, &mediaType, &byteLength, &retrievedAt, &requestURI, &storedMetadata, &storedIngestion)
+WHERE id = $1::uuid AND content_sha256 = $2`, id, item.Reference.ContentSHA256, string(expectedMetadata)).
+		Scan(&objectKey, &mediaType, &byteLength, &retrievedAt, &requestURI, &metadataMatches, &storedIngestion)
 	if err != nil {
 		return fmt.Errorf("validate raw object registration: %w", err)
 	}
 	if objectKey != item.Reference.Key || mediaType != item.Reference.MediaType || byteLength != item.Reference.ByteLength ||
 		!retrievedAt.Equal(item.RetrievedAt.UTC().Truncate(time.Microsecond)) || requestURI != archive.RedactedURL(item.RequestURI) ||
-		!bytes.Equal(storedMetadata, expectedMetadata) || !sameIngestionRun(storedIngestion, item.IngestionRunID) {
+		!metadataMatches || !sameIngestionRun(storedIngestion, item.IngestionRunID) {
 		return ErrRawObjectConflict
 	}
 	return nil

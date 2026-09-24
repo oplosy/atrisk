@@ -1,12 +1,17 @@
 package archive
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"sync"
 	"testing"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 func TestRawArchive(t *testing.T) {
@@ -68,6 +73,31 @@ func TestRawArchive(t *testing.T) {
 	}
 	if string(got) != string(body) {
 		t.Fatalf("archived bytes changed: got %q want %q", got, body)
+	}
+
+	wanted := []byte("garage expected bytes")
+	preseeded := []byte("garage altered bytes")
+	conflictKey := ObjectKey(SHA256Hex(wanted))
+	if _, err := store.client.PutObject(context.Background(), &s3.PutObjectInput{
+		Bucket: aws.String(store.bucket), Key: aws.String(conflictKey), Body: bytes.NewReader(preseeded),
+		ContentType: aws.String("text/plain"),
+	}); err != nil {
+		t.Fatalf("pre-seed Garage conflict object: %v", err)
+	}
+	if _, err := ArchivePayload(context.Background(), store, wanted, "text/plain", nil); !errors.Is(err, ErrContentMismatch) {
+		t.Fatalf("Garage accepted conflicting immutable object: %v", err)
+	}
+	reader, err = store.Get(context.Background(), conflictKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	got, err = io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, preseeded) {
+		t.Fatalf("Garage conflict object changed: got %q want %q", got, preseeded)
 	}
 }
 
