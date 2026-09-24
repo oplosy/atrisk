@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -31,26 +31,7 @@ function usage() {
   process.exitCode = 2;
 }
 
-const [command, option] = process.argv.slice(2);
-if (!command) {
-  usage();
-} else if (command === "start") {
-  run(["up", "-d", "--wait"]);
-} else if (command === "stop") {
-  run(["down"]);
-} else if (command === "status") {
-  run(["ps"]);
-} else if (command === "logs") {
-  run(["logs", "--tail=100", ...(option ? [option] : [])]);
-} else if (command === "reset") {
-  if (option !== "--confirm-reset") {
-    console.error("Refusing destructive reset. Re-run with --confirm-reset to remove containers and named volumes.");
-    process.exitCode = 2;
-  } else {
-    console.warn("DESTRUCTIVE: removing the local AtlasRisk containers and named volumes.");
-    run(["down", "--volumes", "--remove-orphans"]);
-  }
-} else if (command === "test") {
+async function runInfraTest() {
   const smokeDir = mkdtempSync(resolve(tmpdir(), "atrisk-infra-smoke-"));
   // Keep the project name bounded for Docker resource-name limits while making
   // concurrent runs independent on the same host.
@@ -73,19 +54,52 @@ if (!command) {
     SMOKE_OUTPUT_DIR: smokeDir,
   };
   const testBase = ["compose", "-f", composeFile, "--project-name", testProject];
+  let activeCommand;
   const runTest = (args, capture = false) => {
-    const result = spawnSync("docker", [...testBase, "--profile", "test", ...args], {
-      cwd: repoRoot,
-      env: testEnvironment,
-      encoding: "utf8",
-      stdio: capture ? ["ignore", "pipe", "pipe"] : "inherit",
-    });
-    if (result.error) throw result.error;
-    if (result.status !== 0) {
-      if (capture && result.stderr) process.stderr.write(result.stderr);
-      throw new Error(`docker compose test command exited with status ${result.status}`);
+    let child;
+    try {
+      child = spawn("docker", [...testBase, "--profile", "test", ...args], {
+        cwd: repoRoot,
+        env: testEnvironment,
+        stdio: capture ? ["ignore", "pipe", "pipe"] : "inherit",
+      });
+    } catch (error) {
+      return Promise.reject(error);
     }
-    return capture ? result.stdout : "";
+    let stdout = "";
+    let stderr = "";
+    if (capture) {
+      child.stdout.setEncoding("utf8");
+      child.stderr.setEncoding("utf8");
+      child.stdout.on("data", (chunk) => {
+        stdout += chunk;
+      });
+      child.stderr.on("data", (chunk) => {
+        stderr += chunk;
+      });
+    }
+    const operation = new Promise((resolveOperation, rejectOperation) => {
+      let settled = false;
+      const settle = (callback, value) => {
+        if (settled) return;
+        settled = true;
+        callback(value);
+      };
+      child.once("error", (error) => settle(rejectOperation, error));
+      child.once("close", (status) => {
+        if (status !== 0) {
+          if (capture && stderr) process.stderr.write(stderr);
+          settle(rejectOperation, new Error(`docker compose test command exited with status ${status}`));
+          return;
+        }
+        settle(resolveOperation, capture ? stdout : "");
+      });
+    });
+    const trackedOperation = operation.finally(() => {
+      if (activeCommand?.promise === trackedOperation) activeCommand = undefined;
+    });
+    activeCommand = { child, promise: trackedOperation };
+    return trackedOperation;
   };
   const smoke = (args) => runTest(["run", "--rm", "--no-deps", "s3-smoke", ...args], true);
   const endpoint = ["--endpoint-url", "http://garage:3900"];
@@ -94,53 +108,101 @@ if (!command) {
   const payload = readFileSync(resolve(repoRoot, "infra/compose/smoke-payload.txt"));
   const outputFile = resolve(smokeDir, "received.txt");
   let failure;
+  let signalExitCode;
   let testStarted = false;
-  let cleanupDone = false;
-  const cleanupTest = () => {
-    if (cleanupDone) return;
-    cleanupDone = true;
-    if (testStarted) {
-      try {
-        runTest(["down", "--volumes", "--remove-orphans"]);
-      } catch (cleanupError) {
-        console.error(`Test cleanup failed: ${cleanupError.message}`);
-        failure ||= cleanupError;
+  let cleanupPromise;
+  const ensureNotInterrupted = () => {
+    if (signalExitCode) throw new Error(`Infrastructure test interrupted by signal (exit ${signalExitCode})`);
+  };
+  const cleanupTest = async () => {
+    if (cleanupPromise) return cleanupPromise;
+    cleanupPromise = (async () => {
+      const active = activeCommand;
+      if (active) {
+        active.child.kill();
+        try {
+          await active.promise;
+        } catch {
+          // The interrupted command's failure is handled by the main test flow.
+        }
       }
-    }
-    rmSync(smokeDir, { recursive: true, force: true });
+      if (testStarted) {
+        try {
+          await runTest(["down", "--volumes", "--remove-orphans"]);
+        } catch (cleanupError) {
+          console.error(`Test cleanup failed: ${cleanupError.message}`);
+          failure ||= cleanupError;
+        }
+      }
+      rmSync(smokeDir, { recursive: true, force: true });
+    })();
+    return cleanupPromise;
   };
   const handleSignal = (signal) => {
+    if (signalExitCode) return;
+    signalExitCode = signal === "SIGINT" ? 130 : 143;
     console.warn(`Received ${signal}; cleaning up test project ${testProject}.`);
-    cleanupTest();
-    process.exitCode = signal === "SIGINT" ? 130 : 143;
+    activeCommand?.child.kill();
+    void cleanupTest();
   };
   process.once("SIGINT", handleSignal);
   process.once("SIGTERM", handleSignal);
   process.once("exit", () => rmSync(smokeDir, { recursive: true, force: true }));
   try {
     testStarted = true;
-    runTest(["up", "-d", "--wait", "postgres", "garage"]);
-    runTest(["ps"]);
-    smoke(["s3api", "put-object", "--bucket", bucket, "--key", key, "--body", "/aws/smoke-payload.txt", ...endpoint]);
-    smoke(["s3api", "get-object", "--bucket", bucket, "--key", key, "/aws/smoke-output/received.txt", ...endpoint]);
+    await runTest(["up", "-d", "--wait", "postgres", "garage"]);
+    ensureNotInterrupted();
+    await runTest(["ps"]);
+    ensureNotInterrupted();
+    await smoke(["s3api", "put-object", "--bucket", bucket, "--key", key, "--body", "/aws/smoke-payload.txt", ...endpoint]);
+    ensureNotInterrupted();
+    await smoke(["s3api", "get-object", "--bucket", bucket, "--key", key, "/aws/smoke-output/received.txt", ...endpoint]);
+    ensureNotInterrupted();
     const received = readFileSync(outputFile);
     if (!received.equals(payload)) throw new Error("S3 Get body did not match the Put body");
-    const head = JSON.parse(smoke(["s3api", "head-object", "--bucket", bucket, "--key", key, ...endpoint]));
+    const head = JSON.parse(await smoke(["s3api", "head-object", "--bucket", bucket, "--key", key, ...endpoint]));
+    ensureNotInterrupted();
     if (head.ContentLength !== payload.length) throw new Error("S3 Head ContentLength did not match the Put body");
-    const listed = smoke(["s3api", "list-objects-v2", "--bucket", bucket, "--prefix", "smoke/", "--query", "Contents[?Key==`smoke/put-get-head-list.txt`].Key", "--output", "text", ...endpoint]).trim();
+    const listed = (await smoke(["s3api", "list-objects-v2", "--bucket", bucket, "--prefix", "smoke/", "--query", "Contents[?Key==`smoke/put-get-head-list.txt`].Key", "--output", "text", ...endpoint])).trim();
+    ensureNotInterrupted();
     if (listed !== key) throw new Error(`S3 List did not return ${key}; received ${JSON.stringify(listed)}`);
     console.log("S3 smoke passed: PutObject, GetObject, HeadObject, ListObjectsV2");
   } catch (error) {
     failure = error;
   } finally {
-    cleanupTest();
+    await cleanupTest();
     process.removeListener("SIGINT", handleSignal);
     process.removeListener("SIGTERM", handleSignal);
   }
-  if (failure) {
+  if (signalExitCode) {
+    process.exitCode = signalExitCode;
+  } else if (failure) {
     console.error(failure.message);
     process.exitCode = 1;
   }
+}
+
+const [command, option] = process.argv.slice(2);
+if (!command) {
+  usage();
+} else if (command === "start") {
+  run(["up", "-d", "--wait"]);
+} else if (command === "stop") {
+  run(["down"]);
+} else if (command === "status") {
+  run(["ps"]);
+} else if (command === "logs") {
+  run(["logs", "--tail=100", ...(option ? [option] : [])]);
+} else if (command === "reset") {
+  if (option !== "--confirm-reset") {
+    console.error("Refusing destructive reset. Re-run with --confirm-reset to remove containers and named volumes.");
+    process.exitCode = 2;
+  } else {
+    console.warn("DESTRUCTIVE: removing the local AtlasRisk containers and named volumes.");
+    run(["down", "--volumes", "--remove-orphans"]);
+  }
+} else if (command === "test") {
+  await runInfraTest();
 } else {
   usage();
 }

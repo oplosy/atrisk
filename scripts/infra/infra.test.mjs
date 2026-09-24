@@ -22,6 +22,8 @@ test("concurrent smoke runs get separate projects and dynamically assigned ports
   assert.match(runner, /randomBytes\(8\)/);
   assert.match(runner, /const testProject = `atrisk-test-\$\{runToken\}`/);
   assert.match(runner, /testProject\.length > 63/);
+  assert.match(runner, /spawn\("docker"/);
+  assert.match(runner, /await runTest\(\["up", "-d", "--wait"/);
   assert.match(runner, /POSTGRES_PORT: ""/);
   assert.match(runner, /GARAGE_S3_PORT: ""/);
 });
@@ -30,6 +32,7 @@ test("smoke cleanup handles signals, normal completion, and process exit", () =>
   assert.match(runner, /process\.once\("SIGINT", handleSignal\)/);
   assert.match(runner, /process\.once\("SIGTERM", handleSignal\)/);
   assert.match(runner, /process\.once\("exit"/);
+  assert.match(runner, /activeCommand\?\.child\.kill\(\)/);
   assert.match(runner, /down", "--volumes", "--remove-orphans/);
-  assert.match(runner, /cleanupDone/);
+  assert.match(runner, /cleanupPromise/);
 });

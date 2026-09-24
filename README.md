@@ -102,6 +102,9 @@ separate database, bucket, ports, and named volumes. It proves the exact S3
 the raw archive boundary, then removes the test volumes. Each Compose project
 also gets its own persistent `garage-rpc-secret` volume; the secret is generated
 on first start and is never stored in tracked configuration.
+The smoke runner uses asynchronous Docker child processes so Ctrl+C/SIGTERM can
+stop the active command before removing that unique test project. Forced host
+termination or SIGKILL cannot run cleanup handlers.
 
 `task infra-reset` is destructive: it removes the development containers and
 named volumes, including all local PostgreSQL and Garage data and the Garage RPC
