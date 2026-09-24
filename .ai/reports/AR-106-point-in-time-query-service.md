@@ -52,8 +52,8 @@
 
 - Branch: `task/AR-106-point-in-time-query-service`
 - Implementation/code tip: `da8e44b024a4bc26dfd4bad566cc179395f28edd`; a report-only handoff commit follows.
-- Remote branch: implementation is pushed to `origin/task/AR-106-point-in-time-query-service`; final handoff push will synchronize the report-only commit as well.
-- Worktree: clean before the report-only handoff commit; expected clean after its push.
+- Remote branch: synchronized with `origin/task/AR-106-point-in-time-query-service` at handoff; the report-only handoff commit follows implementation tip `da8e44b024a4bc26dfd4bad566cc179395f28edd`.
+- Worktree: clean after the report-only handoff commit.
 
 ## Assumptions and risks
 
