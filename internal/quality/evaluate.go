@@ -120,6 +120,13 @@ func Evaluate(frequency, sourceTimezone string, rawPolicy json.RawMessage, from,
 		}
 		result.Reasons = append(result.Reasons, Reason{Code: code, Message: message, AffectedDates: missingDates})
 	}
+	if len(byDate) == 0 && len(missingDates) == 0 && !hasExplicitMissing {
+		result.Reasons = append(result.Reasons, Reason{
+			Code:          "NO_ELIGIBLE_OBSERVATIONS",
+			Message:       "no observation is eligible in the requested system-as-of window",
+			AffectedDates: []string{from.In(location).Format("2006-01-02"), to.Add(-time.Nanosecond).In(location).Format("2006-01-02")},
+		})
+	}
 
 	switch {
 	case hasSuspect:

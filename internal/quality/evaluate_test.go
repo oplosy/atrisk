@@ -63,6 +63,10 @@ func TestQualityEvaluateStaleAndMissingOptionalInputsDegrade(t *testing.T) {
 	if missing.Classification != Missing || missing.State != Degraded {
 		t.Fatalf("got %+v, want missing/degraded", missing)
 	}
+	irregularMissing := Evaluate("irregular", "", json.RawMessage(`{"version":"2","expected":"irregular","max_age":"24h"}`), instant("2024-01-01T00:00:00Z"), instant("2024-01-02T00:00:00Z"), instant("2024-01-03T00:00:00Z"), nil, false)
+	if irregularMissing.Classification != Missing || len(irregularMissing.Reasons) != 1 || irregularMissing.Reasons[0].Code != "NO_ELIGIBLE_OBSERVATIONS" {
+		t.Fatalf("irregular missing result lacks an explicit reason: %+v", irregularMissing)
+	}
 	requiredStale := Evaluate("daily", "", json.RawMessage(`{"version":"2","max_age":"24h"}`), instant("2024-01-01T00:00:00Z"), instant("2024-01-03T00:00:00Z"), instant("2024-01-04T00:00:00Z"), []Sample{sample("2024-01-01T00:00:00Z", false, `{}`)}, true)
 	if requiredStale.Classification != Stale || requiredStale.State != Blocked {
 		t.Fatalf("got %+v, want required stale/blocked", requiredStale)
