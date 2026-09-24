@@ -166,8 +166,25 @@ func TestCoreDatabaseMigrations(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&currentVersion); err != nil {
 		t.Fatalf("inspect migration version: %v", err)
 	}
-	if currentVersion != 2 {
-		t.Fatalf("expected hardening migration version 2, got %d", currentVersion)
+	if currentVersion != 3 {
+		t.Fatalf("expected asset-unit migration version 3, got %d", currentVersion)
+	}
+	var assetUnitTypes int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*)::int FROM information_schema.columns
+		WHERE table_schema='public' AND ((table_name='instruments' AND column_name='native_currency' AND data_type='text')
+		   OR (table_name='price_revisions' AND column_name='quote_currency' AND data_type='text'))`).Scan(&assetUnitTypes); err != nil {
+		t.Fatalf("inspect asset unit column types: %v", err)
+	}
+	if assetUnitTypes != 2 {
+		t.Fatalf("expected two widened asset-unit columns, got %d", assetUnitTypes)
+	}
+	var fxUnitType string
+	if err := pool.QueryRow(ctx, `SELECT data_type FROM information_schema.columns WHERE table_schema='public' AND table_name='fx_quote_revisions' AND column_name='quote_currency'`).Scan(&fxUnitType); err != nil {
+		t.Fatalf("inspect FX quote unit type: %v", err)
+	}
+	if fxUnitType != "character" {
+		t.Fatalf("FX quote currency was widened unexpectedly: %q", fxUnitType)
 	}
 	var compositeForeignKeys int
 	if err := pool.QueryRow(ctx, `SELECT count(*)::int FROM pg_constraint WHERE conname = 'ingestion_runs_source_dataset_fk'`).Scan(&compositeForeignKeys); err != nil {
@@ -258,6 +275,12 @@ func TestCoreDatabasePreviousVersionUpgrade(t *testing.T) {
 		versionDB.Close()
 		t.Fatalf("insert v1 sentinel row: %v", err)
 	}
+	if _, err := versionDB.ExecContext(ctx, `
+		INSERT INTO instruments (canonical_symbol, instrument_type, native_currency, external_ids)
+		VALUES ($1, 'crypto_spot', 'TRY', '{"sentinel":true}')`, sentinelCode); err != nil {
+		versionDB.Close()
+		t.Fatalf("insert v1 instrument sentinel: %v", err)
+	}
 	versionDB.Close()
 
 	var hardeningConstraints int
@@ -298,8 +321,8 @@ func TestCoreDatabasePreviousVersionUpgrade(t *testing.T) {
 	if err := upgradedDB.QueryRowContext(ctx, "SELECT max(version_id) FROM "+schemaName+"."+goose.DefaultTablename).Scan(&version); err != nil {
 		t.Fatalf("inspect upgraded schema migration version: %v", err)
 	}
-	if version != 2 {
-		t.Fatalf("expected isolated schema at migration version 2, got %d", version)
+	if version != 3 {
+		t.Fatalf("expected isolated schema at migration version 3, got %d", version)
 	}
 	if err := upgradedDB.QueryRowContext(ctx, `
 		SELECT count(*)::int
@@ -318,6 +341,13 @@ func TestCoreDatabasePreviousVersionUpgrade(t *testing.T) {
 	}
 	if sentinelName != "v1 sentinel" {
 		t.Fatalf("v1 sentinel row changed during upgrade: %q", sentinelName)
+	}
+	var sentinelCurrency string
+	if err := upgradedDB.QueryRowContext(ctx, "SELECT native_currency FROM "+schemaName+".instruments WHERE canonical_symbol = $1", sentinelCode).Scan(&sentinelCurrency); err != nil {
+		t.Fatalf("inspect v1 instrument sentinel after upgrade: %v", err)
+	}
+	if sentinelCurrency != "TRY" {
+		t.Fatalf("v1 instrument value changed during upgrade: %q", sentinelCurrency)
 	}
 }
 

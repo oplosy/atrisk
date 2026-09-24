@@ -32,7 +32,7 @@ func TestBinanceMarketData(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT id::text FROM data_sources WHERE code=$1`, fixtureName).Scan(&sourceID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO instruments (canonical_symbol, instrument_type, native_currency, external_ids) VALUES ('BTCUSD', 'crypto_spot', 'USD', '{"provider":"binance"}')`); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO instruments (canonical_symbol, instrument_type, native_currency, external_ids) VALUES ('BTCUSDT', 'crypto_spot', 'USDT', '{"provider":"binance"}')`); err != nil {
 		t.Fatal(err)
 	}
 	runStore := ingestion.DatabaseStore{Pool: pool}
@@ -47,23 +47,23 @@ func TestBinanceMarketData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	request := binance.KlineRequest{Symbol: "BTCUSD"}
+	request := binance.KlineRequest{Symbol: "BTCUSDT"}
 	adapter, err := binance.NewAdapter(client, nil, request)
 	if err != nil {
 		t.Fatal(err)
 	}
 	payload := ingestion.RawPayload{Body: body, MediaType: "application/json", Archive: archive.Reference{Key: archive.ObjectKey(digest), ContentSHA256: digest, ByteLength: int64(len(body)), MediaType: "application/json"}}
-	records, err := adapter.NormalizeKlines(ctx, "BTCUSD", payload)
+	records, err := adapter.NormalizeKlines(ctx, "BTCUSDT", payload)
 	if err != nil {
 		t.Fatal(err)
 	}
 	store := binance.Store{Pool: pool}
 	checkpoint := binance.NewKlineCheckpoint(request).Advance(binance.KlinePage{Request: request, Klines: []binance.Kline{{OpenTime: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)}, {OpenTime: time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)}}})
-	inserted, err := store.PersistPriceRecordsAndCheckpoint(ctx, runID, "BTCUSD", records, checkpoint)
+	inserted, err := store.PersistPriceRecordsAndCheckpoint(ctx, runID, "BTCUSDT", records, checkpoint)
 	if err != nil || inserted != 2 {
 		t.Fatalf("persisted %d complete Binance prices, want 2: %v", inserted, err)
 	}
-	if inserted, err = store.PersistPriceRecordsAndCheckpoint(ctx, runID, "BTCUSD", records, checkpoint); err != nil || inserted != 0 {
+	if inserted, err = store.PersistPriceRecordsAndCheckpoint(ctx, runID, "BTCUSDT", records, checkpoint); err != nil || inserted != 0 {
 		t.Fatalf("duplicate Binance page was not idempotent: inserted=%d err=%v", inserted, err)
 	}
 	var count int
@@ -73,16 +73,26 @@ SELECT count(*)::int,
        bool_and(source_known_at IS NULL),
        bool_and(quality_flags->>'source_publication_time_unknown' = 'true'),
        bool_and(raw_object_id IN (SELECT id FROM raw_objects WHERE content_sha256 = $1))
-FROM price_revisions WHERE instrument_id=(SELECT id FROM instruments WHERE canonical_symbol='BTCUSD')`, digest).Scan(&count, &missingPublication, &qualityEvidence, &provenance); err != nil {
+FROM price_revisions WHERE instrument_id=(SELECT id FROM instruments WHERE canonical_symbol='BTCUSDT')`, digest).Scan(&count, &missingPublication, &qualityEvidence, &provenance); err != nil {
 		t.Fatal(err)
 	}
 	if count != 2 || !missingPublication || !qualityEvidence || !provenance {
 		t.Fatalf("Binance price evidence incomplete: count=%d publication_unknown=%v quality=%v provenance=%v", count, missingPublication, qualityEvidence, provenance)
 	}
+	var nativeCurrency, quoteCurrency string
+	if err := pool.QueryRow(ctx, `
+SELECT i.native_currency, p.quote_currency
+FROM instruments i JOIN price_revisions p ON p.instrument_id=i.id
+WHERE i.canonical_symbol='BTCUSDT' ORDER BY p.observation_time LIMIT 1`).Scan(&nativeCurrency, &quoteCurrency); err != nil {
+		t.Fatal(err)
+	}
+	if nativeCurrency != "USDT" || quoteCurrency != "USDT" {
+		t.Fatalf("Binance asset unit was normalized or remapped: native=%q quote=%q", nativeCurrency, quoteCurrency)
+	}
 	var rawSHA string
 	if err := pool.QueryRow(ctx, `
 SELECT r.content_sha256 FROM price_revisions p JOIN raw_objects r ON r.id=p.raw_object_id
-WHERE p.instrument_id=(SELECT id FROM instruments WHERE canonical_symbol='BTCUSD') ORDER BY p.observation_time LIMIT 1`).Scan(&rawSHA); err != nil {
+WHERE p.instrument_id=(SELECT id FROM instruments WHERE canonical_symbol='BTCUSDT') ORDER BY p.observation_time LIMIT 1`).Scan(&rawSHA); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.EqualFold(rawSHA, digest) {
@@ -95,13 +105,13 @@ WHERE p.instrument_id=(SELECT id FROM instruments WHERE canonical_symbol='BTCUSD
 	if storedPages != 1 {
 		t.Fatalf("checkpoint was not stored after accepted prices: pages=%d", storedPages)
 	}
-	wrongRecords, err := adapter.NormalizeKlines(ctx, "ETHUSD", payload)
+	wrongRecords, err := adapter.NormalizeKlines(ctx, "ETHUSDT", payload)
 	if err != nil {
 		t.Fatal(err)
 	}
 	failedCheckpoint := checkpoint
 	failedCheckpoint.Pages = 99
-	if _, err := store.PersistPriceRecordsAndCheckpoint(ctx, runID, "BTCUSD", wrongRecords, failedCheckpoint); err == nil {
+	if _, err := store.PersistPriceRecordsAndCheckpoint(ctx, runID, "BTCUSDT", wrongRecords, failedCheckpoint); err == nil {
 		t.Fatal("mismatched symbol unexpectedly advanced checkpoint")
 	}
 	if err := pool.QueryRow(ctx, `SELECT (coverage->'pages')::int FROM ingestion_runs WHERE id=$1::uuid`, runID).Scan(&storedPages); err != nil {
@@ -111,12 +121,12 @@ WHERE p.instrument_id=(SELECT id FROM instruments WHERE canonical_symbol='BTCUSD
 		t.Fatalf("failed price persistence advanced checkpoint: pages=%d", storedPages)
 	}
 
-	statusBody := []byte(`{"symbols":[{"symbol":"BTCUSD","status":"TRADING","baseAsset":"BTC","quoteAsset":"USD","permissions":["SPOT"],"isSpotTradingAllowed":true},{"symbol":"ETHUSD","status":"BREAK","baseAsset":"ETH","quoteAsset":"USD","permissions":["SPOT"],"isSpotTradingAllowed":false}]}`)
+	statusBody := []byte(`{"symbols":[{"symbol":"BTCUSDT","status":"TRADING","baseAsset":"BTC","quoteAsset":"USDT","permissions":["SPOT"],"isSpotTradingAllowed":true},{"symbol":"ETHUSDT","status":"BREAK","baseAsset":"ETH","quoteAsset":"USDT","permissions":["SPOT"],"isSpotTradingAllowed":false}]}`)
 	statusDigest := archive.SHA256Hex(statusBody)
 	if _, err := pool.Exec(ctx, `INSERT INTO raw_objects (content_sha256, object_key, media_type, byte_length, retrieved_at, request_metadata, ingestion_run_id) VALUES ($1, $2, 'application/json', $3, $4, '{"fixture":"binance-status"}', $5::uuid)`, statusDigest, archive.ObjectKey(statusDigest), len(statusBody), time.Now().UTC(), runID); err != nil {
 		t.Fatal(err)
 	}
-	statusAdapter, err := binance.NewAdapter(client, []string{"BTCUSD", "DOGEUSD"}, binance.KlineRequest{})
+	statusAdapter, err := binance.NewAdapter(client, []string{"BTCUSDT", "DOGEUSDT"}, binance.KlineRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,10 +147,10 @@ WHERE p.instrument_id=(SELECT id FROM instruments WHERE canonical_symbol='BTCUSD
 	}
 	var foundMissing, foundBreak bool
 	for _, item := range evidence {
-		if item["symbol"] == "DOGEUSD" && item["missing_from_catalog"] == true {
+		if item["symbol"] == "DOGEUSDT" && item["missing_from_catalog"] == true {
 			foundMissing = true
 		}
-		if item["symbol"] == "ETHUSD" && item["upstream_status"] == "BREAK" {
+		if item["symbol"] == "ETHUSDT" && item["upstream_status"] == "BREAK" {
 			foundBreak = true
 		}
 	}
