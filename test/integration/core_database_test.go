@@ -251,6 +251,13 @@ func TestCoreDatabasePreviousVersionUpgrade(t *testing.T) {
 		versionDB.Close()
 		t.Fatalf("expected isolated schema at migration version 1, got %d", version)
 	}
+	sentinelCode := schemaName + "_sentinel"
+	if _, err := versionDB.ExecContext(ctx, `
+		INSERT INTO data_sources (code, name, adapter_version, metadata)
+		VALUES ($1, 'v1 sentinel', 'upgrade-test', '{"sentinel":true}')`, sentinelCode); err != nil {
+		versionDB.Close()
+		t.Fatalf("insert v1 sentinel row: %v", err)
+	}
 	versionDB.Close()
 
 	var hardeningConstraints int
@@ -304,6 +311,13 @@ func TestCoreDatabasePreviousVersionUpgrade(t *testing.T) {
 	}
 	if hardeningConstraints != 1 {
 		t.Fatalf("v2 upgrade did not add source/dataset hardening constraint: %d", hardeningConstraints)
+	}
+	var sentinelName string
+	if err := upgradedDB.QueryRowContext(ctx, "SELECT name FROM "+schemaName+".data_sources WHERE code = $1", sentinelCode).Scan(&sentinelName); err != nil {
+		t.Fatalf("inspect v1 sentinel row after upgrade: %v", err)
+	}
+	if sentinelName != "v1 sentinel" {
+		t.Fatalf("v1 sentinel row changed during upgrade: %q", sentinelName)
 	}
 }
 

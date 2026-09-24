@@ -30,7 +30,7 @@ there is no AR-101 runtime failure.
 | Exact values round-trip without precision loss. | All financial values use `NUMERIC(38,18)`; the integration fixture checks `123.456789012345678901` after a database round-trip. |
 | Source and system knowledge timestamps may differ or source time may be null. | Revision tables contain nullable `source_known_at`, non-null `system_known_at`, and checked `knowledge_time_basis`; the fixture inserts both source-known and first-observed-by-system rows. |
 | Query plans use intended indexes for series/time/as-of fixture queries. | Time, system-as-of, and source-as-of indexes are defined for each revision family; the fixture seeds selective rows, runs default `EXPLAIN (ANALYZE, BUFFERS)`, and asserts observation, price, and FX time/system/source index names without disabling sequential scans. |
-| Previous-version migrations upgrade without mutating unrelated data. | `TestCoreDatabasePreviousVersionUpgrade` creates a unique schema in isolated `atrisk_test`, applies v1 with Goose `UpToContext`, verifies no v2 constraint, then calls production `database.MigrateInSchema` and verifies v2 plus the composite FK; cleanup drops only that schema. |
+| Previous-version migrations upgrade without mutating unrelated data. | `TestCoreDatabasePreviousVersionUpgrade` creates a unique schema in isolated `atrisk_test`, applies v1 with Goose `UpToContext`, inserts a v1 sentinel row, verifies no v2 constraint, then calls production `database.MigrateInSchema` and verifies v2, the composite FK, and sentinel preservation; cleanup drops only that schema. |
 | Source metadata is immutable and ingestion source/dataset identity is enforced. | `00002_core_database_hardening.sql` adds immutable source/dataset/series triggers and a composite `(source_id, dataset_id)` FK; changed metadata inserts return zero and direct source/dataset/series UPDATEs fail. |
 
 ## Stop-condition check
@@ -68,8 +68,8 @@ there is no AR-101 runtime failure.
 - Branch: `task/AR-101-core-database-model`
 - Reviewed implementation commits: `300ba630941b1a7468b6a0e819e66d5ccc7d6810`, `c10dca2e6fc72d10b2237c6a0c7ec2d08328b901`, `6a8b2280c4dd35adc53f85f8665613029e5d0922`
 - Branch SHA at the start of this review: `6e0a545d9ba6a6ae0a1d165ffcabc6f1e1a99402`
-- Current report/lifecycle commit: this report-correction commit (final HEAD reported in handoff)
-- Remote branch: push succeeded from review SHA `6e0a545` through the final report corrections; live `ls-remote` was not independently verified because the proxy/remote endpoint remains unavailable.
+- Reviewed report SHA: `bf59534a3a3a58d63173820428efe4911f1d3198`
+- HEAD and `origin/task/AR-101-core-database-model` tracking ref matched at review at `bf59534`; push succeeded. Live `ls-remote` was not independently verified because the proxy/remote endpoint remains unavailable.
 - Worktree: clean after the report-correction commit
 
 ## Assumptions and risks
