@@ -112,6 +112,39 @@ func TestHTTPFetcherRetriesRateLimitAndRejectsMediaType(t *testing.T) {
 	}
 }
 
+func TestHTTPFetcherRetries418AndFailsClosedWhenRetryAfterExceedsBound(t *testing.T) {
+	var calls atomic.Int32
+	server, client := testFetcherServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls.Add(1) == 1 {
+			w.Header().Set("Retry-After", "0")
+			w.WriteHeader(http.StatusTeapot)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+	fetcher := HTTPFetcher{Client: client, AllowedHosts: map[string]struct{}{"127.0.0.1": {}}, Retry: RetryPolicy{MaxAttempts: 2, BaseDelay: time.Millisecond, MaxDelay: time.Millisecond}, Sleep: func(context.Context, time.Duration) error { return nil }}
+	if _, err := fetcher.Fetch(context.Background(), FetchRequest{URL: server.URL}); err != nil {
+		t.Fatal(err)
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("expected one HTTP 418 retry, got %d calls", calls.Load())
+	}
+	tooLong, tooLongClient := testFetcherServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "2")
+		w.WriteHeader(http.StatusTeapot)
+	}))
+	defer tooLong.Close()
+	tooLongFetcher := HTTPFetcher{Client: tooLongClient, AllowedHosts: map[string]struct{}{"127.0.0.1": {}}, Retry: RetryPolicy{MaxAttempts: 2, MaxDelay: time.Millisecond}, Sleep: func(context.Context, time.Duration) error {
+		t.Fatal("slept before rejecting oversized retry-after")
+		return nil
+	}}
+	if _, err := tooLongFetcher.Fetch(context.Background(), FetchRequest{URL: tooLong.URL}); err == nil || !strings.Contains(err.Error(), "retry-after exceeds") {
+		t.Fatalf("oversized retry-after was not rejected: %v", err)
+	}
+}
+
 func TestHTTPFetcherRejectsUnallowlistedHost(t *testing.T) {
 	server, client := testFetcherServer(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	defer server.Close()
