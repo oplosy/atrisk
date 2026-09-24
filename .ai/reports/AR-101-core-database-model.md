@@ -66,11 +66,11 @@ there is no AR-101 runtime failure.
 ## Git state
 
 - Branch: `task/AR-101-core-database-model`
-- Reviewed implementation commits: `300ba630941b1a7468b6a0e819e66d5ccc7d6810`, `c10dca2e6fc72d10b2237c6a0c7ec2d08328b901`, `6a8b2280c4dd35adc53f85f8665613029e5d0922`
-- Branch SHA at the start of this review: `6e0a545d9ba6a6ae0a1d165ffcabc6f1e1a99402`
-- Reviewed report SHA: `bf59534a3a3a58d63173820428efe4911f1d3198`
-- HEAD and `origin/task/AR-101-core-database-model` tracking ref matched at review at `bf59534`; push succeeded. Live `ls-remote` was not independently verified because the proxy/remote endpoint remains unavailable.
-- Worktree: clean after the report-correction commit
+- Commit SHA: `6a8b2280c4dd35adc53f85f8665613029e5d0922` (latest substantive migration/upgrade implementation)
+- Remote branch: `origin/task/AR-101-core-database-model` verified at review SHA `bf59534a3a3a58d63173820428efe4911f1d3198`; subsequent report-only pushes advanced the branch metadata through snapshot `b5ee0bb4c1ccd94f2ae737597c9e3e53bc8a82b7`.
+- Report snapshot SHA: `b5ee0bb4c1ccd94f2ae737597c9e3e53bc8a82b7`
+- Live `ls-remote` was not independently verified because the proxy/remote endpoint remains unavailable.
+- Worktree: clean at the report snapshot
 
 ## Assumptions and risks
 
