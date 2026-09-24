@@ -21,7 +21,7 @@
 | AC-3: stable unknown-version failure | `test/contract/contract.test.mjs` asserts `ATLAS_UNKNOWN_SCHEMA_VERSION`, `Unsupported schema version`, and deterministic details for fixture `job-unknown-version.json`. |
 | AC-4: no generated drift | `go run github.com/go-task/task/v3/cmd/task@v3.44.1 verify` passed its final `check-generated` step. |
 
-Review follow-up: Python validation now rejects empty `input_snapshot_ids` entries and requires `supported_versions`; Go, TypeScript, and Python fields/types are now derived from the JSON Schema properties, required fields, enum/const values, and collection constraints. No scope or ADR conflict was found.
+Review follow-up: Python validation now rejects empty `input_snapshot_ids` entries and requires `supported_versions`; Go, TypeScript, and Python fields/types are derived from JSON Schema properties, required fields, enum/const values, nested models, numeric types, and collection constraints. Go enum/literal declarations and schema-sourced duplicate/extra-property negative fixtures were added. No scope or ADR conflict was found.
 
 ## Stop-condition check
 
@@ -33,7 +33,7 @@ Review follow-up: Python validation now rejects empty `input_snapshot_ids` entri
 | Command | Result |
 |---|---|
 | `go run github.com/go-task/task/v3/cmd/task@v3.44.1 generate` | pass; Go, TypeScript, and Python models regenerated. |
-| `go run github.com/go-task/task/v3/cmd/task@v3.44.1 test-contract` | pass; 6 tests. |
+| `go run github.com/go-task/task/v3/cmd/task@v3.44.1 test-contract` | pass; 9 tests. |
 | `go run github.com/go-task/task/v3.44.1 check-generated` | pass; no drift. |
 | `go test ./...` | pass; API, collector, generated Go package, internal package. |
 | `go run github.com/go-task/task/v3.44.1 verify` | pass; format, lint, typecheck, unit, contract, integration-scope, build, drift. |
@@ -42,17 +42,17 @@ Review follow-up: Python validation now rejects empty `input_snapshot_ids` entri
 
 ## Change inventory
 
-- Files changed: OpenAPI source, five JSON Schemas, generated Go/TypeScript/Python models, schema-driven deterministic generator, four contract fixtures plus tests, Taskfile/generator registration; review follow-up added Python constraint regressions and source-derived model rendering.
+- Files changed: OpenAPI source, five JSON Schemas, generated Go/TypeScript/Python models, schema-driven deterministic generator, six contract fixtures plus tests, Taskfile/generator registration; review follow-up added Python constraint regressions, Go named enum/literal types, numeric mappings, and schema-sourced duplicate/extra-property validation.
 - Schema/API changes: OpenAPI 3.1 base document with request ID and idempotency conventions; versioned job/result/import envelopes; error and unknown-version schemas, including request IDs and fixed supported-version details.
 - Generated artifacts: `contracts/generated/go/contracts.go`, `contracts/generated/typescript/contracts.ts`, `contracts/generated/python/contracts.py`, `contracts/generated/python/__init__.py`.
 
 ## Git state
 
 - Branch: `task/AR-005-contract-skeleton`
-- Implementation commits: `57ec8d3` (`feat(contracts): add contract-first skeleton [AR-005]`), `f05df4b` (`fix(contracts): validate generated Python models [AR-005]`), `b07f0ab` (`fix(contracts): enforce schema collection constraints [AR-005]`), `20c48ce` (`feat(contracts): derive models from schemas [AR-005]`).
-- Report/status commits: `cfaf0ed`, `490d9b0`, `9b799e0`, `6ff4f6b`, `c0c1277`, and `97c15fd` record handoff and review-fix metadata.
-- Remote branch: `origin/task/AR-005-contract-skeleton` verified at `97c15fd5dd2a89440b3b9acb9d39ba53ea415207`.
-- Worktree: clean at handoff commit `97c15fd5dd2a89440b3b9acb9d39ba53ea415207`.
+- Implementation commits: `57ec8d3`, `f05df4b`, `b07f0ab`, `20c48ce`, `9be444b` (`fix(contracts): preserve Go schema literals [AR-005]`), and `356eb70` (`fix(contracts): map numeric schema types [AR-005]`).
+- Report/status commits: `cfaf0ed`, `490d9b0`, `9b799e0`, `6ff4f6b`, `c0c1277`, `97c15fd`, `44e1ea9`, `7527720`, and `f908560` record handoff, review-fix, report, and review-state updates; this report update follows them.
+- Remote branch: `origin/task/AR-005-contract-skeleton` was verified at `f908560eb6f43d68ab6e0592d807d99aa9da7213` before this final implementation/report push.
+- Worktree: clean after implementation commit `356eb70`; this report update is the next handoff commit.
 
 ## Assumptions and risks
 
