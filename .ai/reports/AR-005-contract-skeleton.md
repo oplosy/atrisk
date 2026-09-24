@@ -37,6 +37,7 @@ Review follow-up: Python validation now rejects empty `input_snapshot_ids` entri
 | `go run github.com/go-task/task/v3.44.1 check-generated` | pass; no drift. |
 | `go test ./...` | pass; API, collector, generated Go package, internal package. |
 | `go run github.com/go-task/task/v3.44.1 verify` | pass; format, lint, typecheck, unit, contract, integration-scope, build, drift. |
+| `gh pr checks 6 --watch` | pass; required GitHub Actions Verify succeeded. |
 | `git diff --check` | pass. |
 | `python -m py_compile contracts/generated/python/contracts.py contracts/generated/python/__init__.py` | pass. |
 
@@ -48,11 +49,11 @@ Review follow-up: Python validation now rejects empty `input_snapshot_ids` entri
 
 ## Git state
 
-- Branch: `task/AR-005-contract-skeleton`
+- Implementation branch: `task/AR-005-contract-skeleton` (merged). Lifecycle metadata branch: `task/AR-005-status-finalization`.
 - Implementation commits: `57ec8d3`, `f05df4b`, `b07f0ab`, `20c48ce`, `9be444b` (`fix(contracts): preserve Go schema literals [AR-005]`), and `356eb70` (`fix(contracts): map numeric schema types [AR-005]`).
-- Report/status commits: `cfaf0ed`, `490d9b0`, `9b799e0`, `6ff4f6b`, `c0c1277`, `97c15fd`, `44e1ea9`, `7527720`, `f908560`, and `6cdb037` record handoff, review-fix, report, and lifecycle updates.
-- Remote branch: `origin/task/AR-005-contract-skeleton` was verified at `6cdb0374fff45f92fa9d3f9ded899a5f307c1609` before this report-only update.
-- Worktree: clean at review-fix handoff commit `6cdb0374fff45f92fa9d3f9ded899a5f307c1609`; this report update is the next handoff commit.
+- PR: [#6](https://github.com/oplosy/atrisk/pull/6), merged 2026-09-24; merge commit `92b4777019396518a93f6a2e66cdde9267ccf4f6`.
+- Report/status commits: `cfaf0ed`, `490d9b0`, `9b799e0`, `6ff4f6b`, `c0c1277`, `97c15fd`, `44e1ea9`, `7527720`, `f908560`, `6cdb037`, and `ed37d9a` record handoff, review-fix, report, and lifecycle updates.
+- Main was fast-forwarded from PR #6; lifecycle status `merged` is recorded by this follow-up PR branch. Worktree started from merge commit `92b4777019396518a93f6a2e66cdde9267ccf4f6` and will be clean after handoff.
 
 ## Assumptions and risks
 
