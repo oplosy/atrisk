@@ -3,6 +3,7 @@ package fred
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -136,20 +137,36 @@ func TestFREDFetchObservationPagesUsesBoundedOffset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pages, err := client.FetchObservationPages(context.Background(), ObservationRequest{SeriesID: "GDP", Limit: 2})
+	request := ObservationRequest{SeriesID: "GDP", Limit: 2, OutputType: 2}
+	pages, err := client.FetchObservationPages(context.Background(), request)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(pages) != 2 || calls.Load() != 2 {
 		t.Fatalf("unexpected pages/calls: pages=%d calls=%d", len(pages), calls.Load())
 	}
-	checkpoint := (ObservationCheckpoint{SeriesID: "GDP"}).Advance(pages[0])
+	checkpoint, err := NewObservationCheckpoint(request, client.pageSize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkpoint = checkpoint.Advance(pages[0])
 	if checkpoint.NextOffset != 2 || checkpoint.Pages != 1 || checkpoint.Observations != 2 || checkpoint.Completed {
 		t.Fatalf("unexpected checkpoint: %+v", checkpoint)
 	}
-	resumeRequest := checkpoint.NextRequest(ObservationRequest{SeriesID: "wrong", Limit: 2})
-	if resumeRequest.SeriesID != "GDP" || resumeRequest.Offset != 2 {
+	resumeRequest, err := checkpoint.NextRequest(request, client.pageSize)
+	if err != nil || resumeRequest.SeriesID != "GDP" || resumeRequest.Offset != 2 {
 		t.Fatalf("checkpoint did not resume request: %+v", resumeRequest)
+	}
+	for name, mismatch := range map[string]ObservationRequest{
+		"vintage":     {SeriesID: "GDP", Limit: 2, OutputType: 2, VintageDates: "2024-06-01"},
+		"output type": {SeriesID: "GDP", Limit: 2, OutputType: 3},
+		"page limit":  {SeriesID: "GDP", Limit: 1, OutputType: 2},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := checkpoint.NextRequest(mismatch, client.pageSize); !errors.Is(err, ErrCheckpointRequestMismatch) {
+				t.Fatalf("mismatched checkpoint request was accepted: %v", err)
+			}
+		})
 	}
 	checkpoint = checkpoint.Advance(pages[1])
 	if !checkpoint.Completed || checkpoint.NextOffset != 3 {

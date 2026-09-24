@@ -24,6 +24,9 @@ func (s Store) SaveCheckpoint(ctx context.Context, runID string, checkpoint Obse
 	if runID == "" {
 		return errors.New("FRED ingestion run ID is required")
 	}
+	if checkpoint.RequestFingerprint == "" {
+		return ErrCheckpointRequestMismatch
+	}
 	data, err := json.Marshal(checkpoint)
 	if err != nil {
 		return fmt.Errorf("encode FRED checkpoint: %w", err)

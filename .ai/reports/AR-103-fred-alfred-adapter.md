@@ -12,6 +12,14 @@
 
 `needs-review`
 
+## Review follow-up
+
+- The checkpoint now persists a SHA-256 fingerprint of the complete normalized
+  FRED request (series, vintage/realtime bounds, observation filters, units,
+  frequency, aggregation, output type, and effective page limit). Resume rejects
+  any request whose fingerprint differs; the unit and PostgreSQL integration
+  tests cover original-request resume and changed-vintage rejection.
+
 ## Acceptance evidence
 
 | Criterion | Evidence |
@@ -19,7 +27,7 @@
 | AC-1 | `internal/sources/fred/adapter_test.go` preserves initial and revised values for the same observation date with source vintage timestamps; `test/integration/fred_vintage_test.go` persists both append-only revisions and checks source-as-of values for 2025-01-15 and 2025-02-15. |
 | AC-2 | `test/integration/fred_vintage_test.go` checks source-as-of selects the release known on the requested vintage date and system-as-of returns no rows before the captured retrieval time but returns the revised value after ingestion. |
 | AC-3 | `internal/sources/fred/adapter_test.go` and the integration test preserve FRED `.` as `value_text` with a `missing` quality flag and never write zero. |
-| AC-4 | `internal/sources/fred/adapter_test.go` covers duplicate-safe normalization/provenance, bounded offset pagination, and checkpoint advancement; `fred.Store.SaveCheckpoint`/`LoadCheckpoint` persist and resume the offset in `ingestion_runs.coverage`; duplicate `PersistRecords` inserts affect zero rows. |
+| AC-4 | `internal/sources/fred/adapter_test.go` covers duplicate-safe normalization/provenance, bounded offset pagination, checkpoint advancement, original-request resume, and filter/limit mismatch rejection; `fred.Store.SaveCheckpoint`/`LoadCheckpoint` persist the request-bound offset in `ingestion_runs.coverage`; duplicate `PersistRecords` inserts affect zero rows. |
 | AC-5 | `internal/sources/fred/adapter_test.go` verifies the request carries the API key only upstream and `archive.RedactedURL` removes the key from persisted/loggable URI metadata. |
 
 ## Stop-condition check
@@ -37,6 +45,8 @@
 | `go run github.com/go-task/task/v3/cmd/task@v3.44.1 verify` | partial; format, lint, typecheck, unit, and contract stages passed, then existing integration gate failed closed because `ATLASRISK_TEST_DATABASE_URL` was not configured. |
 | `git diff --check` | pass. |
 
+Review-fix rerun: scoped `test-go TEST=FRED`, `go test ./test/integration -run TestFREDVintage`, `go vet ./apps/... ./internal/...`, and `git diff --check` passed/compiled; the required integration test remains fail-closed without an explicit isolated PostgreSQL DSN. `test-contract` passed and generated drift was restored.
+
 ## Change inventory
 
 - Files changed: `internal/sources/fred/client.go`, `internal/sources/fred/adapter.go`, `internal/sources/fred/store.go`, `internal/sources/fred/adapter_test.go`, `test/fixtures/fred/vintage-observations.json`, `test/integration/fred_vintage_test.go`, and this report.
@@ -46,12 +56,12 @@
 ## Git state
 
 - Branch: `task/AR-103-fred-alfred-adapter`
-- Commit SHA: `5333ff091c5ed1727233fe0af57839726beb83d0` (implementation commit)
-- Remote branch: `task/AR-103-fred-alfred-adapter` after the final report commit
-- Worktree: clean after commit/push
+- Commit SHA: `5333ff091c5ed1727233fe0af57839726beb83d0` (base implementation; review-fix commit pending)
+- Remote branch: `task/AR-103-fred-alfred-adapter` pending review-fix push
+- Worktree: dirty only with the review fix until commit/push
 
 ## Assumptions and risks
 
 - Local integration and full verify require the explicitly isolated PostgreSQL DSN; hosted CI should exercise the same test against its ephemeral PostgreSQL service.
-- Independent review, hosted integration verification, PR merge, and task lifecycle finalization remain outstanding; this report does not claim acceptance completion.
+- Independent review checkpoint fingerprint finding is addressed in this follow-up. Hosted integration verification, PR merge, and task lifecycle finalization remain outstanding; this report does not claim acceptance completion.
 - The FRED `realtime_start` date is recorded as `source_known_at` at UTC midnight with `source_published_at`; the raw realtime interval remains in quality metadata and the normalized record.

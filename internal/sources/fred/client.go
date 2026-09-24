@@ -3,6 +3,8 @@ package fred
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,9 +20,10 @@ import (
 const AdapterVersion = "fred-alfred-v1"
 
 var (
-	ErrAPIKeyRequired = errors.New("FRED API key is required for network requests")
-	ErrPageLimit      = errors.New("FRED pagination limit reached")
-	ErrNoCheckpoint   = errors.New("FRED checkpoint not found")
+	ErrAPIKeyRequired            = errors.New("FRED API key is required for network requests")
+	ErrPageLimit                 = errors.New("FRED pagination limit reached")
+	ErrNoCheckpoint              = errors.New("FRED checkpoint not found")
+	ErrCheckpointRequestMismatch = errors.New("FRED checkpoint request fingerprint mismatch")
 )
 
 type Config struct {
@@ -307,22 +310,88 @@ type ObservationPage struct {
 	Fetched  ingestion.FetchedResponse
 }
 
-// ObservationCheckpoint is safe to persist as ingestion_runs.coverage. It is
-// deliberately source-neutral except for the FRED offset and request bounds.
+// ObservationCheckpoint is safe to persist as ingestion_runs.coverage. The
+// fingerprint binds the offset to every request filter and effective page
+// limit, so a checkpoint cannot be resumed against a different data window.
 type ObservationCheckpoint struct {
-	SeriesID      string `json:"series_id"`
-	NextOffset    int    `json:"next_offset"`
-	Pages         int    `json:"pages"`
-	Observations  int    `json:"observations"`
-	Completed     bool   `json:"completed"`
-	RealtimeStart string `json:"realtime_start,omitempty"`
-	RealtimeEnd   string `json:"realtime_end,omitempty"`
+	SeriesID           string `json:"series_id"`
+	RequestFingerprint string `json:"request_fingerprint"`
+	NextOffset         int    `json:"next_offset"`
+	Pages              int    `json:"pages"`
+	Observations       int    `json:"observations"`
+	Completed          bool   `json:"completed"`
+	RealtimeStart      string `json:"realtime_start,omitempty"`
+	RealtimeEnd        string `json:"realtime_end,omitempty"`
 }
 
-func (c ObservationCheckpoint) NextRequest(request ObservationRequest) ObservationRequest {
-	request.SeriesID = c.SeriesID
-	request.Offset = c.NextOffset
-	return request
+// NewObservationCheckpoint creates a checkpoint identity from the normalized
+// request. Offset is deliberately excluded from the identity because it is the
+// cursor that changes as pages are consumed.
+func NewObservationCheckpoint(request ObservationRequest, defaultPageSize int) (ObservationCheckpoint, error) {
+	normalized, err := request.normalized(defaultPageSize)
+	if err != nil {
+		return ObservationCheckpoint{}, err
+	}
+	fingerprint, err := RequestFingerprint(normalized, defaultPageSize)
+	if err != nil {
+		return ObservationCheckpoint{}, err
+	}
+	return ObservationCheckpoint{SeriesID: normalized.SeriesID, RequestFingerprint: fingerprint}, nil
+}
+
+// RequestFingerprint returns a stable SHA-256 identity for every FRED query
+// parameter except offset and the API key. Credentials are never included in
+// persisted checkpoint state.
+func RequestFingerprint(request ObservationRequest, defaultPageSize int) (string, error) {
+	normalized, err := request.normalized(defaultPageSize)
+	if err != nil {
+		return "", err
+	}
+	identity := struct {
+		SeriesID         string `json:"series_id"`
+		RealtimeStart    string `json:"realtime_start"`
+		RealtimeEnd      string `json:"realtime_end"`
+		VintageDates     string `json:"vintage_dates"`
+		ObservationStart string `json:"observation_start"`
+		ObservationEnd   string `json:"observation_end"`
+		Units            string `json:"units"`
+		Frequency        string `json:"frequency"`
+		Aggregation      string `json:"aggregation_method"`
+		OutputType       int    `json:"output_type"`
+		Limit            int    `json:"limit"`
+	}{
+		SeriesID: normalized.SeriesID, RealtimeStart: normalized.RealtimeStart, RealtimeEnd: normalized.RealtimeEnd,
+		VintageDates: normalized.VintageDates, ObservationStart: normalized.ObservationStart, ObservationEnd: normalized.ObservationEnd,
+		Units: normalized.Units, Frequency: normalized.Frequency, Aggregation: normalized.Aggregation,
+		OutputType: normalized.OutputType, Limit: normalized.Limit,
+	}
+	encoded, err := json.Marshal(identity)
+	if err != nil {
+		return "", fmt.Errorf("encode FRED request identity: %w", err)
+	}
+	digest := sha256.Sum256(encoded)
+	return hex.EncodeToString(digest[:]), nil
+}
+
+func (c ObservationCheckpoint) NextRequest(request ObservationRequest, defaultPageSize ...int) (ObservationRequest, error) {
+	pageSize := 1000
+	if len(defaultPageSize) > 0 && defaultPageSize[0] > 0 {
+		pageSize = defaultPageSize[0]
+	}
+	fingerprint, err := RequestFingerprint(request, pageSize)
+	if err != nil {
+		return ObservationRequest{}, err
+	}
+	if c.RequestFingerprint == "" || fingerprint != c.RequestFingerprint {
+		return ObservationRequest{}, ErrCheckpointRequestMismatch
+	}
+	normalized, err := request.normalized(pageSize)
+	if err != nil {
+		return ObservationRequest{}, err
+	}
+	normalized.SeriesID = c.SeriesID
+	normalized.Offset = c.NextOffset
+	return normalized, nil
 }
 
 func (c ObservationCheckpoint) Advance(page ObservationPage) ObservationCheckpoint {

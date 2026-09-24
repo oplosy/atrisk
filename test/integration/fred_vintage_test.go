@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -63,7 +64,8 @@ func TestFREDVintage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	adapter, err := fred.NewAdapter(client, "CPIAUCSL", fred.ObservationRequest{OutputType: 2})
+	request := fred.ObservationRequest{SeriesID: "CPIAUCSL", OutputType: 2}
+	adapter, err := fred.NewAdapter(client, "CPIAUCSL", request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,13 +82,25 @@ func TestFREDVintage(t *testing.T) {
 	if err != nil || duplicate {
 		t.Fatalf("start FRED ingestion run: id=%q duplicate=%v err=%v", runID, duplicate, err)
 	}
-	checkpoint := fred.ObservationCheckpoint{SeriesID: "CPIAUCSL", NextOffset: 2, Pages: 1, Observations: 2}
+	checkpoint, err := fred.NewObservationCheckpoint(request, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkpoint.NextOffset = 2
+	checkpoint.Pages = 1
+	checkpoint.Observations = 2
 	if err := store.SaveCheckpoint(ctx, runID, checkpoint); err != nil {
 		t.Fatal(err)
 	}
 	loadedCheckpoint, err := store.LoadCheckpoint(ctx, runID)
 	if err != nil || loadedCheckpoint.NextOffset != 2 || loadedCheckpoint.Observations != 2 {
 		t.Fatalf("checkpoint did not round-trip: %+v err=%v", loadedCheckpoint, err)
+	}
+	if resumed, err := loadedCheckpoint.NextRequest(request, 1000); err != nil || resumed.Offset != 2 {
+		t.Fatalf("persisted checkpoint did not resume original request: request=%+v err=%v", resumed, err)
+	}
+	if _, err := loadedCheckpoint.NextRequest(fred.ObservationRequest{SeriesID: "CPIAUCSL", OutputType: 2, VintageDates: "2025-02-01"}, 1000); !errors.Is(err, fred.ErrCheckpointRequestMismatch) {
+		t.Fatalf("persisted checkpoint accepted changed vintage filter: %v", err)
 	}
 	inserted, err := store.PersistRecords(ctx, series.ID.String(), records)
 	if err != nil {
