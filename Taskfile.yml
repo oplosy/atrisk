@@ -62,8 +62,10 @@ tasks:
 
   test-integration:
     desc: Run integration tests when integration sources exist
+    env:
+      ATLASRISK_REQUIRE_TEST_DATABASE: "1"
     cmds:
-      - node scripts/verify/check-scope.mjs integration test/integration
+      - go test ./test/integration -run "TestCoreDatabase" -count=1
 
   migrate-test:
     desc: Apply migrations to an explicitly isolated test database and verify schema
