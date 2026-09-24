@@ -60,8 +60,8 @@ there is no AR-101 runtime failure.
 ## Git state
 
 - Branch: `task/AR-101-core-database-model`
-- Commit SHA: `5247612` (full SHA to be recorded after push verification)
-- Remote branch: `origin/task/AR-101-core-database-model` (push pending)
+- Commit SHA: implementation `5247612`; handoff metadata `135f576`
+- Remote branch: `origin/task/AR-101-core-database-model` at `135f576`
 - Worktree: clean after commit
 
 ## Assumptions and risks
