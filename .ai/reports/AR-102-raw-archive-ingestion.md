@@ -12,6 +12,10 @@
 
 `needs-review`
 
+## Review follow-up
+
+- Independent review found five blocking issues; fixes are in progress on the same task branch before a second review. No local Docker or service action is authorized or planned.
+
 ## Acceptance evidence
 
 | Criterion | Evidence |
@@ -48,8 +52,8 @@
 
 - Branch: `task/AR-102-raw-archive-ingestion`
 - Implementation commit SHA: `c91c37ea2b42e61e9a1622aba0a3f7fb5fd572a8`
-- Remote branch: `origin/task/AR-102-raw-archive-ingestion` matched the implementation commit at worker handoff; orchestrator review-status update follows on the same branch.
-- Worktree: clean at worker handoff; lifecycle/report update is an orchestrator-only review commit.
+- Review snapshot: `e3b5de7e4ed51411735abde03c749b7f509a5ea0`; local and remote matched and the worktree was clean at review.
+- Review follow-up lifecycle update and implementation fixes are being committed on this same task branch.
 
 ## Assumptions and risks
 
