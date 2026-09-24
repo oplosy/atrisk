@@ -5,8 +5,8 @@
 - Task packet: `.ai/tasks/AR-106-point-in-time-query-service.md`
 - Packet status at start: `ready`
 - Referenced ADRs: ADR-006, ADR-007, ADR-009, ADR-011
-- Owned paths: `internal/application/timeline/`, `apps/api/handlers/timeline/`, `db/queries/timeline/`
-- Shared paths changed and justification: `contracts/openapi/` documents the public routes, 400 client errors, and point-in-time semantics; generated SQLC output is required to compile the timeline query source; `test/integration/point_in_time_api_test.go` supplies the required real PostgreSQL proof; `.github/workflows/ci.yml` runs that integration test in hosted CI. No web client generator exists in this checkout.
+- Owned paths: `internal/application/timeline/`, `apps/api/handlers/timeline/`, `apps/api/cmd/api/`, `db/queries/timeline/`, `test/integration/`
+- Shared paths changed and justification: `contracts/openapi/` documents the public routes, route-specific modes, 400/404 client errors, and point-in-time semantics; `apps/web/src/generated/` has no generated client changes; `db/queries/core/sqlc.yaml` and `internal/platform/database/` contain the SQLC configuration/generated database query output required to compile timeline queries; `.github/workflows/ci.yml` runs the required hosted integration test. No web client generator exists in this checkout.
 
 ## Result
 
@@ -19,7 +19,7 @@
 | AC-1 | `TestPointInTimeAPI` seeds three immutable revisions and asserts latest `110`, source-as-of `100`, and system-as-of `90`; the late source-known/system-known ordering proves the clocks answer different questions. |
 | AC-2 | `TestPointInTimeAPI` requests source-as-of for a series with no `source_known_at` values and asserts HTTP 409, `SOURCE_AS_OF_UNSUPPORTED`, `request_id`, and explicit capability details. Series metadata derives this capability from persisted evidence rather than provider-name heuristics. |
 | AC-3 | Observation responses include unit, frequency, nested source/system clocks and knowledge basis, quality JSON, raw object UUID, and raw SHA-256. The integration fixture asserts the raw provenance UUID is not combined with the SHA. |
-| AC-4 | Latest, source-as-of, system-as-of, revisions, and combined cross-source routes are explicit in `apps/api/handlers/timeline/handler.go` and `contracts/openapi/openapi.json`; combined mode is restricted to the cross-source endpoint and uses the selected clock. |
+| AC-4 | Latest, source-as-of, system-as-of, revisions, and combined cross-source routes are explicit in `apps/api/handlers/timeline/handler.go` and `contracts/openapi/openapi.json`; route-specific mode schemas match handler acceptance, combined mode is restricted to the cross-source endpoint, and every distinct cross-source series ID is existence-validated before querying. |
 | AC-5 | `db/queries/timeline/timeline.sql` applies keyset predicates after `DISTINCT ON` winner selection, and series listing uses a composite keyset over data-source code, source code, and UUID rather than offset pagination. The integration fixture requests two combined pages, two series-list pages, and two revisions pages with stable cursors. |
 | AC-6 | SQLC output is regenerated from the timeline query source; OpenAPI is updated for routes, schemas, capabilities, errors, and mode semantics. Contract tests and generated-file verification were run. |
 
@@ -51,8 +51,8 @@
 ## Git state
 
 - Branch: `task/AR-106-point-in-time-query-service`
-- Implementation/code tip: `da8e44b024a4bc26dfd4bad566cc179395f28edd`; a report-only handoff commit follows.
-- Remote branch: synchronized with `origin/task/AR-106-point-in-time-query-service` at handoff; the report-only handoff commit follows implementation tip `da8e44b024a4bc26dfd4bad566cc179395f28edd`.
+- Implementation/code tip: `e7a1aedf1af9118ce98d0ea0e44a6cb3c00f7238`; a report-only handoff commit follows.
+- Remote branch: implementation is pushed to `origin/task/AR-106-point-in-time-query-service`; final handoff push will synchronize the report-only commit as well.
 - Worktree: clean after the report-only handoff commit.
 
 ## Assumptions and risks
