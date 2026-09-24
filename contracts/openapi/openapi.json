@@ -1,0 +1,48 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AtlasRisk HTTP API",
+    "version": "1.0.0",
+    "description": "Contract-first foundation for the AtlasRisk decision-support API."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local development server"
+    }
+  ],
+  "paths": {},
+  "components": {
+    "schemas": {
+      "ErrorEnvelope": { "$ref": "../schemas/error-envelope.schema.json" },
+      "PageMeta": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["limit", "has_more"],
+        "properties": {
+          "limit": { "type": "integer", "minimum": 1, "maximum": 200 },
+          "next_cursor": { "type": "string", "minLength": 1 },
+          "has_more": { "type": "boolean" }
+        }
+      }
+    },
+    "parameters": {
+      "RequestId": {
+        "name": "X-Request-ID", "in": "header", "required": false,
+        "schema": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "description": "Client-supplied correlation identifier; the server returns one when absent."
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key", "in": "header", "required": false,
+        "schema": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "description": "Stable key for retry-safe mutating requests."
+      }
+    },
+    "headers": {
+      "RequestId": {
+        "description": "Correlation identifier for this response and its logs.",
+        "schema": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    }
+  }
+}

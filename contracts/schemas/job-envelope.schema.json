@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://atlasrisk.local/contracts/job-envelope.schema.json",
+  "title": "Versioned job envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "schema_version", "idempotency_key", "input_snapshot_ids", "payload"],
+  "properties": {
+    "kind": { "type": "string", "pattern": "^[a-z][a-z0-9_.-]*$" },
+    "schema_version": { "const": "1.0" },
+    "idempotency_key": { "type": "string", "minLength": 1, "maxLength": 255 },
+    "input_snapshot_ids": {
+      "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true
+    },
+    "payload": { "type": "object", "additionalProperties": true }
+  }
+}

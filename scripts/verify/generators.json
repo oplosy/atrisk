@@ -1,5 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "version": 1,
-  "generators": []
+  "generators": [
+    {
+      "name": "contract-models",
+      "command": "node",
+      "args": ["scripts/generate/contract-models.mjs"],
+      "cwd": "."
+    }
+  ]
 }

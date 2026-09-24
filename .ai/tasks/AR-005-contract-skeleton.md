@@ -1,10 +1,11 @@
 ---
 id: AR-005
 title: Establish contract-first interfaces
-status: draft
+status: review
 phase: 0
 depends_on: [AR-002, AR-003]
 branch: task/AR-005-contract-skeleton
+base_sha: b59acf82fda547e84b99a00cf9d9a5601dac6f59
 owned_paths: [contracts/, scripts/generate/, test/contract/]
 shared_paths: [apps/api/, apps/web/, risk-engine/, Taskfile.yml]
 adrs: [ADR-009]
