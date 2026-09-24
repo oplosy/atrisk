@@ -55,8 +55,8 @@
 
 - Branch: `task/AR-102-raw-archive-ingestion`
 - Implementation commit SHA: `0c52153ab3c43bc8e026b3016563127789529372` (corrects the same-size Garage byte-mismatch proof on top of `1eb95e7aebd97bec9a66a4f20a87808a61895e1a`)
-- Remote branch: push pending for this test correction; worktree is clean before push.
-- Orchestrator review-status update follows on the same task branch.
+- Worker handoff snapshot: `dc504339b7ceca891d312cb987796b8fdd1e50a5`; local and remote matched and the worktree was clean.
+- Orchestrator report-state update follows on the same task branch; hosted verification is pending for the corrected snapshot.
 
 ## Assumptions and risks
 
