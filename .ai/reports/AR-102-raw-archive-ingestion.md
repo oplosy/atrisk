@@ -54,8 +54,8 @@
 
 - Branch: `task/AR-102-raw-archive-ingestion`
 - Implementation commit SHA: `d70efec25438087c65a37798823706ed50dee1be` (adds the required PostgreSQL integration proof on top of `f004d3e2136eccaf5415d7ae3062bccdea50fba6`)
-- Review snapshot: `e3b5de7e4ed51411735abde03c749b7f509a5ea0`; local and remote matched and the worktree was clean at review.
-- Review follow-up lifecycle update and implementation fixes are committed on this same task branch; this report records the follow-up test and local fail-closed verification.
+- Final implementation/report snapshot at worker handoff: `3bf934beebe3032b246876a2e8f4dfed8ccd49d1`; local and remote matched and the worktree was clean.
+- Orchestrator review-status update follows on the same task branch.
 
 ## Assumptions and risks
 
