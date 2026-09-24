@@ -4,10 +4,11 @@
   "title": "Unknown schema version error",
   "type": "object",
   "additionalProperties": false,
-  "required": ["code", "message", "details"],
+  "required": ["code", "message", "request_id", "details"],
   "properties": {
     "code": { "const": "ATLAS_UNKNOWN_SCHEMA_VERSION" },
     "message": { "const": "Unsupported schema version" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128 },
     "details": {
       "type": "object", "additionalProperties": false,
       "required": ["kind", "schema_version", "supported_versions"],

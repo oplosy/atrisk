@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { promisify } from "node:util";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const run = promisify(execFile);
 const readJson = async (relativePath) =>
   JSON.parse(await readFile(resolve(root, relativePath), "utf8"));
 
@@ -25,6 +28,7 @@ function validateJob(value) {
     return {
       code: "ATLAS_UNKNOWN_SCHEMA_VERSION",
       message: "Unsupported schema version",
+      request_id: "contract-test-request",
       details: {
         kind: typeof value.kind === "string" ? value.kind : "unknown",
         schema_version: value.schema_version,
@@ -81,12 +85,34 @@ test("unknown schema versions fail with a stable machine-readable error", async 
   assert.deepEqual(result, {
     code: "ATLAS_UNKNOWN_SCHEMA_VERSION",
     message: "Unsupported schema version",
+    request_id: "contract-test-request",
     details: {
       kind: "risk.run",
       schema_version: "9.0",
       supported_versions: ["1.0"],
     },
   });
+});
+
+test("generated Python models compile and import when Pydantic is available", async (t) => {
+  const model = resolve(root, "contracts/generated/python/contracts.py");
+  const packageFile = resolve(root, "contracts/generated/python/__init__.py");
+  await run("python", ["-m", "py_compile", model, packageFile]);
+  try {
+    await run("python", ["-c", "import pydantic"]);
+  } catch {
+    t.skip("Pydantic is not installed in this Python environment");
+    return;
+  }
+  const env = { ...process.env, PYTHONPATH: resolve(root, "contracts/generated/python") };
+  await run(
+    "python",
+    [
+      "-c",
+      "from pydantic import ValidationError; from contracts import JobEnvelope, UnknownSchemaVersionDetails; JobEnvelope(kind='risk.run', schema_version='1.0', idempotency_key='k', input_snapshot_ids=[], payload={});\ntry: JobEnvelope(kind='risk.run', schema_version='1.0', idempotency_key='k', input_snapshot_ids=['same', 'same'], payload={}); raise SystemExit('duplicate snapshot ids accepted')\nexcept ValidationError: pass\ntry: UnknownSchemaVersionDetails(kind='risk.run', schema_version='9.0', supported_versions=['1.0', '1.0']); raise SystemExit('non-canonical supported versions accepted')\nexcept ValidationError: pass",
+    ],
+    { env },
+  );
 });
 
 test("all JSON Schema sources declare a draft and stable version const", async () => {
