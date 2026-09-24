@@ -10,7 +10,7 @@
 
 ## Result
 
-`needs-review`
+`complete`
 
 ## Acceptance evidence
 
@@ -27,7 +27,7 @@
 ## Stop-condition check
 
 - Decision or scope conflict: `none`; ADR-024 and packet amendment `426b28a` authorize the asset-code migration. FX quote revisions remain ISO-4217 fiat-only and are not widened.
-- Missing dependency, unsafe migration, or unavailable verification: isolated PostgreSQL DSN is not configured; migration and integration commands therefore fail closed. The repository's `task` executable is also unavailable in this environment, so the packet task wrappers were run through equivalent Go commands where possible. No Docker or local service was started or changed.
+- Local PostgreSQL DSN and `task` executable were unavailable, so local database tests failed closed. Hosted GitHub Actions Verify run `36057760019` passed `task verify` with isolated PostgreSQL and Garage services, including migration and integration coverage. No local Docker setting or service was changed.
 
 ## Verification
 
@@ -42,6 +42,7 @@
 | `rg -n "TRADE|USER_DATA|apiKey|secret" internal/sources/binance` | pass; no matches. |
 | `node scripts/verify/check-generated.mjs` | pass; registered generated outputs are synchronized. |
 | `git diff --check` | pass. |
+| Hosted GitHub Actions Verify run `36057760019` | pass; isolated migration/integration and full `task verify` gate completed. |
 
 ## Change inventory
 
@@ -54,8 +55,9 @@
 - Branch: `task/AR-105-binance-adapter`
 - Implementation/code tip: `13f7b2d58c739d8b333216118d5b4c9a1fa5bf47`; a report-only handoff commit follows this implementation tip.
 - Prior report-only handoff tip: `1fc21ff86996e0e0d8583eb38ee0b61803e50eeb`; the current report-only correction commit follows.
-- Remote branch: `origin/task/AR-105-binance-adapter` is synchronized at handoff.
-- Worktree: clean at handoff.
+- Remote branch: `origin/task/AR-105-binance-adapter` at `ccc171a2ac5c03173fe582934e6f3fdf636bdcfd`; PR #19 merged.
+- Merge commit: `872bd8278b021a5d74bbd4f6835703f6cb68de64`.
+- Worktree: clean at merge; finalization is recorded by this follow-up commit.
 
 ## Assumptions and risks
 
