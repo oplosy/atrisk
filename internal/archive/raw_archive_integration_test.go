@@ -76,7 +76,7 @@ func TestRawArchive(t *testing.T) {
 	}
 
 	wanted := []byte("garage expected bytes")
-	preseeded := []byte("garage altered bytes")
+	preseeded := []byte("garage altered bytes!")
 	conflictKey := ObjectKey(SHA256Hex(wanted))
 	if _, err := store.client.PutObject(context.Background(), &s3.PutObjectInput{
 		Bucket: aws.String(store.bucket), Key: aws.String(conflictKey), Body: bytes.NewReader(preseeded),
