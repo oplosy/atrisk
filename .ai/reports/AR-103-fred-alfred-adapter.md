@@ -57,9 +57,9 @@ Review-fix rerun: scoped `test-go TEST=FRED`, `go test ./test/integration -run T
 ## Git state
 
 - Branch: `task/AR-103-fred-alfred-adapter`
-- Commit SHA: `b405963316bc966763f0b39fbc0eec5c2c941250` (checkpoint fingerprint review fix; tampered-series fix pending)
-- Remote branch: `task/AR-103-fred-alfred-adapter` pending tampered-series fix push
-- Worktree: dirty only with the tampered-checkpoint fix until commit/push
+- Commit SHA: `06448d761ec135011a74cacc5e7296ebc45fbe0d` (tampered-series checkpoint review fix)
+- Remote branch: `task/AR-103-fred-alfred-adapter` after the final report commit
+- Worktree: clean after final report commit and push
 
 ## Assumptions and risks
 
