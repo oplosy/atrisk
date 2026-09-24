@@ -50,9 +50,9 @@ Review follow-up: Python validation now rejects empty `input_snapshot_ids` entri
 
 - Branch: `task/AR-005-contract-skeleton`
 - Implementation commits: `57ec8d3`, `f05df4b`, `b07f0ab`, `20c48ce`, `9be444b` (`fix(contracts): preserve Go schema literals [AR-005]`), and `356eb70` (`fix(contracts): map numeric schema types [AR-005]`).
-- Report/status commits: `cfaf0ed`, `490d9b0`, `9b799e0`, `6ff4f6b`, `c0c1277`, `97c15fd`, `44e1ea9`, `7527720`, and `f908560` record handoff, review-fix, report, and review-state updates; this report update follows them.
-- Remote branch: `origin/task/AR-005-contract-skeleton` was verified at `f908560eb6f43d68ab6e0592d807d99aa9da7213` before this final implementation/report push.
-- Worktree: clean after implementation commit `356eb70`; this report update is the next handoff commit.
+- Report/status commits: `cfaf0ed`, `490d9b0`, `9b799e0`, `6ff4f6b`, `c0c1277`, `97c15fd`, `44e1ea9`, `7527720`, `f908560`, and `6cdb037` record handoff, review-fix, report, and lifecycle updates.
+- Remote branch: `origin/task/AR-005-contract-skeleton` was verified at `6cdb0374fff45f92fa9d3f9ded899a5f307c1609` before this report-only update.
+- Worktree: clean at review-fix handoff commit `6cdb0374fff45f92fa9d3f9ded899a5f307c1609`; this report update is the next handoff commit.
 
 ## Assumptions and risks
 
