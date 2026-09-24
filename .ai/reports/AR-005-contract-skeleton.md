@@ -50,9 +50,9 @@ Review follow-up: Python validation now rejects empty `input_snapshot_ids` entri
 
 - Branch: `task/AR-005-contract-skeleton`
 - Implementation commits: `57ec8d3` (`feat(contracts): add contract-first skeleton [AR-005]`), `f05df4b` (`fix(contracts): validate generated Python models [AR-005]`), `b07f0ab` (`fix(contracts): enforce schema collection constraints [AR-005]`), `20c48ce` (`feat(contracts): derive models from schemas [AR-005]`).
-- Report/status commits: `cfaf0ed`, `490d9b0`, `9b799e0`, `6ff4f6b`, and `c0c1277` were prior handoff/status updates; this review-fix report update follows them.
-- Remote branch: `origin/task/AR-005-contract-skeleton` was verified at `c0c1277b41c630e7dfc20b089d461745f48c41b6` before pushing the review-fix implementation and report.
-- Worktree: clean after the review-fix implementation commit; the report update is the next handoff commit.
+- Report/status commits: `cfaf0ed`, `490d9b0`, `9b799e0`, `6ff4f6b`, `c0c1277`, and `97c15fd` record handoff and review-fix metadata.
+- Remote branch: `origin/task/AR-005-contract-skeleton` verified at `97c15fd5dd2a89440b3b9acb9d39ba53ea415207`.
+- Worktree: clean at handoff commit `97c15fd5dd2a89440b3b9acb9d39ba53ea415207`.
 
 ## Assumptions and risks
 
