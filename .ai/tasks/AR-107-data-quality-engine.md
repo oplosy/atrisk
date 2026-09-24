@@ -1,7 +1,7 @@
 ---
 id: AR-107
 title: Implement data-quality gates
-status: active
+status: review
 phase: 1
 depends_on: [AR-101, AR-106]
 branch: task/AR-107-data-quality-engine
@@ -47,11 +47,11 @@ and UTC cutoff; it must not mutate series policy or observation history.
 
 ## Acceptance criteria
 
-- [ ] Fixed-clock tests cover fresh/stale/missing/partial/suspect/revised inputs and expected-period behavior across holidays, weekends, late releases, and gaps.
-- [ ] Required missing, stale, or suspect input always blocks dependent calculations; blocked results cannot be represented as healthy/valid.
-- [ ] Optional stale/partial input degrades and never reports valid; fresh required inputs can produce valid results.
-- [ ] Every evaluation identifies its policy version and UTC evaluation cutoff and returns stable reason codes with affected series/entity/interval references.
-- [ ] Quality API responses are deterministic and machine-readable; missing or invalid policy/configuration fails closed rather than producing a healthy result.
+- [x] Fixed-clock tests cover fresh/stale/missing/partial/suspect/revised inputs and expected-period behavior across holidays, weekends, late releases, and gaps.
+- [x] Required missing, stale, or suspect input always blocks dependent calculations; blocked results cannot be represented as healthy/valid.
+- [x] Optional stale/partial input degrades and never reports valid; fresh required inputs can produce valid results.
+- [x] Every evaluation identifies its policy version and UTC evaluation cutoff and returns stable reason codes with affected series/entity/interval references.
+- [x] Quality API responses are deterministic and machine-readable; missing or invalid policy/configuration fails closed rather than producing a healthy result.
 
 ## Required verification
 
