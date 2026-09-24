@@ -11,9 +11,10 @@
     "build": "tsc -b apps/web/tsconfig.app.json && vite build --config apps/web/vite.config.ts",
     "diagnostics": "node apps/web/scripts/diagnostics.mjs",
     "format": "prettier --write apps/web",
-    "format:check": "prettier --check apps/web",
+    "format:check": "node scripts/verify/check-web-format.mjs",
     "lint": "eslint --config apps/web/eslint.config.mjs apps/web/src apps/web/vite.config.ts",
-    "test": "vitest --config apps/web/vite.config.ts"
+    "test": "vitest --config apps/web/vite.config.ts",
+    "typecheck": "tsc -b apps/web/tsconfig.app.json"
   },
   "dependencies": {
     "react": "19.1.1",

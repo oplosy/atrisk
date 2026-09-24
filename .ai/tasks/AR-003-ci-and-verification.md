@@ -1,10 +1,11 @@
 ---
 id: AR-003
 title: Build CI and verification targets
-status: draft
+status: review
 phase: 0
 depends_on: [AR-002]
 branch: task/AR-003-ci-and-verification
+base_sha: ae36677feff56bf05c961820ff09ef73d6c65089
 owned_paths: [Taskfile.yml, .github/workflows/, scripts/verify/]
 shared_paths: [go.mod, risk-engine/pyproject.toml, package.json]
 adrs: [ADR-018, ADR-019]
@@ -31,10 +32,10 @@ repository without deploying anything.
 
 ## Acceptance criteria
 
-- [ ] `task verify` fails on format, lint, type, test, build, or generated drift.
-- [ ] CI uses lockfiles and pinned action major/commit policy from governance.
-- [ ] Workflow token permissions are read-only unless a job proves a need.
-- [ ] Re-running CI does not mutate tracked files.
+- [x] `task verify` fails on format, lint, type, test, build, or generated drift.
+- [x] CI uses lockfiles and pinned action major/commit policy from governance.
+- [x] Workflow token permissions are read-only unless a job proves a need.
+- [x] Re-running CI does not mutate tracked files.
 
 ## Required verification
 

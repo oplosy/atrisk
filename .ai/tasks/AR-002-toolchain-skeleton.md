@@ -1,7 +1,7 @@
 ---
 id: AR-002
 title: Create the polyglot toolchain skeleton
-status: review
+status: merged
 phase: 0
 depends_on: [AR-001]
 branch: task/AR-002-toolchain-skeleton
