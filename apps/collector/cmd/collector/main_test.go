@@ -7,8 +7,8 @@ import (
 )
 
 func TestVersionFormat(t *testing.T) {
-	got := buildinfo.Format("collector", "test")
-	if got != "atlasrisk collector version test" {
+	got := buildinfo.Format("collector", "test", "go1.27.0")
+	if got != "atlasrisk collector version test runtime go1.27.0" {
 		t.Fatalf("unexpected version output: %q", got)
 	}
 }

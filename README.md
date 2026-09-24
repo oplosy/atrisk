@@ -71,6 +71,14 @@ uv run --project risk-engine atlasrisk-risk-engine
 npm run diagnostics
 ```
 
+The diagnostics include the actual Go runtime, Python interpreter, Node/npm
+runtime, React dependencies, and web tooling versions installed locally; they do
+not access the network. `go test ./...` also discovers a Go example package
+shipped inside `node_modules/flatted/golang`. It is outside the AtlasRisk Go
+module and currently passes without tests. AR-003 should scope its aggregate Go
+gate to AtlasRisk-owned packages if dependency contents make that external
+package unstable.
+
 The Go commands are toolchain-only entry points. Domain behavior, database
 access, network ingestion, risk calculations, and UI flows belong to later task
 packets.

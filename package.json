@@ -7,12 +7,9 @@
     "node": "24.16.0",
     "npm": "12.0.1"
   },
-  "workspaces": [
-    "apps/web"
-  ],
   "scripts": {
     "build": "tsc -b apps/web/tsconfig.app.json && vite build --config apps/web/vite.config.ts",
-    "diagnostics": "node --version && npm --version && vite --version && tsc --version",
+    "diagnostics": "node apps/web/scripts/diagnostics.mjs",
     "format": "prettier --write apps/web",
     "format:check": "prettier --check apps/web",
     "lint": "eslint --config apps/web/eslint.config.mjs apps/web/src apps/web/vite.config.ts",

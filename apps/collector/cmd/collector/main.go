@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime"
 
 	"github.com/oplosy/atrisk/internal/buildinfo"
 )
@@ -15,7 +16,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Println(buildinfo.Format("collector", version))
+		fmt.Println(buildinfo.Format("collector", version, runtime.Version()))
 		return
 	}
 
