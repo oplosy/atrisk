@@ -259,7 +259,7 @@ func normalizeMediaType(value string) string {
 }
 
 var outboundRequestHeaders = map[string]struct{}{"accept": {}, "content-type": {}, "user-agent": {}, "key": {}}
-var responseMetadataHeaders = map[string]struct{}{"content-type": {}, "etag": {}, "last-modified": {}, "content-length": {}, "retry-after": {}}
+var responseMetadataHeaders = map[string]struct{}{"accept": {}, "content-type": {}, "user-agent": {}, "etag": {}, "last-modified": {}, "content-length": {}, "retry-after": {}}
 
 func copySafeHeaders(destination, source http.Header) {
 	for key, values := range source {
