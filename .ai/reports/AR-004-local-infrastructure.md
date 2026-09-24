@@ -51,20 +51,20 @@
 ## Change inventory
 
 - Files changed in this runtime-proof branch: `.ai/tasks/AR-004-local-infrastructure.md` and this report; implementation code was merged in PR #5.
-- Orchestrator-only bookkeeping: AR-004 status returned from `blocked` to `active` after runtime availability was restored; it will move to review after independent review.
+- Orchestrator-only bookkeeping: AR-004 status returned from `blocked` to `active` after runtime availability was restored, then moved to `review` after independent review found no blockers.
 - Schema/API changes: none.
 - Generated artifacts: none.
 
 ## Git state
 
 - Implementation PR: #5, merge commit `b59acf82fda547e84b99a00cf9d9a5601dac6f59`.
-- Runtime-proof branch: `task/AR-004-runtime-proof`, based on main `6156389a42c5422ff49706cea6d02b271f02c99d`.
+- Runtime-proof branch: `task/AR-004-runtime-proof`, based on main `6156389a42c5422ff49706cea6d02b271f02c99d`; runtime-evidence commit `ee66f0acb61cfcbe0ee7cd0f3d90396ca8850ca8`.
 - Runtime acceptance: verified 2026-09-24; dev project `atrisk` remains running and healthy on loopback. Isolated smoke project `atrisk-test-d5ae4c1cdf1ead64` was removed with no leftover containers, volumes, or networks.
-- Current report records runtime verification from the AR-004 implementation worktree; final commit/remote SHA will be recorded at handoff.
-- Worktree: clean at runtime-proof start; report and lifecycle updates are in progress.
+- `origin/task/AR-004-runtime-proof` verified at `ee66f0acb61cfcbe0ee7cd0f3d90396ca8850ca8` before the review-state update.
+- Worktree: clean at runtime-evidence commit `ee66f0acb61cfcbe0ee7cd0f3d90396ca8850ca8`; this commit records review status and closes the report gap.
 
 ## Assumptions and risks
 
-- Garage's upstream v2.4.1 image is `FROM scratch` with no `USER` directive, so the generated root-owned mode-0600 secret is expected to be readable; actual mounted-volume permission behavior remains unverified without Docker runtime.
+- Garage's upstream v2.4.1 image is `FROM scratch` with no `USER` directive. Runtime verification confirmed the generated mode-0600 RPC secret was readable by Garage, the secret-init helper exited successfully, and Garage became healthy.
 - SIGINT/SIGTERM cleanup is asynchronous and waits for the active child before removing the unique project; SIGKILL or forced host termination cannot run process cleanup handlers.
 - First-start RPC secret generation is per Compose project and persists in that project's named volume; `task infra-reset` removes the development secret with other development volumes.
