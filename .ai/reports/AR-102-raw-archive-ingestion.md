@@ -15,7 +15,7 @@
 ## Review follow-up
 
 - Independent review found five blocking issues. Redirect/error redaction, conditional S3 create/content validation, database conflict validation, and the required PostgreSQL integration proof are now implemented. No local Docker or service action was used.
-- Second review found one remaining Garage proof gap, and hosted CI exposed an idempotent PostgreSQL-registration test failure. The Garage test now pre-seeds a same-size conflicting object and verifies `ErrContentMismatch` plus byte preservation; PostgreSQL conflict comparison now uses native `jsonb` equality. These fixes are in `1eb95e7aebd97bec9a66a4f20a87808a61895e1a`.
+- Second review found one remaining Garage proof gap, and hosted CI exposed an idempotent PostgreSQL-registration test failure. The Garage test now pre-seeds a same-size conflicting object and verifies `ErrContentMismatch` plus byte preservation; PostgreSQL conflict comparison now uses native `jsonb` equality. The same-size fixture correction is in `0c52153ab3c43bc8e026b3016563127789529372`.
 
 ## Acceptance evidence
 
@@ -54,8 +54,8 @@
 ## Git state
 
 - Branch: `task/AR-102-raw-archive-ingestion`
-- Implementation commit SHA: `1eb95e7aebd97bec9a66a4f20a87808a61895e1a` (remediates hosted PostgreSQL idempotency and Garage conflict proof on top of `d70efec25438087c65a37798823706ed50dee1be`)
-- Worker handoff snapshot: `227379f9b6e72ddcab0d986ac8568d32037ee5f9`; local and remote matched and the worktree was clean.
+- Implementation commit SHA: `0c52153ab3c43bc8e026b3016563127789529372` (corrects the same-size Garage byte-mismatch proof on top of `1eb95e7aebd97bec9a66a4f20a87808a61895e1a`)
+- Remote branch: push pending for this test correction; worktree is clean before push.
 - Orchestrator review-status update follows on the same task branch.
 
 ## Assumptions and risks
