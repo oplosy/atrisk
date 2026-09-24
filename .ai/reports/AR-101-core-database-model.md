@@ -58,6 +58,7 @@ checks and the remaining verify stages pass.
 | `go run github.com/go-task/task/v3/cmd/task@v3.44.1 verify` with isolated DSN | format, lint, typecheck, unit, contract, AR-101 integration, and build stages pass; final `check-generated` fails only on the same four AR-005 contract outputs. No Docker or service lifecycle command ran. |
 | `go run github.com/go-task/task/v3/cmd/task@v3.44.1 migrate-test` and `test-go-integration TEST=CoreDatabase` after pinned-generator change | both pass against isolated `atrisk_test`; the database was removed afterward with zero active sessions. |
 | `.github/workflows/ci.yml` service definition | pinned PostgreSQL 18.6-bookworm digest, exact `atrisk_test` initialization, dedicated CI-only role/password, loopback port mapping, and `pg_isready` health check; local Docker/services were not used. |
+| GitHub Actions `Verify` for PR #10 | pass on run `36025959556` after adding the pinned sqlc invocation and isolated PostgreSQL service; includes full `task verify` with the migration and CoreDatabase integration suite. |
 | `psql ... -d atrisk ... to_regclass('public.goose_db_version')` | pass; returned `f`, confirming the running dev database was not migrated. The explicitly isolated `atrisk_test` database was removed after runtime acceptance with no active sessions. |
 | `git diff --check` | pass. |
 
@@ -70,9 +71,9 @@ checks and the remaining verify stages pass.
 ## Git state
 
 - Branch: `task/AR-101-core-database-model`
-- Commit SHA: `6a8b2280c4dd35adc53f85f8665613029e5d0922` (latest substantive migration/upgrade implementation)
-- Remote branch: `origin/task/AR-101-core-database-model` verified at pre-CI-service SHA `f521eef7e5da9c2eef4c266b68448240dc09c51d`; local `HEAD` and the origin-tracking ref matched before this follow-up, and the follow-up push is reported separately in the handoff.
-- Report snapshot SHA: `f521eef7e5da9c2eef4c266b68448240dc09c51d` (last clean pre-follow-up branch state).
+- Commit SHA: `c29a2651ed78cf034c4eb6c6440cc59addf45ecb` (latest code and CI-workflow implementation reviewed before this report/lifecycle update)
+- Remote branch: `origin/task/AR-101-core-database-model` and local `HEAD` matched at `c29a2651ed78cf034c4eb6c6440cc59addf45ecb`; push succeeded.
+- Report snapshot SHA: `c29a2651ed78cf034c4eb6c6440cc59addf45ecb` (reviewed branch state before this report/lifecycle commit).
 - Live `ls-remote` was not independently verified because the proxy/remote endpoint remains unavailable.
 - Worktree: clean after restoring the four verification-generated contract outputs; report snapshot is recorded separately above.
 
