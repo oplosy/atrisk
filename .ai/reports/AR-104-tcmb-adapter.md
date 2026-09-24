@@ -48,9 +48,9 @@
 ## Git state
 
 - Branch: `task/AR-104-tcmb-adapter`
-- Commit SHA: pending commit
-- Remote branch: pending push
-- Worktree: dirty until commit/push handoff completes
+- Commit SHA: `619bb80` implementation commit; report update follows in the handoff commit.
+- Remote branch: `origin/task/AR-104-tcmb-adapter` ahead by the implementation commit before push.
+- Worktree: clean after the report handoff commit and push.
 
 ## Assumptions and risks
 
