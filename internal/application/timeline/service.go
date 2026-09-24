@@ -302,17 +302,20 @@ func (s Service) CrossSource(ctx context.Context, ids []string, request Observat
 		}
 		seen[key] = struct{}{}
 		seriesIDs = append(seriesIDs, parsed)
-		if request.Mode == ModeSourceAsOf {
-			series, err := s.Queries.GetTimelineSeries(ctx, parsed)
-			if errors.Is(err, pgx.ErrNoRows) {
-				return Page[Observation]{}, ErrNotFound
-			}
-			if err != nil {
-				return Page[Observation]{}, fmt.Errorf("get combined timeline series: %w", err)
-			}
-			if !series.SourceAsOfSupported {
-				return Page[Observation]{}, ErrSourceAsOfUnsupported
-			}
+	}
+	if s.Queries == nil {
+		return Page[Observation]{}, errors.New("timeline database is required")
+	}
+	for _, parsed := range seriesIDs {
+		series, err := s.Queries.GetTimelineSeries(ctx, parsed)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Page[Observation]{}, ErrNotFound
+		}
+		if err != nil {
+			return Page[Observation]{}, fmt.Errorf("get combined timeline series: %w", err)
+		}
+		if request.Mode == ModeSourceAsOf && !series.SourceAsOfSupported {
+			return Page[Observation]{}, ErrSourceAsOfUnsupported
 		}
 	}
 	limit := request.Limit

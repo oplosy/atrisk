@@ -29,15 +29,15 @@
     "/api/v1/series/{series_id}/observations": {
       "get": {
         "operationId": "listObservations",
-        "parameters": [{ "$ref": "#/components/parameters/SeriesId" }, { "$ref": "#/components/parameters/Mode" }, { "$ref": "#/components/parameters/From" }, { "$ref": "#/components/parameters/To" }, { "$ref": "#/components/parameters/AsOf" }, { "$ref": "#/components/parameters/Limit" }, { "$ref": "#/components/parameters/Cursor" }],
-        "responses": { "200": { "description": "Point-in-time observation page", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ObservationPage" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" }, "409": { "$ref": "#/components/responses/SourceAsOfUnsupported" } }
+        "parameters": [{ "$ref": "#/components/parameters/SeriesId" }, { "$ref": "#/components/parameters/ObservationMode" }, { "$ref": "#/components/parameters/From" }, { "$ref": "#/components/parameters/To" }, { "$ref": "#/components/parameters/AsOf" }, { "$ref": "#/components/parameters/Limit" }, { "$ref": "#/components/parameters/Cursor" }],
+        "responses": { "200": { "description": "Point-in-time observation page", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ObservationPage" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" }, "404": { "$ref": "#/components/responses/NotFound" }, "409": { "$ref": "#/components/responses/SourceAsOfUnsupported" } }
       }
     },
     "/api/v1/series/{series_id}/revisions": {
       "get": {
         "operationId": "listObservationRevisions",
         "parameters": [{ "$ref": "#/components/parameters/SeriesId" }, { "$ref": "#/components/parameters/From" }, { "$ref": "#/components/parameters/To" }, { "$ref": "#/components/parameters/Limit" }, { "$ref": "#/components/parameters/Cursor" }],
-        "responses": { "200": { "description": "Append-only revision page", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ObservationPage" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" } }
+        "responses": { "200": { "description": "Append-only revision page", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ObservationPage" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" }, "404": { "$ref": "#/components/responses/NotFound" } }
       }
     },
     "/api/v1/timeline": {
@@ -70,7 +70,8 @@
     },
     "parameters": {
       "SeriesId": { "name": "series_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
-      "Mode": { "name": "mode", "in": "query", "required": false, "description": "latest, source-as-of, and system-as-of are valid for observation and cross-source timeline requests; revisions is exposed by /api/v1/series/{series_id}/revisions; combined is valid only for /api/v1/timeline.", "schema": { "type": "string", "enum": ["latest", "source-as-of", "system-as-of", "revisions", "combined"], "default": "latest" } },
+      "ObservationMode": { "name": "mode", "in": "query", "required": false, "description": "Clock used for a per-series observation query.", "schema": { "type": "string", "enum": ["latest", "source-as-of", "system-as-of"], "default": "latest" } },
+      "Mode": { "name": "mode", "in": "query", "required": false, "description": "Clock used for the cross-source timeline; combined is an alias for latest across the selected series.", "schema": { "type": "string", "enum": ["latest", "source-as-of", "system-as-of", "combined"], "default": "latest" } },
       "From": { "name": "from", "in": "query", "required": false, "schema": { "type": "string", "format": "date-time" } },
       "To": { "name": "to", "in": "query", "required": false, "schema": { "type": "string", "format": "date-time" } },
       "AsOf": { "name": "as_of", "in": "query", "required": false, "schema": { "type": "string", "format": "date-time" } },

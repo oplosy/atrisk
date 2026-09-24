@@ -153,6 +153,16 @@ func TestPointInTimeAPI(t *testing.T) {
 	if len(combinedSecond["items"].([]any)) != 1 || combinedSecond["items"].([]any)[0].(map[string]any)["series_id"] != secondSeries.ID.String() {
 		t.Fatalf("combined cursor did not advance to second series: %v", combinedSecond)
 	}
+	missingReq := httptest.NewRequest(http.MethodGet, "/v1/timeline?series_id="+series.ID.String()+",00000000-0000-0000-0000-000000000000&from=2024-01-01T00:00:00Z&to=2024-01-03T00:00:00Z", nil)
+	missingRec := httptest.NewRecorder()
+	h.ServeHTTP(missingRec, missingReq)
+	if missingRec.Code != http.StatusNotFound {
+		t.Fatalf("missing cross-source series status=%d body=%s", missingRec.Code, missingRec.Body.String())
+	}
+	var missingBody map[string]any
+	if err := json.Unmarshal(missingRec.Body.Bytes(), &missingBody); err != nil || missingBody["code"] != "NOT_FOUND" {
+		t.Fatalf("missing cross-source series error=%s", missingRec.Body.String())
+	}
 	page := get("/v1/series?limit=1")
 	if page["has_more"] != true || page["next_cursor"] == nil || len(page["items"].([]any)) != 1 {
 		t.Fatalf("series page did not expose stable pagination metadata: %v", page)
