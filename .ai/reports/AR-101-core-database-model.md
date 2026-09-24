@@ -69,7 +69,7 @@ there is no AR-101 runtime failure.
 - Reviewed implementation commits: `300ba630941b1a7468b6a0e819e66d5ccc7d6810`, `c10dca2e6fc72d10b2237c6a0c7ec2d08328b901`, `6a8b2280c4dd35adc53f85f8665613029e5d0922`
 - Branch SHA at the start of this review: `6e0a545d9ba6a6ae0a1d165ffcabc6f1e1a99402`
 - Current report/lifecycle commit: this report-correction commit (final HEAD reported in handoff)
-- Remote branch: push succeeded from review SHA `6e0a545` to `0bd2262`; live `ls-remote` was not independently verified because the proxy/remote endpoint remains unavailable.
+- Remote branch: push succeeded from review SHA `6e0a545` through final report SHA `f7b805a`; live `ls-remote` was not independently verified because the proxy/remote endpoint remains unavailable.
 - Worktree: clean after the report-correction commit
 
 ## Assumptions and risks
