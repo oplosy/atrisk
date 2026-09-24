@@ -1,7 +1,7 @@
 ---
 id: AR-103
 title: Add FRED and ALFRED vintage ingestion
-status: review
+status: merged
 phase: 1
 depends_on: [AR-102]
 branch: task/AR-103-fred-alfred-adapter
@@ -30,11 +30,11 @@ periods without losing revisions or confusing latest and historical knowledge.
 
 ## Acceptance criteria
 
-- [ ] Initial and revised values coexist and retain raw provenance.
-- [ ] Source-as-of returns the value known on the requested vintage date.
-- [ ] System-as-of excludes data not yet ingested by this installation.
-- [ ] FRED missing markers are not coerced to zero.
-- [ ] A rerun is idempotent and resumes from a persisted checkpoint.
+- [x] Initial and revised values coexist and retain raw provenance.
+- [x] Source-as-of returns the value known on the requested vintage date.
+- [x] System-as-of excludes data not yet ingested by this installation.
+- [x] FRED missing markers are not coerced to zero.
+- [x] A rerun is idempotent and resumes from a persisted checkpoint.
 
 ## Required verification
 
