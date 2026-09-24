@@ -31,7 +31,7 @@
 | Command | Result |
 |---|---|
 | `go run github.com/go-task/task/v3/cmd/task@v3.44.1 generate` | pass; Go, TypeScript, and Python models regenerated. |
-| `go run github.com/go-task/task/v3/cmd/task@v3.44.1 test-contract` | pass; 5 tests. |
+| `go run github.com/go-task/task/v3/cmd/task@v3.44.1 test-contract` | pass; 6 tests. |
 | `go run github.com/go-task/task/v3.44.1 check-generated` | pass; no drift. |
 | `go test ./...` | pass; API, collector, generated Go package, internal package. |
 | `go run github.com/go-task/task/v3.44.1 verify` | pass; format, lint, typecheck, unit, contract, integration-scope, build, drift. |
@@ -48,9 +48,9 @@
 
 - Branch: `task/AR-005-contract-skeleton`
 - Implementation commits: `57ec8d3` (`feat(contracts): add contract-first skeleton [AR-005]`), `f05df4b` (`fix(contracts): validate generated Python models [AR-005]`)
-- Prior report commit: `cfaf0ed` (`docs(contracts): record AR-005 handoff [AR-005]`)
-- Remote branch: `origin/task/AR-005-contract-skeleton` contains `f05df4b` before this report correction is committed.
-- Worktree: clean before this report correction commit.
+- Report commits: `cfaf0ed` (`docs(contracts): record AR-005 handoff [AR-005]`), `490d9b0` (`docs(contracts): refresh AR-005 review evidence [AR-005]`), plus this final report metadata update.
+- Remote branch: `origin/task/AR-005-contract-skeleton` was verified at `490d9b0` immediately before this final report metadata update; the metadata update is pushed with the handoff.
+- Worktree: clean after the final report metadata update.
 
 ## Assumptions and risks
 
