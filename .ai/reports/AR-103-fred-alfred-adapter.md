@@ -56,9 +56,9 @@ Review-fix rerun: scoped `test-go TEST=FRED`, `go test ./test/integration -run T
 ## Git state
 
 - Branch: `task/AR-103-fred-alfred-adapter`
-- Commit SHA: `5333ff091c5ed1727233fe0af57839726beb83d0` (base implementation; review-fix commit pending)
-- Remote branch: `task/AR-103-fred-alfred-adapter` pending review-fix push
-- Worktree: dirty only with the review fix until commit/push
+- Commit SHA: `b405963316bc966763f0b39fbc0eec5c2c941250` (checkpoint fingerprint review fix)
+- Remote branch: `task/AR-103-fred-alfred-adapter` after the final report commit
+- Worktree: clean after final report commit and push
 
 ## Assumptions and risks
 
