@@ -17,7 +17,7 @@ export interface PageMeta {
 
 export interface JobEnvelope {
   kind: string;
-  schema_version: string;
+  schema_version: "1.0";
   idempotency_key: string;
   input_snapshot_ids: string[];
   payload: Record<string, unknown>;
@@ -28,18 +28,21 @@ export type DataQuality = "healthy" | "degraded" | "blocked";
 
 export interface ResultEnvelope {
   job_id: string;
-  schema_version: string;
-  status: ResultStatus;
+  schema_version: "1.0";
+  status: "succeeded" | "degraded" | "blocked" | "failed";
   input_snapshot_ids: string[];
-  data_quality: DataQuality;
+  data_quality: "healthy" | "degraded" | "blocked";
   engine_version: string;
   output: Record<string, unknown>;
 }
 
 export type ImportColumnType = "string" | "decimal" | "date" | "datetime";
-export interface ImportColumn { name: string; data_type: ImportColumnType; }
+export interface ImportColumn {
+  name: string;
+  data_type: "string" | "decimal" | "date" | "datetime";
+}
 export interface ImportManifest {
-  schema_version: string;
+  schema_version: "1.0";
   source_name: string;
   content_sha256: string;
   object_key: string;
@@ -50,5 +53,5 @@ export interface ImportManifest {
 export interface UnknownSchemaVersionDetails {
   kind: string;
   schema_version: string;
-  supported_versions: string[];
+  supported_versions: ["1.0"];
 }

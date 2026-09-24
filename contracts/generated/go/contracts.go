@@ -2,8 +2,6 @@
 // AtlasRisk contract models for AtlasRisk HTTP API.
 package contracts
 
-import "encoding/json"
-
 const SupportedSchemaVersion = "1.0"
 const UnknownSchemaVersionCode = "ATLAS_UNKNOWN_SCHEMA_VERSION"
 
@@ -21,21 +19,21 @@ type PageMeta struct {
 }
 
 type JobEnvelope struct {
-	Kind             string          `json:"kind"`
-	SchemaVersion    string          `json:"schema_version"`
-	IdempotencyKey   string          `json:"idempotency_key"`
-	InputSnapshotIDs []string        `json:"input_snapshot_ids"`
-	Payload          json.RawMessage `json:"payload"`
+	Kind             string         `json:"kind"`
+	SchemaVersion    string         `json:"schema_version"`
+	IdempotencyKey   string         `json:"idempotency_key"`
+	InputSnapshotIDs []string       `json:"input_snapshot_ids"`
+	Payload          map[string]any `json:"payload"`
 }
 
 type ResultEnvelope struct {
-	JobID            string          `json:"job_id"`
-	SchemaVersion    string          `json:"schema_version"`
-	Status           string          `json:"status"`
-	InputSnapshotIDs []string        `json:"input_snapshot_ids"`
-	DataQuality      string          `json:"data_quality"`
-	EngineVersion    string          `json:"engine_version"`
-	Output           json.RawMessage `json:"output"`
+	JobID            string         `json:"job_id"`
+	SchemaVersion    string         `json:"schema_version"`
+	Status           string         `json:"status"`
+	InputSnapshotIDs []string       `json:"input_snapshot_ids"`
+	DataQuality      string         `json:"data_quality"`
+	EngineVersion    string         `json:"engine_version"`
+	Output           map[string]any `json:"output"`
 }
 
 type ImportColumn struct {

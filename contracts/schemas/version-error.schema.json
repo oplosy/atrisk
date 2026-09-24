@@ -15,7 +15,7 @@
       "properties": {
         "kind": { "type": "string", "minLength": 1 },
         "schema_version": { "type": "string", "minLength": 1 },
-        "supported_versions": { "type": "array", "const": ["1.0"] }
+        "supported_versions": { "type": "array", "const": ["1.0"], "minItems": 1, "maxItems": 1 }
       }
     }
   }
