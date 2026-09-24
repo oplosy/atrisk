@@ -1,10 +1,11 @@
 ---
 id: AR-106
 title: Expose point-in-time data queries
-status: draft
+status: ready
 phase: 1
 depends_on: [AR-103, AR-104, AR-105]
 branch: task/AR-106-point-in-time-query-service
+base_sha: bdc6ab0d5c0b8a8039df3614a1d57027c281f25a
 owned_paths: [internal/application/timeline/, apps/api/handlers/timeline/, db/queries/timeline/]
 shared_paths: [contracts/openapi/, apps/web/src/generated/]
 adrs: [ADR-006, ADR-007, ADR-009, ADR-011]
