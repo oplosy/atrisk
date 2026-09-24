@@ -25,7 +25,7 @@
 
 ## Stop-condition check
 
-- Decision or scope conflict: `none`.
+- Decision or scope conflict: the existing core schema constrains `instruments.native_currency` and `price_revisions.quote_currency` to `CHAR(3)`, while Binance Spot commonly publishes four-character quote assets such as `USDT`. The packet does not authorize migrations, so this remains an orchestrator decision before merge.
 - Missing dependency, unsafe migration, or unavailable verification: isolated PostgreSQL DSN is not configured; the integration command failed closed as required. The repository's `task` executable is also unavailable in this environment, so the packet task wrappers were run through equivalent Go commands where possible. No Docker or local service was started or changed.
 
 ## Verification
@@ -56,3 +56,4 @@
 
 - Binance kline responses do not carry a source publication timestamp; the adapter intentionally records first-observed system knowledge rather than retrieval time.
 - Missing catalog symbols are emitted as quality/status records and are not inserted as synthetic instruments; explicit non-TRADING statuses are preserved as inactive evidence rather than inferred delistings.
+- The implementation resolves quote currency from the instrument row and therefore cannot durably persist a four-character Binance quote asset against the current `CHAR(3)` schema; resolving that incompatibility requires an authorized schema change or an explicit supported-quote policy.
