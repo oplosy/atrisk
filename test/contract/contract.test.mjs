@@ -11,14 +11,10 @@ const run = promisify(execFile);
 const readJson = async (relativePath) =>
   JSON.parse(await readFile(resolve(root, relativePath), "utf8"));
 
-const supportedVersion = "1.0";
-const requiredJobKeys = [
-  "kind",
-  "schema_version",
-  "idempotency_key",
-  "input_snapshot_ids",
-  "payload",
-];
+const jobSchema = await readJson("contracts/schemas/job-envelope.schema.json");
+const supportedVersion = jobSchema.properties.schema_version.const;
+const requiredJobKeys = jobSchema.required;
+const allowedJobKeys = Object.keys(jobSchema.properties);
 
 function validateJob(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -40,15 +36,34 @@ function validateJob(value) {
   if (missing.length > 0) {
     return { code: "VALIDATION_ERROR", message: `Missing fields: ${missing.join(", ")}` };
   }
+  const unknown = Object.keys(value).filter((key) => !allowedJobKeys.includes(key));
+  if (jobSchema.additionalProperties === false && unknown.length > 0) {
+    return { code: "VALIDATION_ERROR", message: `Unknown fields: ${unknown.join(", ")}` };
+  }
+  const snapshotIds = value.input_snapshot_ids;
+  const snapshotSchema = jobSchema.properties.input_snapshot_ids;
   if (
-    typeof value.kind !== "string" ||
-    !/^[a-z][a-z0-9_.-]*$/.test(value.kind) ||
-    typeof value.idempotency_key !== "string" ||
-    value.idempotency_key.length === 0 ||
+    Array.isArray(snapshotIds) &&
+    snapshotSchema.uniqueItems === true &&
+    new Set(snapshotIds).size !== snapshotIds.length
+  ) {
+    return { code: "VALIDATION_ERROR", message: "input_snapshot_ids must be unique" };
+  }
+  if (
+    typeof value.kind !== jobSchema.properties.kind.type ||
+    !new RegExp(jobSchema.properties.kind.pattern).test(value.kind) ||
+    value.kind.length < jobSchema.properties.kind.minLength ||
+    typeof value.idempotency_key !== jobSchema.properties.idempotency_key.type ||
+    value.idempotency_key.length < jobSchema.properties.idempotency_key.minLength ||
+    value.idempotency_key.length > jobSchema.properties.idempotency_key.maxLength ||
     !Array.isArray(value.input_snapshot_ids) ||
-    value.input_snapshot_ids.some((id) => typeof id !== "string" || id.length === 0) ||
+    value.input_snapshot_ids.some(
+      (id) =>
+        typeof id !== snapshotSchema.items.type ||
+        id.length < snapshotSchema.items.minLength,
+    ) ||
     !value.payload ||
-    typeof value.payload !== "object" ||
+    typeof value.payload !== jobSchema.properties.payload.type ||
     Array.isArray(value.payload)
   ) {
     return { code: "VALIDATION_ERROR", message: "Job fields are invalid" };
@@ -76,6 +91,22 @@ test("invalid job fixture fails with a validation error", async () => {
   );
   assert.equal(result.code, "VALIDATION_ERROR");
   assert.match(result.message, /idempotency_key/);
+});
+
+test("duplicate snapshot IDs fail the schema-derived validator", async () => {
+  const result = validateJob(
+    await readJson("test/contract/fixtures/invalid/job-duplicate-snapshot.json"),
+  );
+  assert.equal(result.code, "VALIDATION_ERROR");
+  assert.match(result.message, /unique/);
+});
+
+test("additional top-level properties fail the schema-derived validator", async () => {
+  const result = validateJob(
+    await readJson("test/contract/fixtures/invalid/job-extra-property.json"),
+  );
+  assert.equal(result.code, "VALIDATION_ERROR");
+  assert.match(result.message, /Unknown fields/);
 });
 
 test("unknown schema versions fail with a stable machine-readable error", async () => {
@@ -115,6 +146,15 @@ test("generated Python models compile and import when Pydantic is available", as
   );
 });
 
+test("generated Go models preserve schema enum and literal distinctions", async () => {
+  const go = await readFile(resolve(root, "contracts/generated/go/contracts.go"), "utf8");
+  assert.match(go, /type ResultEnvelopeStatus string/);
+  assert.match(go, /Status\s+ResultEnvelopeStatus/);
+  assert.match(go, /ResultEnvelopeStatusSucceeded ResultEnvelopeStatus = "succeeded"/);
+  assert.match(go, /type JobEnvelopeSchemaVersion string/);
+  assert.match(go, /JobEnvelopeSchemaVersionV1_0 JobEnvelopeSchemaVersion = "1\.0"/);
+});
+
 test("all JSON Schema sources declare a draft and stable version const", async () => {
   const names = [
     "error-envelope",
@@ -130,4 +170,11 @@ test("all JSON Schema sources declare a draft and stable version const", async (
       assert.equal(schema.properties.schema_version.const, "1.0", name);
     }
   }
+  assert.equal(jobSchema.additionalProperties, false);
+  assert.equal(jobSchema.properties.input_snapshot_ids.uniqueItems, true);
+  assert.equal(jobSchema.properties.input_snapshot_ids.items.minLength, 1);
+  const resultSchema = await readJson("contracts/schemas/result-envelope.schema.json");
+  assert.equal(resultSchema.additionalProperties, false);
+  assert.equal(resultSchema.properties.input_snapshot_ids.uniqueItems, true);
+  assert.equal(resultSchema.properties.input_snapshot_ids.items.minLength, 1);
 });

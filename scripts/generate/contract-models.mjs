@@ -31,12 +31,32 @@ const pascal = (name) =>
     .split("_")
     .map((part) => ({ id: "ID", ids: "IDs", sha256: "SHA256" })[part] ?? part[0].toUpperCase() + part.slice(1))
     .join("");
-const goType = (property, nestedName) => {
+const goNamedTypes = new Map();
+const goValueIdentifier = (value) => {
+  const normalized = String(value).replace(/[^A-Za-z0-9]+/g, "_");
+  const identifier = normalized.replace(/^([^A-Za-z_])/, "V$1");
+  return identifier[0].toUpperCase() + identifier.slice(1);
+};
+const goNamedType = (name, property) => {
+  const values = property.enum ?? (property.const !== undefined ? [property.const] : []);
+  const existing = goNamedTypes.get(name);
+  if (existing && JSON.stringify(existing) !== JSON.stringify(values)) {
+    throw new Error(`conflicting generated Go type ${name}`);
+  }
+  goNamedTypes.set(name, values);
+  return name;
+};
+const goType = (property, nestedName, fieldTypeName) => {
   if (property.type === "array") {
     if (property.items?.type === "object") return `[]${nestedName}`;
+    const item = property.items ?? (Array.isArray(property.const) ? { type: "string", enum: property.const } : {});
+    if (item.const !== undefined || item.enum) {
+      return `[]${goNamedType(`${fieldTypeName}Item`, item)}`;
+    }
     return "[]string";
   }
-  if (property.const !== undefined || property.enum || property.type === "string") return "string";
+  if (property.const !== undefined || property.enum) return goNamedType(fieldTypeName, property);
+  if (property.type === "string") return "string";
   if (property.type === "integer") return "int";
   if (property.type === "boolean") return "bool";
   return "map[string]any";
@@ -73,11 +93,11 @@ const pyType = (property, nestedName) => {
   if (property.type === "boolean") return "bool";
   return "dict[str, Any]";
 };
-const goFields = (schema, nestedName) =>
+const goFields = (schema, nestedName, modelName) =>
   Object.entries(schema.properties).map(([name, property]) => {
     const optional = !(schema.required ?? []).includes(name);
     const tag = `json:"${name}${optional ? ",omitempty" : ""}"`;
-    return `\t${pascal(name)} ${goType(property, nestedName)} \`${tag}\``;
+    return `\t${pascal(name)} ${goType(property, nestedName, `${modelName}${pascal(name)}`)} \`${tag}\``;
   }).join("\n");
 const tsFields = (schema, nestedName) =>
   Object.entries(schema.properties).map(([name, property]) => {
@@ -117,38 +137,52 @@ const write = async (relativePath, contents) => {
   await writeFile(target, contents, "utf8");
 };
 
+const goErrorFields = goFields(errorSchema, undefined, "ErrorEnvelope");
+const goPageFields = goFields(source.components.schemas.PageMeta, undefined, "PageMeta");
+const goJobFields = goFields(jobSchema, undefined, "JobEnvelope");
+const goResultFields = goFields(resultSchema, undefined, "ResultEnvelope");
+const goImportColumnFields = goFields(manifestSchema.properties.columns.items, undefined, "ImportColumn");
+const goImportManifestFields = goFields(manifestSchema, "ImportColumn", "ImportManifest");
+const goUnknownFields = goFields(versionErrorSchema.properties.details, undefined, "UnknownSchemaVersionDetails");
+const goNamedDeclarations = [...goNamedTypes.entries()].map(([name, values]) => {
+  const constants = values.map((value) => `\t${name}${goValueIdentifier(value)} ${name} = ${JSON.stringify(value)}`).join("\n");
+  return `type ${name} string\n\nconst (\n${constants}\n)`;
+}).join("\n\n");
+
 const go = `${header}// AtlasRisk contract models for ${source.info.title}.
 package contracts
 
 const SupportedSchemaVersion = "${schemaVersion}"
 const UnknownSchemaVersionCode = "ATLAS_UNKNOWN_SCHEMA_VERSION"
 
+${goNamedDeclarations}
+
 type ErrorEnvelope struct {
-${goFields(errorSchema)}
+${goErrorFields}
 }
 
 type PageMeta struct {
-${goFields(source.components.schemas.PageMeta)}
+${goPageFields}
 }
 
 type JobEnvelope struct {
-${goFields(jobSchema)}
+${goJobFields}
 }
 
 type ResultEnvelope struct {
-${goFields(resultSchema)}
+${goResultFields}
 }
 
 type ImportColumn struct {
-${goFields(manifestSchema.properties.columns.items)}
+${goImportColumnFields}
 }
 
 type ImportManifest struct {
-${goFields(manifestSchema, "ImportColumn")}
+${goImportManifestFields}
 }
 
 type UnknownSchemaVersionDetails struct {
-${goFields(versionErrorSchema.properties.details)}
+${goUnknownFields}
 }
 `;
 

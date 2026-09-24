@@ -5,6 +5,56 @@ package contracts
 const SupportedSchemaVersion = "1.0"
 const UnknownSchemaVersionCode = "ATLAS_UNKNOWN_SCHEMA_VERSION"
 
+type JobEnvelopeSchemaVersion string
+
+const (
+	JobEnvelopeSchemaVersionV1_0 JobEnvelopeSchemaVersion = "1.0"
+)
+
+type ResultEnvelopeSchemaVersion string
+
+const (
+	ResultEnvelopeSchemaVersionV1_0 ResultEnvelopeSchemaVersion = "1.0"
+)
+
+type ResultEnvelopeStatus string
+
+const (
+	ResultEnvelopeStatusSucceeded ResultEnvelopeStatus = "succeeded"
+	ResultEnvelopeStatusDegraded  ResultEnvelopeStatus = "degraded"
+	ResultEnvelopeStatusBlocked   ResultEnvelopeStatus = "blocked"
+	ResultEnvelopeStatusFailed    ResultEnvelopeStatus = "failed"
+)
+
+type ResultEnvelopeDataQuality string
+
+const (
+	ResultEnvelopeDataQualityHealthy  ResultEnvelopeDataQuality = "healthy"
+	ResultEnvelopeDataQualityDegraded ResultEnvelopeDataQuality = "degraded"
+	ResultEnvelopeDataQualityBlocked  ResultEnvelopeDataQuality = "blocked"
+)
+
+type ImportColumnDataType string
+
+const (
+	ImportColumnDataTypeString   ImportColumnDataType = "string"
+	ImportColumnDataTypeDecimal  ImportColumnDataType = "decimal"
+	ImportColumnDataTypeDate     ImportColumnDataType = "date"
+	ImportColumnDataTypeDatetime ImportColumnDataType = "datetime"
+)
+
+type ImportManifestSchemaVersion string
+
+const (
+	ImportManifestSchemaVersionV1_0 ImportManifestSchemaVersion = "1.0"
+)
+
+type UnknownSchemaVersionDetailsSupportedVersionsItem string
+
+const (
+	UnknownSchemaVersionDetailsSupportedVersionsItemV1_0 UnknownSchemaVersionDetailsSupportedVersionsItem = "1.0"
+)
+
 type ErrorEnvelope struct {
 	Code      string         `json:"code"`
 	Message   string         `json:"message"`
@@ -19,39 +69,39 @@ type PageMeta struct {
 }
 
 type JobEnvelope struct {
-	Kind             string         `json:"kind"`
-	SchemaVersion    string         `json:"schema_version"`
-	IdempotencyKey   string         `json:"idempotency_key"`
-	InputSnapshotIDs []string       `json:"input_snapshot_ids"`
-	Payload          map[string]any `json:"payload"`
+	Kind             string                   `json:"kind"`
+	SchemaVersion    JobEnvelopeSchemaVersion `json:"schema_version"`
+	IdempotencyKey   string                   `json:"idempotency_key"`
+	InputSnapshotIDs []string                 `json:"input_snapshot_ids"`
+	Payload          map[string]any           `json:"payload"`
 }
 
 type ResultEnvelope struct {
-	JobID            string         `json:"job_id"`
-	SchemaVersion    string         `json:"schema_version"`
-	Status           string         `json:"status"`
-	InputSnapshotIDs []string       `json:"input_snapshot_ids"`
-	DataQuality      string         `json:"data_quality"`
-	EngineVersion    string         `json:"engine_version"`
-	Output           map[string]any `json:"output"`
+	JobID            string                      `json:"job_id"`
+	SchemaVersion    ResultEnvelopeSchemaVersion `json:"schema_version"`
+	Status           ResultEnvelopeStatus        `json:"status"`
+	InputSnapshotIDs []string                    `json:"input_snapshot_ids"`
+	DataQuality      ResultEnvelopeDataQuality   `json:"data_quality"`
+	EngineVersion    string                      `json:"engine_version"`
+	Output           map[string]any              `json:"output"`
 }
 
 type ImportColumn struct {
-	Name     string `json:"name"`
-	DataType string `json:"data_type"`
+	Name     string               `json:"name"`
+	DataType ImportColumnDataType `json:"data_type"`
 }
 
 type ImportManifest struct {
-	SchemaVersion string         `json:"schema_version"`
-	SourceName    string         `json:"source_name"`
-	ContentSHA256 string         `json:"content_sha256"`
-	ObjectKey     string         `json:"object_key"`
-	Columns       []ImportColumn `json:"columns"`
-	RowCount      int            `json:"row_count"`
+	SchemaVersion ImportManifestSchemaVersion `json:"schema_version"`
+	SourceName    string                      `json:"source_name"`
+	ContentSHA256 string                      `json:"content_sha256"`
+	ObjectKey     string                      `json:"object_key"`
+	Columns       []ImportColumn              `json:"columns"`
+	RowCount      int                         `json:"row_count"`
 }
 
 type UnknownSchemaVersionDetails struct {
-	Kind              string   `json:"kind"`
-	SchemaVersion     string   `json:"schema_version"`
-	SupportedVersions []string `json:"supported_versions"`
+	Kind              string                                             `json:"kind"`
+	SchemaVersion     string                                             `json:"schema_version"`
+	SupportedVersions []UnknownSchemaVersionDetailsSupportedVersionsItem `json:"supported_versions"`
 }
