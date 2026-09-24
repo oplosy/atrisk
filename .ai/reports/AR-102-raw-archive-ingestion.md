@@ -55,7 +55,7 @@
 
 - Branch: `task/AR-102-raw-archive-ingestion`
 - Implementation commit SHA: `1eb95e7aebd97bec9a66a4f20a87808a61895e1a` (remediates hosted PostgreSQL idempotency and Garage conflict proof on top of `d70efec25438087c65a37798823706ed50dee1be`)
-- Remote branch: push pending for this remediation commit; worktree is clean before push.
+- Worker handoff snapshot: `227379f9b6e72ddcab0d986ac8568d32037ee5f9`; local and remote matched and the worktree was clean.
 - Orchestrator review-status update follows on the same task branch.
 
 ## Assumptions and risks
