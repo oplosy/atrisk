@@ -1,13 +1,13 @@
 ---
 id: AR-101
 title: Implement the core point-in-time database model
-status: review
+status: active
 phase: 1
 depends_on: [AR-004, AR-005]
 branch: task/AR-101-core-database-model
 base_sha: dff9950f4b24e7d2c942599c1cc56e8122aea636
 owned_paths: [db/migrations/, db/queries/core/, internal/platform/database/, internal/domain/marketdata/]
-shared_paths: [Taskfile.yml, test/integration/]
+shared_paths: [Taskfile.yml, test/integration/, .github/workflows/ci.yml]
 adrs: [ADR-004, ADR-005, ADR-006, ADR-007, ADR-010]
 ---
 
