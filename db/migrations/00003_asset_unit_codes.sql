@@ -8,7 +8,7 @@ ALTER TABLE instruments
     ALTER COLUMN native_currency TYPE TEXT USING native_currency::text,
     ADD CONSTRAINT instruments_currency_code CHECK (
         native_currency = upper(native_currency)
-        AND native_currency ~ '^[A-Z][A-Z0-9]{2,15}$'
+        AND native_currency ~ '^[A-Z0-9]+$'
     );
 
 -- PostgreSQL does not allow changing a column type while a dependent view
@@ -20,7 +20,7 @@ ALTER TABLE price_revisions
     ALTER COLUMN quote_currency TYPE TEXT USING quote_currency::text,
     ADD CONSTRAINT price_revisions_quote_code CHECK (
         quote_currency = upper(quote_currency)
-        AND quote_currency ~ '^[A-Z][A-Z0-9]{2,15}$'
+        AND quote_currency ~ '^[A-Z0-9]+$'
     );
 
 CREATE VIEW latest_price_revisions AS

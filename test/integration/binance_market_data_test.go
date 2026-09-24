@@ -35,6 +35,16 @@ func TestBinanceMarketData(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO instruments (canonical_symbol, instrument_type, native_currency, external_ids) VALUES ('BTCUSDT', 'crypto_spot', 'USDT', '{"provider":"binance"}')`); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := pool.Exec(ctx, `INSERT INTO instruments (canonical_symbol, instrument_type, native_currency, external_ids) VALUES ('1INCHUSDT', 'crypto_spot', '1INCH', '{"provider":"binance"}')`); err != nil {
+		t.Fatal(err)
+	}
+	var digitLeadingUnit string
+	if err := pool.QueryRow(ctx, `SELECT native_currency FROM instruments WHERE canonical_symbol='1INCHUSDT'`).Scan(&digitLeadingUnit); err != nil {
+		t.Fatal(err)
+	}
+	if digitLeadingUnit != "1INCH" {
+		t.Fatalf("digit-leading Binance unit was not preserved: %q", digitLeadingUnit)
+	}
 	runStore := ingestion.DatabaseStore{Pool: pool}
 	runID, duplicate, err := runStore.StartRun(ctx, ingestion.RunSpec{SourceID: sourceID, IdempotencyKey: fixtureName, AdapterVersion: binance.AdapterVersion})
 	if err != nil || duplicate {
