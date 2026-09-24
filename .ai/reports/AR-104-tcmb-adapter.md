@@ -48,8 +48,8 @@
 ## Git state
 
 - Branch: `task/AR-104-tcmb-adapter`
-- Commit SHA: `619bb80` implementation commit; report update follows in the handoff commit.
-- Remote branch: `origin/task/AR-104-tcmb-adapter` ahead by the implementation commit before push.
+- Commit SHA: `619bb80`, `78c574f`, `ee60abc`.
+- Remote branch: `origin/task/AR-104-tcmb-adapter` will be updated with the three task commits.
 - Worktree: clean after the report handoff commit and push.
 
 ## Assumptions and risks
