@@ -109,7 +109,7 @@ test("generated Python models compile and import when Pydantic is available", as
     "python",
     [
       "-c",
-      "from pydantic import ValidationError; from contracts import JobEnvelope, UnknownSchemaVersionDetails; JobEnvelope(kind='risk.run', schema_version='1.0', idempotency_key='k', input_snapshot_ids=[], payload={});\ntry: JobEnvelope(kind='risk.run', schema_version='1.0', idempotency_key='k', input_snapshot_ids=['same', 'same'], payload={}); raise SystemExit('duplicate snapshot ids accepted')\nexcept ValidationError: pass\ntry: UnknownSchemaVersionDetails(kind='risk.run', schema_version='9.0', supported_versions=['1.0', '1.0']); raise SystemExit('non-canonical supported versions accepted')\nexcept ValidationError: pass",
+      "from pydantic import ValidationError; from contracts import JobEnvelope, UnknownSchemaVersionDetails; JobEnvelope(kind='risk.run', schema_version='1.0', idempotency_key='k', input_snapshot_ids=[], payload={});\nfor ids in (['same', 'same'], ['']):\n    try: JobEnvelope(kind='risk.run', schema_version='1.0', idempotency_key='k', input_snapshot_ids=ids, payload={}); raise SystemExit('invalid snapshot ids accepted')\n    except ValidationError: pass\ntry: UnknownSchemaVersionDetails(kind='risk.run', schema_version='9.0'); raise SystemExit('missing supported versions accepted')\nexcept ValidationError: pass\ntry: UnknownSchemaVersionDetails(kind='risk.run', schema_version='9.0', supported_versions=['1.0', '1.0']); raise SystemExit('non-canonical supported versions accepted')\nexcept ValidationError: pass",
     ],
     { env },
   );

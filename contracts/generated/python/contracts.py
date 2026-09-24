@@ -36,6 +36,8 @@ class JobEnvelope(ContractModel):
     @field_validator("input_snapshot_ids")
     @classmethod
     def snapshot_ids_are_unique(cls, value: list[str]) -> list[str]:
+        if any(not snapshot_id for snapshot_id in value):
+            raise ValueError("input_snapshot_ids entries must not be empty")
         if len(value) != len(set(value)):
             raise ValueError("input_snapshot_ids must contain unique values")
         return value
@@ -53,6 +55,8 @@ class ResultEnvelope(ContractModel):
     @field_validator("input_snapshot_ids")
     @classmethod
     def snapshot_ids_are_unique(cls, value: list[str]) -> list[str]:
+        if any(not snapshot_id for snapshot_id in value):
+            raise ValueError("input_snapshot_ids entries must not be empty")
         if len(value) != len(set(value)):
             raise ValueError("input_snapshot_ids must contain unique values")
         return value
@@ -76,5 +80,5 @@ class UnknownSchemaVersionDetails(ContractModel):
     kind: str = Field(min_length=1)
     schema_version: str = Field(min_length=1)
     supported_versions: list[Literal["1.0"]] = Field(
-        default_factory=lambda: [SUPPORTED_SCHEMA_VERSION], min_length=1, max_length=1
+        min_length=1, max_length=1
     )
