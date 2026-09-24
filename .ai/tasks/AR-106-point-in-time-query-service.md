@@ -31,11 +31,11 @@ timeline queries with explicit semantics and provenance.
 
 ## Acceptance criteria
 
-- [ ] The same fixture produces distinct latest/source/system answers where expected.
-- [ ] Unsupported source-as-of requests return an explicit capability response.
-- [ ] Every value includes unit, frequency, clocks, quality, and raw provenance ID.
-- [ ] Pagination is stable across identical immutable snapshots.
-- [ ] OpenAPI and generated clients contain no drift.
+- [x] The same fixture produces distinct latest/source/system answers where expected.
+- [x] Unsupported source-as-of requests return an explicit capability response.
+- [x] Every value includes unit, frequency, clocks, quality, and raw provenance ID.
+- [x] Pagination is stable across identical immutable snapshots.
+- [x] OpenAPI and generated clients contain no drift.
 
 ## Required verification
 
