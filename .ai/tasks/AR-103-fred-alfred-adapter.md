@@ -7,7 +7,7 @@ depends_on: [AR-102]
 branch: task/AR-103-fred-alfred-adapter
 base_sha: 8ef045173a4e768cef88ab805cd4cdc90ec2fcc4
 owned_paths: [internal/sources/fred/, test/fixtures/fred/]
-shared_paths: [apps/collector/, db/queries/, contracts/, test/integration/]
+shared_paths: [apps/collector/, db/queries/, contracts/, test/integration/, internal/platform/database/]
 adrs: [ADR-005, ADR-006, ADR-007, ADR-011]
 ---
 
