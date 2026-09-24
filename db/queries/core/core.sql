@@ -2,26 +2,23 @@
 SELECT * FROM data_sources
 WHERE code = $1;
 
--- name: InsertDataSource :one
+-- name: InsertDataSource :execrows
 INSERT INTO data_sources (code, name, adapter_version, metadata)
 VALUES ($1, $2, $3, $4)
-ON CONFLICT (code) DO UPDATE
-SET name = EXCLUDED.name,
-    adapter_version = EXCLUDED.adapter_version,
-    metadata = EXCLUDED.metadata
-RETURNING *;
+ON CONFLICT (code) DO NOTHING;
 
 -- name: GetDataset :one
 SELECT * FROM datasets
 WHERE id = $1;
 
--- name: InsertDataset :one
+-- name: GetDatasetByExternalKey :one
+SELECT * FROM datasets
+WHERE source_id = $1 AND external_key = $2;
+
+-- name: InsertDataset :execrows
 INSERT INTO datasets (source_id, external_key, name, metadata)
 VALUES ($1, $2, $3, $4)
-ON CONFLICT (source_id, external_key) DO UPDATE
-SET name = EXCLUDED.name,
-    metadata = EXCLUDED.metadata
-RETURNING *;
+ON CONFLICT (source_id, external_key) DO NOTHING;
 
 -- name: GetSeries :one
 SELECT * FROM series
@@ -32,36 +29,32 @@ SELECT * FROM series
 WHERE dataset_id = $1
 ORDER BY source_code, id;
 
--- name: InsertSeries :one
+-- name: GetSeriesBySourceCode :one
+SELECT * FROM series
+WHERE dataset_id = $1 AND source_code = $2;
+
+-- name: InsertSeries :execrows
 INSERT INTO series (
     dataset_id, source_code, name, unit, frequency, seasonal_adjustment,
     source_timezone, freshness_policy
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-ON CONFLICT (dataset_id, source_code) DO UPDATE
-SET name = EXCLUDED.name,
-    unit = EXCLUDED.unit,
-    frequency = EXCLUDED.frequency,
-    seasonal_adjustment = EXCLUDED.seasonal_adjustment,
-    source_timezone = EXCLUDED.source_timezone,
-    freshness_policy = EXCLUDED.freshness_policy
-RETURNING *;
+ON CONFLICT (dataset_id, source_code) DO NOTHING;
 
 -- name: GetInstrument :one
 SELECT * FROM instruments
 WHERE id = $1;
 
--- name: InsertInstrument :one
+-- name: GetInstrumentBySymbol :one
+SELECT * FROM instruments
+WHERE canonical_symbol = $1;
+
+-- name: InsertInstrument :execrows
 INSERT INTO instruments (
     canonical_symbol, instrument_type, native_currency, external_ids, status
 )
 VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (canonical_symbol) DO UPDATE
-SET instrument_type = EXCLUDED.instrument_type,
-    native_currency = EXCLUDED.native_currency,
-    external_ids = EXCLUDED.external_ids,
-    status = EXCLUDED.status
-RETURNING *;
+ON CONFLICT (canonical_symbol) DO NOTHING;
 
 -- name: GetRawObjectBySHA256 :one
 SELECT * FROM raw_objects

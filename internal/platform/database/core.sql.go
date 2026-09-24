@@ -49,6 +49,30 @@ func (q *Queries) GetDataset(ctx context.Context, id pgtype.UUID) (Dataset, erro
 	return i, err
 }
 
+const getDatasetByExternalKey = `-- name: GetDatasetByExternalKey :one
+SELECT id, source_id, external_key, name, metadata, created_at FROM datasets
+WHERE source_id = $1 AND external_key = $2
+`
+
+type GetDatasetByExternalKeyParams struct {
+	SourceID    pgtype.UUID `json:"source_id"`
+	ExternalKey string      `json:"external_key"`
+}
+
+func (q *Queries) GetDatasetByExternalKey(ctx context.Context, arg GetDatasetByExternalKeyParams) (Dataset, error) {
+	row := q.db.QueryRow(ctx, getDatasetByExternalKey, arg.SourceID, arg.ExternalKey)
+	var i Dataset
+	err := row.Scan(
+		&i.ID,
+		&i.SourceID,
+		&i.ExternalKey,
+		&i.Name,
+		&i.Metadata,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getFXQuoteRevision = `-- name: GetFXQuoteRevision :one
 SELECT id, base_currency, quote_currency, observation_time, rate, source_known_at, system_known_at, knowledge_time_basis, raw_object_id, quality_flags FROM fx_quote_revisions
 WHERE id = $1
@@ -79,6 +103,26 @@ WHERE id = $1
 
 func (q *Queries) GetInstrument(ctx context.Context, id pgtype.UUID) (Instrument, error) {
 	row := q.db.QueryRow(ctx, getInstrument, id)
+	var i Instrument
+	err := row.Scan(
+		&i.ID,
+		&i.CanonicalSymbol,
+		&i.InstrumentType,
+		&i.NativeCurrency,
+		&i.ExternalIds,
+		&i.Status,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getInstrumentBySymbol = `-- name: GetInstrumentBySymbol :one
+SELECT id, canonical_symbol, instrument_type, native_currency, external_ids, status, created_at FROM instruments
+WHERE canonical_symbol = $1
+`
+
+func (q *Queries) GetInstrumentBySymbol(ctx context.Context, canonicalSymbol string) (Instrument, error) {
+	row := q.db.QueryRow(ctx, getInstrumentBySymbol, canonicalSymbol)
 	var i Instrument
 	err := row.Scan(
 		&i.ID,
@@ -184,14 +228,38 @@ func (q *Queries) GetSeries(ctx context.Context, id pgtype.UUID) (Series, error)
 	return i, err
 }
 
-const insertDataSource = `-- name: InsertDataSource :one
+const getSeriesBySourceCode = `-- name: GetSeriesBySourceCode :one
+SELECT id, dataset_id, source_code, name, unit, frequency, seasonal_adjustment, source_timezone, freshness_policy, created_at FROM series
+WHERE dataset_id = $1 AND source_code = $2
+`
+
+type GetSeriesBySourceCodeParams struct {
+	DatasetID  pgtype.UUID `json:"dataset_id"`
+	SourceCode string      `json:"source_code"`
+}
+
+func (q *Queries) GetSeriesBySourceCode(ctx context.Context, arg GetSeriesBySourceCodeParams) (Series, error) {
+	row := q.db.QueryRow(ctx, getSeriesBySourceCode, arg.DatasetID, arg.SourceCode)
+	var i Series
+	err := row.Scan(
+		&i.ID,
+		&i.DatasetID,
+		&i.SourceCode,
+		&i.Name,
+		&i.Unit,
+		&i.Frequency,
+		&i.SeasonalAdjustment,
+		&i.SourceTimezone,
+		&i.FreshnessPolicy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertDataSource = `-- name: InsertDataSource :execrows
 INSERT INTO data_sources (code, name, adapter_version, metadata)
 VALUES ($1, $2, $3, $4)
-ON CONFLICT (code) DO UPDATE
-SET name = EXCLUDED.name,
-    adapter_version = EXCLUDED.adapter_version,
-    metadata = EXCLUDED.metadata
-RETURNING id, code, name, adapter_version, metadata, created_at
+ON CONFLICT (code) DO NOTHING
 `
 
 type InsertDataSourceParams struct {
@@ -201,32 +269,23 @@ type InsertDataSourceParams struct {
 	Metadata       []byte `json:"metadata"`
 }
 
-func (q *Queries) InsertDataSource(ctx context.Context, arg InsertDataSourceParams) (DataSource, error) {
-	row := q.db.QueryRow(ctx, insertDataSource,
+func (q *Queries) InsertDataSource(ctx context.Context, arg InsertDataSourceParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertDataSource,
 		arg.Code,
 		arg.Name,
 		arg.AdapterVersion,
 		arg.Metadata,
 	)
-	var i DataSource
-	err := row.Scan(
-		&i.ID,
-		&i.Code,
-		&i.Name,
-		&i.AdapterVersion,
-		&i.Metadata,
-		&i.CreatedAt,
-	)
-	return i, err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
-const insertDataset = `-- name: InsertDataset :one
+const insertDataset = `-- name: InsertDataset :execrows
 INSERT INTO datasets (source_id, external_key, name, metadata)
 VALUES ($1, $2, $3, $4)
-ON CONFLICT (source_id, external_key) DO UPDATE
-SET name = EXCLUDED.name,
-    metadata = EXCLUDED.metadata
-RETURNING id, source_id, external_key, name, metadata, created_at
+ON CONFLICT (source_id, external_key) DO NOTHING
 `
 
 type InsertDatasetParams struct {
@@ -236,23 +295,17 @@ type InsertDatasetParams struct {
 	Metadata    []byte      `json:"metadata"`
 }
 
-func (q *Queries) InsertDataset(ctx context.Context, arg InsertDatasetParams) (Dataset, error) {
-	row := q.db.QueryRow(ctx, insertDataset,
+func (q *Queries) InsertDataset(ctx context.Context, arg InsertDatasetParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertDataset,
 		arg.SourceID,
 		arg.ExternalKey,
 		arg.Name,
 		arg.Metadata,
 	)
-	var i Dataset
-	err := row.Scan(
-		&i.ID,
-		&i.SourceID,
-		&i.ExternalKey,
-		&i.Name,
-		&i.Metadata,
-		&i.CreatedAt,
-	)
-	return i, err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const insertFXQuoteRevision = `-- name: InsertFXQuoteRevision :execrows
@@ -293,17 +346,12 @@ func (q *Queries) InsertFXQuoteRevision(ctx context.Context, arg InsertFXQuoteRe
 	return result.RowsAffected(), nil
 }
 
-const insertInstrument = `-- name: InsertInstrument :one
+const insertInstrument = `-- name: InsertInstrument :execrows
 INSERT INTO instruments (
     canonical_symbol, instrument_type, native_currency, external_ids, status
 )
 VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (canonical_symbol) DO UPDATE
-SET instrument_type = EXCLUDED.instrument_type,
-    native_currency = EXCLUDED.native_currency,
-    external_ids = EXCLUDED.external_ids,
-    status = EXCLUDED.status
-RETURNING id, canonical_symbol, instrument_type, native_currency, external_ids, status, created_at
+ON CONFLICT (canonical_symbol) DO NOTHING
 `
 
 type InsertInstrumentParams struct {
@@ -314,25 +362,18 @@ type InsertInstrumentParams struct {
 	Status          string `json:"status"`
 }
 
-func (q *Queries) InsertInstrument(ctx context.Context, arg InsertInstrumentParams) (Instrument, error) {
-	row := q.db.QueryRow(ctx, insertInstrument,
+func (q *Queries) InsertInstrument(ctx context.Context, arg InsertInstrumentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertInstrument,
 		arg.CanonicalSymbol,
 		arg.InstrumentType,
 		arg.NativeCurrency,
 		arg.ExternalIds,
 		arg.Status,
 	)
-	var i Instrument
-	err := row.Scan(
-		&i.ID,
-		&i.CanonicalSymbol,
-		&i.InstrumentType,
-		&i.NativeCurrency,
-		&i.ExternalIds,
-		&i.Status,
-		&i.CreatedAt,
-	)
-	return i, err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const insertObservationRevision = `-- name: InsertObservationRevision :execrows
@@ -448,20 +489,13 @@ func (q *Queries) InsertRawObject(ctx context.Context, arg InsertRawObjectParams
 	return result.RowsAffected(), nil
 }
 
-const insertSeries = `-- name: InsertSeries :one
+const insertSeries = `-- name: InsertSeries :execrows
 INSERT INTO series (
     dataset_id, source_code, name, unit, frequency, seasonal_adjustment,
     source_timezone, freshness_policy
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-ON CONFLICT (dataset_id, source_code) DO UPDATE
-SET name = EXCLUDED.name,
-    unit = EXCLUDED.unit,
-    frequency = EXCLUDED.frequency,
-    seasonal_adjustment = EXCLUDED.seasonal_adjustment,
-    source_timezone = EXCLUDED.source_timezone,
-    freshness_policy = EXCLUDED.freshness_policy
-RETURNING id, dataset_id, source_code, name, unit, frequency, seasonal_adjustment, source_timezone, freshness_policy, created_at
+ON CONFLICT (dataset_id, source_code) DO NOTHING
 `
 
 type InsertSeriesParams struct {
@@ -475,8 +509,8 @@ type InsertSeriesParams struct {
 	FreshnessPolicy    []byte      `json:"freshness_policy"`
 }
 
-func (q *Queries) InsertSeries(ctx context.Context, arg InsertSeriesParams) (Series, error) {
-	row := q.db.QueryRow(ctx, insertSeries,
+func (q *Queries) InsertSeries(ctx context.Context, arg InsertSeriesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertSeries,
 		arg.DatasetID,
 		arg.SourceCode,
 		arg.Name,
@@ -486,20 +520,10 @@ func (q *Queries) InsertSeries(ctx context.Context, arg InsertSeriesParams) (Ser
 		arg.SourceTimezone,
 		arg.FreshnessPolicy,
 	)
-	var i Series
-	err := row.Scan(
-		&i.ID,
-		&i.DatasetID,
-		&i.SourceCode,
-		&i.Name,
-		&i.Unit,
-		&i.Frequency,
-		&i.SeasonalAdjustment,
-		&i.SourceTimezone,
-		&i.FreshnessPolicy,
-		&i.CreatedAt,
-	)
-	return i, err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const listFXQuoteRevisions = `-- name: ListFXQuoteRevisions :many

@@ -67,11 +67,15 @@ tasks:
 
   migrate-test:
     desc: Apply migrations to an explicitly isolated test database and verify schema
+    env:
+      ATLASRISK_REQUIRE_TEST_DATABASE: "1"
     cmds:
       - go test ./test/integration -run '^TestCoreDatabaseMigrations$' -count=1
 
   test-go-integration:
     desc: Run Go integration tests selected by TEST against an isolated database
+    env:
+      ATLASRISK_REQUIRE_TEST_DATABASE: "1"
     cmds:
       - go test ./test/integration -run "Test{{.TEST}}" -count=1
 

@@ -12,8 +12,8 @@ import (
 // Migrate applies forward-only Goose SQL migrations from migrationsDir. The
 // caller must supply an explicitly isolated database URL for test migrations.
 func Migrate(ctx context.Context, databaseURL, migrationsDir string) error {
-	if databaseURL == "" {
-		return fmt.Errorf("database URL is required")
+	if err := ValidateIsolatedTestDatabaseURL(databaseURL); err != nil {
+		return fmt.Errorf("refusing migration target: %w", err)
 	}
 	if migrationsDir == "" {
 		return fmt.Errorf("migrations directory is required")
