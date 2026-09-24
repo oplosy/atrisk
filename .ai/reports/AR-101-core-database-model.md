@@ -10,7 +10,7 @@
 
 ## Result
 
-`needs-review`
+`complete`
 
 The implementation and isolated PostgreSQL acceptance are complete. Runtime
 verification used only the explicitly created `atrisk_test` database on the
@@ -20,9 +20,11 @@ GitHub Actions now provisions only its hosted-job PostgreSQL 18.6 service,
 using the approved digest, exact `atrisk_test` database, CI-only credentials,
 loopback exposure, and a health check.
 
-Handoff remains `needs-review` only because the repository-wide generated-file
-gate reports pre-existing Windows contract-generator drift; all AR-101 runtime
-checks and the remaining verify stages pass.
+The required GitHub Actions `Verify` gate passed on PR #10 after CI was configured
+with the pinned PostgreSQL service and sqlc generator. The local Windows
+`check-generated` command still reports four pre-existing AR-005 contract outputs
+rewritten by line-ending normalization; those outputs were restored, and the
+Linux CI gate passes on the merged commit.
 
 ## Acceptance evidence
 
@@ -58,6 +60,7 @@ checks and the remaining verify stages pass.
 | `go run github.com/go-task/task/v3/cmd/task@v3.44.1 verify` with isolated DSN | format, lint, typecheck, unit, contract, AR-101 integration, and build stages pass; final `check-generated` fails only on the same four AR-005 contract outputs. No Docker or service lifecycle command ran. |
 | `go run github.com/go-task/task/v3/cmd/task@v3.44.1 migrate-test` and `test-go-integration TEST=CoreDatabase` after pinned-generator change | both pass against isolated `atrisk_test`; the database was removed afterward with zero active sessions. |
 | `.github/workflows/ci.yml` service definition | pinned PostgreSQL 18.6-bookworm digest, exact `atrisk_test` initialization, dedicated CI-only role/password, loopback port mapping, and `pg_isready` health check; local Docker/services were not used. |
+| GitHub Actions `Verify` after final task commit | pass on PR #10 run `36026465017`; all `task verify` stages passed with the isolated PostgreSQL service. |
 | GitHub Actions `Verify` for PR #10 | pass on run `36025959556` after adding the pinned sqlc invocation and isolated PostgreSQL service; includes full `task verify` with the migration and CoreDatabase integration suite. |
 | `psql ... -d atrisk ... to_regclass('public.goose_db_version')` | pass; returned `f`, confirming the running dev database was not migrated. The explicitly isolated `atrisk_test` database was removed after runtime acceptance with no active sessions. |
 | `git diff --check` | pass. |
@@ -71,9 +74,11 @@ checks and the remaining verify stages pass.
 ## Git state
 
 - Branch: `task/AR-101-core-database-model`
-- Commit SHA: `c29a2651ed78cf034c4eb6c6440cc59addf45ecb` (latest code and CI-workflow implementation reviewed before this report/lifecycle update)
-- Remote branch: `origin/task/AR-101-core-database-model` and local `HEAD` matched at `c29a2651ed78cf034c4eb6c6440cc59addf45ecb`; push succeeded.
-- Report snapshot SHA: `c29a2651ed78cf034c4eb6c6440cc59addf45ecb` (reviewed branch state before this report/lifecycle commit).
+- Commit SHA: `4b3b2b6c1284c2f61878b31edd4b940b11915194` (final reviewed AR-101 branch commit before merge)
+- Pull request: [#10](https://github.com/oplosy/atrisk/pull/10), merged with commit `0f87efe1bfcc2f29c7bf490000e808cbcc93e730`.
+- Remote task branch: pushed successfully; PR #10 and merge commit preserve the branch history.
+- Primary `main`: fast-forwarded to `0f87efe1bfcc2f29c7bf490000e808cbcc93e730` after merge.
+- Worktree: clean at the final reviewed task commit before merge.
 - Live `ls-remote` was not independently verified because the proxy/remote endpoint remains unavailable.
 - Worktree: clean after restoring the four verification-generated contract outputs; report snapshot is recorded separately above.
 
