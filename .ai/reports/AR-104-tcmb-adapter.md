@@ -19,7 +19,7 @@
 | AC-1 | `internal/sources/tcmb/adapter.go` leaves `SourceKnownAt` nil and records `source_publication_time=unavailable_in_evds2_response`, `retrieval_time_not_publication=true`, and `knowledge_time_basis=first_observed_by_system`; unit coverage is in `TestTCMBNormalizesLocaleMissingAndProvenance`. |
 | AC-2 | `normalizeDecimal` enforces the configured `.`/`,` separator and rejects mixed locale forms; `parseEVDSDate` covers daily, monthly, quarterly, and yearly forms; `TestTCMBCheckpointAdvancesSourceFrequencyBoundaries` covers period-boundary resume. |
 | AC-3 | `null`, empty, and `-` values become `value_text` with `missing`/`missing_expected_period`; delayed windows receive `late` quality evidence. Covered by `TestTCMBNormalizesLocaleMissingAndProvenance`, `TestTCMBMarksLateCoverageWithoutInventingValues`, and the integration assertions. |
-| AC-4 | `Store.PersistRecords` uses the append-only identity constraint; the integration test checks duplicate idempotency and a changed raw payload creates a second revision while preserving the first. Checkpoints persist a request fingerprint and source-frequency cursor. |
+| AC-4 | `Store.PersistRecords` resolves the database series UUID to its source code and rejects mismatched records. `PersistFXRecords` requires that series UUID, validates every numeric/missing record before insertion, retains missing FX periods in `observation_revisions` with explicit quality flags, and keeps numeric quotes in `fx_quote_revisions`; integration coverage checks mixed-series rollback, duplicate idempotency, changed-value revisions, missing-date quality, and raw SHA provenance. Checkpoints persist a request fingerprint and source-frequency cursor. |
 | AC-5 | EVDS2 request path/auth semantics are covered by `TestTCMBBuildRequestUsesHeaderKeyAndOfficialMetadata` and `TestTCMBFetchesJSONResponseAndCheckpoint`; `internal/ingestion/fetcher_test.go` proves key forwarding, response metadata exclusion, and redirect stripping. |
 
 ## Stop-condition check
@@ -32,7 +32,7 @@
 | Command | Result |
 |---|---|
 | `task test-go TEST=TCMB` | pass; TCMB unit tests and repository Go packages passed. |
-| `task test-go-integration TEST=TCMBIngestion` | fail-closed as required; `ATLASRISK_TEST_DATABASE_URL` is not configured. |
+| `task test-go-integration TEST=TCMBIngestion` | fail-closed as required; `ATLASRISK_TEST_DATABASE_URL` is not configured. The test includes mixed-series rollback, mandatory series-ID validation, missing FX quality evidence, raw SHA provenance, and numeric-only quote assertions when PostgreSQL is available. |
 | `task test-contract` | pass; generation completed and all 9 contract tests passed; generated drift was restored. |
 | `task verify` | blocked at `npm run format:check`; existing `node_modules/.bin/prettier.cmd` is unavailable. Go formatting passed and Python formatting completed before that gate. |
 | `go test ./apps/... ./internal/... -count=1` | pass. |
@@ -48,9 +48,9 @@
 ## Git state
 
 - Branch: `task/AR-104-tcmb-adapter`
-- Commit SHA: `619bb80`, `78c574f`, `ee60abc`.
-- Remote branch: `origin/task/AR-104-tcmb-adapter` at `8b22cc4` (push succeeded; a subsequent `git ls-remote` probe was blocked by the local proxy).
-- Worktree: clean after the report handoff commit and push.
+- Commit SHA: `c6af80d0314a36f021328f6d6848fed2286d9d84` (includes `619bb80`, `78c574f`, `ee60abc`, `8b22cc4`, `8f32506`, and `70c6d75`).
+- Remote branch: `origin/task/AR-104-tcmb-adapter` synchronized at `c6af80d0314a36f021328f6d6848fed2286d9d84`.
+- Worktree: clean.
 
 ## Assumptions and risks
 
