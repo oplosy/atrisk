@@ -10,7 +10,7 @@
 
 ## Result
 
-`needs-review` — implementation and independent code review are complete on `356e1ea19eaf422d1426eb2e959bfbebef2a07b6`; hosted CI and merge are pending.
+`merged` — independent review found no blocking issues on code tip `356e1ea19eaf422d1426eb2e959bfbebef2a07b6`. GitHub Actions Verify run `36074334963` (run #61) passed, including the database-backed quality API integration and full `task verify`. PR #24 merged as `6594b7ab4ab5eb47531ad9c0bd23f4f504a55281`.
 
 ## Acceptance evidence
 
@@ -20,20 +20,20 @@
 | AC-2 | Required missing/stale/suspect tests assert blocked; evaluator aggregate precedence keeps blocked results from being valid. `go test ./internal/quality -count=1` passed. |
 | AC-3 | Optional stale/missing/partial cases assert degraded; fresh required inputs assert valid. `go test ./internal/quality -count=1` passed. |
 | AC-4 | Evaluation includes policy version, UTC cutoff, stable reason codes, and series/entity/interval references; handler tests validate machine-readable response fields. Go suite passed. |
-| AC-5 | Missing/malformed policy tests assert fail-closed blocked results; API contract and integration tests cover deterministic evaluation and system-as-of revision selection. Hosted PostgreSQL and contract gates are pending. |
+| AC-5 | Missing/malformed policy tests assert fail-closed blocked results; API contract and integration tests cover deterministic evaluation and system-as-of revision selection. Hosted Verify run `36074334963` passed quality integration and full verification. |
 
 ## Stop-condition check
 
 - Decision or scope conflict: `none`; behavior follows ADR-011 and preserves immutable observation history.
-- Missing dependency, unsafe migration, or unavailable verification: `task` is not installed locally and no isolated PostgreSQL test DSN is configured. Local database/contract integration was not simulated and Docker/Desktop/services were not changed. Hosted CI must complete these gates before merge.
+- Missing dependency, unsafe migration, or unavailable verification: local `task` and an isolated PostgreSQL DSN are unavailable. These were not simulated locally; hosted Verify run `36074334963` ran the database-backed quality API integration and full `task verify` successfully. Docker Desktop and local services were not changed.
 
 ## Verification
 
 | Command | Result |
 |---|---|
-| `task test-go TEST=Quality` | unavailable: Task CLI is not installed; equivalent `go test ./... -count=1` passed. |
-| `task test-go-integration TEST=QualityAPI` | unavailable locally: no isolated PostgreSQL DSN; hosted CI integration gate pending. |
-| `task test-contract` | unavailable: Task CLI is not installed; `node --test test/contract/contract.test.mjs` passed 10/10 before final test-only commit; reviewer notes it could not rerun in its sandbox due `spawn EPERM`; hosted CI gate pending. |
+| `task test-go TEST=Quality` | hosted Verify run `36074334963`: pass through full `task verify`; equivalent local `go test ./... -count=1` passed. |
+| `task test-go-integration TEST=QualityAPI` | hosted Verify run `36074334963`: pass; PostgreSQL integration step `Run data quality API integration` succeeded. |
+| `task test-contract` | hosted Verify run `36074334963`: pass through full `task verify`; local contract test passed 10/10 before final test-only commit. |
 | `go test ./internal/quality -count=1` | pass. |
 | `go test ./... -count=1` | pass; integration package compiled, database-backed test skipped without isolated DSN. |
 | `go build ./apps/...` | pass. |
@@ -41,6 +41,7 @@
 | `node scripts/verify/check-generated.mjs` | pass after intended generated artifacts were committed. |
 | `git diff --check` | pass. |
 | Independent reviewer | pass; no blocking findings at `356e1ea19eaf422d1426eb2e959bfbebef2a07b6`. |
+| GitHub Actions Verify #61 (`36074334963`) | pass; quality integration and full `task verify` succeeded. |
 
 ## Change inventory
 
@@ -50,10 +51,10 @@
 
 ## Git state
 
-- Branch: `task/AR-107-data-quality-engine`.
-- Commit SHA: `356e1ea19eaf422d1426eb2e959bfbebef2a07b6` (includes implementation commits `9313de5` and `684b19d`).
-- Remote branch: not pushed yet; hosted CI pending.
-- Worktree: clean before report/status changes; will be committed clean before push.
+- Implementation branch: `task/AR-107-data-quality-engine`; final branch head `c57c4d3fa80c1250b5190e94c209856b1a5e6f7c`; PR #24 merged.
+- Merge commit: `6594b7ab4ab5eb47531ad9c0bd23f4f504a55281`; primary checkout fast-forwarded to this SHA and is clean.
+- Hosted CI: Verify run `36074334963` (run #61) passed on the exact PR head `c57c4d3fa80c1250b5190e94c209856b1a5e6f7c`.
+- Lifecycle metadata: status-finalization branch `task/AR-107-status-finalization` is based on merge commit `6594b7ab4ab5eb47531ad9c0bd23f4f504a55281`; its PR and cleanup remain pending.
 
 ## Assumptions and risks
 
