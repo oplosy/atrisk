@@ -21,6 +21,13 @@ jobs:
     env:
       ATLASRISK_TEST_DATABASE_URL: postgres://atrisk_ci:atrisk_ci_password@127.0.0.1:5432/atrisk_test?sslmode=disable
       ATLASRISK_REQUIRE_TEST_DATABASE: "1"
+      ATLASRISK_S3_ENDPOINT: http://127.0.0.1:53900
+      ATLASRISK_S3_REGION: garage
+      ATLASRISK_S3_BUCKET: atrisk-ci-raw
+      AWS_ACCESS_KEY_ID: GKatrisktest
+      AWS_SECRET_ACCESS_KEY: atlasrisk-garage-test-only-secret
+      AWS_DEFAULT_REGION: garage
+      AWS_EC2_METADATA_DISABLED: "true"
     services:
       postgres:
         image: postgres:18.6-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af
@@ -38,6 +45,48 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Start ephemeral Garage
+        shell: bash
+        run: |
+          set -euo pipefail
+          garage_dir="$RUNNER_TEMP/atlasrisk-garage"
+          mkdir -p "$garage_dir/meta" "$garage_dir/data"
+          rpc_secret="$(openssl rand -hex 32)"
+          cat > "$garage_dir/garage.toml" <<EOF
+          metadata_dir = "/var/lib/garage/meta"
+          data_dir = "/var/lib/garage/data"
+          db_engine = "sqlite"
+          replication_factor = 1
+          compression_level = 2
+          rpc_bind_addr = "0.0.0.0:3901"
+          rpc_public_addr = "127.0.0.1:3901"
+          rpc_secret = "$rpc_secret"
+
+          [s3_api]
+          s3_region = "garage"
+          api_bind_addr = "0.0.0.0:3900"
+          root_domain = ".s3.localhost"
+          EOF
+          docker run --detach --name atrisk-ci-garage \
+            --publish 127.0.0.1:53900:3900 \
+            --volume "$garage_dir/garage.toml:/etc/garage.toml:ro" \
+            --volume "$garage_dir/meta:/var/lib/garage/meta" \
+            --volume "$garage_dir/data:/var/lib/garage/data" \
+            --env GARAGE_DEFAULT_ACCESS_KEY="$AWS_ACCESS_KEY_ID" \
+            --env GARAGE_DEFAULT_SECRET_KEY="$AWS_SECRET_ACCESS_KEY" \
+            --env GARAGE_DEFAULT_BUCKET="$ATLASRISK_S3_BUCKET" \
+            dxflrs/garage:v2.4.1@sha256:9c96caa2612d3411acc5b0e6701fb238dbfba33e533a6d7d3d811a4b12d0d020 \
+            /garage server --single-node --default-bucket --default-access-key
+          for attempt in {1..30}; do
+            code="$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:53900/ || true)"
+            if [ "$code" != "000" ]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs atrisk-ci-garage
+          exit 1
 
       - name: Set up Go
         uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
@@ -75,8 +124,16 @@ jobs:
           go install github.com/go-task/task/v3/cmd/task@v3.44.1
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
+      - name: Run raw archive integration
+        run: task test-go-integration TEST=RawArchive
+
       - name: Run verification gate
         run: task verify
+
+      - name: Stop ephemeral Garage
+        if: always()
+        shell: bash
+        run: docker rm --force atrisk-ci-garage 2>/dev/null || true
 
       - name: Capture failure diagnostics
         if: failure()
