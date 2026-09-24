@@ -10,7 +10,7 @@
 
 ## Result
 
-`needs-review` — implementation and static checks pass, but Docker Desktop cannot start, so live service health and S3 smoke acceptance remain unverified.
+`blocked` — independent review is clear and static checks pass, but Docker Desktop cannot start, so live service health and S3 smoke acceptance remain unverified.
 
 ## Acceptance evidence
 
