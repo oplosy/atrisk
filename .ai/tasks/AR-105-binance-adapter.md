@@ -7,7 +7,7 @@ depends_on: [AR-102]
 branch: task/AR-105-binance-adapter
 base_sha: aca562e2777f078277535db74e90934f51091963
 owned_paths: [internal/sources/binance/, test/fixtures/binance/]
-shared_paths: [apps/collector/, db/queries/, contracts/, test/integration/]
+shared_paths: [apps/collector/, db/queries/, contracts/, test/integration/, internal/ingestion/]
 adrs: [ADR-002, ADR-005, ADR-006, ADR-011]
 ---
 
@@ -35,6 +35,11 @@ the market-data-only endpoint with deterministic time and rate-limit handling.
   exchange-info response. Missing requested symbols and explicit upstream
   status changes must produce observable status/quality evidence, not synthetic
   instruments or prices.
+- Shared-path rationale: the common HTTP fetcher currently retries HTTP 429 and
+  5xx but not Binance HTTP 418. Authorize `internal/ingestion/` only to add
+  bounded HTTP 418 retry handling using the upstream `Retry-After` value, with
+  tests. If the requested wait exceeds the configured maximum, fail closed
+  rather than retry early; never advance a checkpoint before persisted data.
 
 ## Out of scope
 
@@ -48,7 +53,7 @@ the market-data-only endpoint with deterministic time and rate-limit handling.
 - [ ] The current incomplete UTC daily candle is excluded using an injectable clock, and missing/delisted symbols are visible without inferring delisting from a single omission.
 - [ ] Millisecond open/close timestamps normalize to UTC; source decimal strings round-trip through exact decimal storage without floating-point conversion.
 - [ ] Unknown source publication time remains null with an explicit first-observed system basis.
-- [ ] HTTP 429/418 responses honor `Retry-After`, back off within configured bounds, and do not advance the checkpoint before data is durably accepted.
+- [ ] HTTP 429/418 responses respect `Retry-After`; if its duration exceeds configured wait bounds, fail without retrying early. Rate limits never advance a checkpoint before data is durably accepted.
 - [ ] Duplicate pages are idempotent and changed historical candles create append-only price revisions retaining raw provenance.
 
 ## Required verification
@@ -61,5 +66,5 @@ rg -n "TRADE|USER_DATA|apiKey|secret" internal/sources/binance
 
 The official documentation states that the data-only host requires no
 authentication and serves only public market data; Spot rate-limit responses
-include `Retry-After` for HTTP 429/418. The public kline response represents
+include `Retry-After` for HTTP 429/418 [as specified in the Spot REST API guide](https://developers.binance.com/en/docs/products/spot/rest-api). The public kline response represents
 prices as decimal strings and timestamps in milliseconds by default.
