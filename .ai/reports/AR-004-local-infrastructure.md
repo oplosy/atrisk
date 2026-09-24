@@ -10,7 +10,7 @@
 
 ## Result
 
-`needs-review` — live runtime acceptance now passes after Docker became available again. No Docker settings were changed during recovery verification.
+`complete` — live runtime acceptance passed, independent review found no blockers, and runtime evidence PR #8 merged to main. No Docker settings were changed during recovery verification.
 
 ## Acceptance evidence
 
@@ -46,22 +46,25 @@
 | `docker ps -a --filter name=atrisk-test-d5ae4c1cdf1ead64` | pass; no test containers remain |
 | `docker volume ls --filter name=atrisk-test-d5ae4c1cdf1ead64` | pass; no test volumes remain |
 | `docker network ls --filter name=atrisk-test-d5ae4c1cdf1ead64` | pass; no test network remains |
+| `gh pr checks 8 --watch` | pass; required GitHub Actions Verify succeeded. |
 | `git diff --check` | pass |
 
 ## Change inventory
 
-- Files changed in this runtime-proof branch: `.ai/tasks/AR-004-local-infrastructure.md` and this report; implementation code was merged in PR #5.
-- Orchestrator-only bookkeeping: AR-004 status returned from `blocked` to `active` after runtime availability was restored, then moved to `review` after independent review found no blockers.
+- Files changed in the runtime-proof branch: `.ai/tasks/AR-004-local-infrastructure.md` and this report; implementation code was merged in PR #5.
+- Orchestrator-only bookkeeping: AR-004 status returned from `blocked` to `active` after runtime availability was restored, moved to `review` after independent review, and is marked `merged` in this follow-up branch.
 - Schema/API changes: none.
 - Generated artifacts: none.
 
 ## Git state
 
 - Implementation PR: #5, merge commit `b59acf82fda547e84b99a00cf9d9a5601dac6f59`.
+- Runtime-proof PR: #8, merged 2026-09-24; merge commit `f2bf9b6ef240559a1fd07c39717fa79186155c90`.
 - Runtime-proof branch: `task/AR-004-runtime-proof`, based on main `6156389a42c5422ff49706cea6d02b271f02c99d`; runtime-evidence commit `ee66f0acb61cfcbe0ee7cd0f3d90396ca8850ca8`.
 - Runtime acceptance: verified 2026-09-24; dev project `atrisk` remains running and healthy on loopback. Isolated smoke project `atrisk-test-d5ae4c1cdf1ead64` was removed with no leftover containers, volumes, or networks.
 - `origin/task/AR-004-runtime-proof` verified at `ee66f0acb61cfcbe0ee7cd0f3d90396ca8850ca8` before the review-state update.
-- Worktree: clean at runtime-evidence commit `ee66f0acb61cfcbe0ee7cd0f3d90396ca8850ca8`; this commit records review status and closes the report gap.
+- Lifecycle-finalization branch: `task/AR-004-status-finalization`, based on merge commit `f2bf9b6ef240559a1fd07c39717fa79186155c90`; it records the final `merged` packet state through a follow-up PR.
+- Worktree: clean at runtime-evidence handoff; final lifecycle/report changes are in progress.
 
 ## Assumptions and risks
 

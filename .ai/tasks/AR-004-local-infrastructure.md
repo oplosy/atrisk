@@ -1,7 +1,7 @@
 ---
 id: AR-004
 title: Provide isolated local infrastructure
-status: review
+status: merged
 phase: 0
 depends_on: [AR-002]
 branch: task/AR-004-local-infrastructure
