@@ -26,10 +26,10 @@ there is no AR-101 runtime failure.
 | Criterion | Evidence |
 |---|---|
 | Changed values insert new revisions; historical rows cannot be updated/deleted. | `db/migrations/00001_core_database.sql` gives observation, price, and FX revisions immutable triggers; `TestCoreDatabase` inserts changed observation/price/FX values and asserts UPDATE/DELETE fail when an isolated DSN is provided. |
-| Identical normalized/raw identities are idempotent under concurrent insert. | `UNIQUE NULLS NOT DISTINCT` identity constraints plus `ON CONFLICT DO NOTHING` query methods; `TestCoreDatabase` races eight identical inserts and expects one affected row. |
+| Identical normalized/raw identities are idempotent under concurrent insert. | `UNIQUE NULLS NOT DISTINCT` identity constraints plus `ON CONFLICT DO NOTHING` query methods; `TestCoreDatabase` races eight identical raw-object, observation, price, and FX inserts and expects one affected row for each identity. |
 | Exact values round-trip without precision loss. | All financial values use `NUMERIC(38,18)`; the integration fixture checks `123.456789012345678901` after a database round-trip. |
 | Source and system knowledge timestamps may differ or source time may be null. | Revision tables contain nullable `source_known_at`, non-null `system_known_at`, and checked `knowledge_time_basis`; the fixture inserts both source-known and first-observed-by-system rows. |
-| Query plans use intended indexes for series/time/as-of fixture queries. | Time, system-as-of, and source-as-of indexes are defined for each revision family; the fixture asserts observation, price, and FX time/system/source index names in `EXPLAIN` output. |
+| Query plans use intended indexes for series/time/as-of fixture queries. | Time, system-as-of, and source-as-of indexes are defined for each revision family; the fixture seeds selective rows, runs default `EXPLAIN (ANALYZE, BUFFERS)`, and asserts observation, price, and FX time/system/source index names without disabling sequential scans. |
 | Source metadata is immutable and ingestion source/dataset identity is enforced. | `00002_core_database_hardening.sql` adds immutable source/dataset/series triggers and a composite `(source_id, dataset_id)` FK; changed metadata inserts return zero and direct source/dataset/series UPDATEs fail. |
 
 ## Stop-condition check
@@ -44,8 +44,8 @@ there is no AR-101 runtime failure.
 | `sqlc generate -f db/queries/core/sqlc.yaml` | pass; generated query layer is deterministic and compiles. |
 | `go test ./...` | pass. |
 | `go vet ./apps/... ./internal/... ./test/integration` | pass. |
-| `go test ./test/integration -run TestTestDatabaseDSNValidation -count=1` | pass; missing, substring-only, remote-host, missing-port, and missing-user DSNs are rejected without opening a connection; `database.Migrate` rejects them at its entrypoint too. |
-| `go test -race ./test/integration` | pass against isolated `atrisk_test`; concurrent idempotency, metadata immutability, source/dataset FK, revision, as-of, and planner assertions passed. |
+| `go test ./test/integration -run TestTestDatabaseDSNValidation -count=1` | pass; missing, substring-only, remote-host, missing-port, missing-user, query override, duplicate, service, and unsafe SSL DSNs are rejected without opening a connection; explicit URI fields remain isolated under conflicting PostgreSQL environment defaults; `database.Migrate` rejects them at its entrypoint too. |
+| `go test -race ./test/integration` | pass against isolated `atrisk_test`; concurrent raw/observation/price/FX idempotency, metadata immutability, source/dataset FK, exact as-of values, and default planner assertions passed. |
 | `go run github.com/go-task/task/v3/cmd/task@v3.44.1 migrate-test` without DSN | fail closed as required: `ATLASRISK_TEST_DATABASE_URL is required`. |
 | `go run github.com/go-task/task/v3/cmd/task@v3.44.1 test-go-integration TEST=CoreDatabase` without DSN | fail closed as required: selected integration tests reject the missing DSN. |
 | `go run github.com/go-task/task/v3/cmd/task@v3.44.1 migrate-test` with isolated DSN | pass against `atrisk_test`; migration version 2 and all eight core tables verified, repeated migration is a no-op. |
@@ -64,10 +64,10 @@ there is no AR-101 runtime failure.
 ## Git state
 
 - Branch: `task/AR-101-core-database-model`
-- Reviewed implementation commit: `300ba630941b1a7468b6a0e819e66d5ccc7d6810`
-- Current report/lifecycle commit: `561dc224694002a127d332302f3973f3edb9de13`
-- Remote branch: `origin/task/AR-101-core-database-model` at `561dc224694002a127d332302f3973f3edb9de13`
-- Worktree: clean
+- Reviewed implementation commits: `300ba630941b1a7468b6a0e819e66d5ccc7d6810`, `c10dca2e6fc72d10b2237c6a0c7ec2d08328b901`
+- Current report/lifecycle commit: this report-correction commit (final HEAD reported in handoff)
+- Remote branch: `origin/task/AR-101-core-database-model` synchronized with the final report-correction commit
+- Worktree: clean after the report-correction commit
 
 ## Assumptions and risks
 
