@@ -15,6 +15,7 @@
 ## Review follow-up
 
 - Independent review found five blocking issues. Redirect/error redaction, conditional S3 create/content validation, database conflict validation, and the required PostgreSQL integration proof are now implemented. No local Docker or service action was used.
+- Second review found one remaining Garage proof gap, and hosted CI exposed an idempotent PostgreSQL-registration test failure; both are being fixed on this task branch before another review.
 
 ## Acceptance evidence
 
