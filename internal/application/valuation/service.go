@@ -25,6 +25,8 @@ var (
 	ErrDatabase       = errors.New("valuation database unavailable")
 )
 
+const maxAgeSeconds int64 = 9223372036
+
 type Service struct{ Pool *pgxpool.Pool }
 
 type snapshotLine struct {
@@ -165,7 +167,7 @@ func (s Service) Get(ctx context.Context, id string) (domain.Run, error) {
 }
 
 func validRequest(r domain.Request) bool {
-	return validUUID(r.SnapshotID) && !r.Cutoff.IsZero() && !r.KnownAt.IsZero() && (r.KnowledgeMode == domain.KnowledgeSystem || r.KnowledgeMode == domain.KnowledgeSource) && r.PriceMaxAgeSeconds >= 0 && r.FXMaxAgeSeconds >= 0
+	return validUUID(r.SnapshotID) && !r.Cutoff.IsZero() && !r.KnownAt.IsZero() && (r.KnowledgeMode == domain.KnowledgeSystem || r.KnowledgeMode == domain.KnowledgeSource) && r.PriceMaxAgeSeconds >= 0 && r.PriceMaxAgeSeconds <= maxAgeSeconds && r.FXMaxAgeSeconds >= 0 && r.FXMaxAgeSeconds <= maxAgeSeconds
 }
 
 func validUUID(value string) bool {

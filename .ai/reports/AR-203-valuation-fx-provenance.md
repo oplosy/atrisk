@@ -53,7 +53,7 @@
 ## Git state
 
 - Branch: `task/AR-203-valuation-fx-provenance`
-- Commit SHA: `5f50575982f18207404b4e36f4263058e0703123` (implementation); report update follows as a separate documentation commit.
+- Commit SHA: pending final overflow-guard fix commit
 - Remote branch: push blocked by egress authorization policy; local branch is ready for authorized push
 - Worktree: clean
 
@@ -62,4 +62,5 @@
 - TRY and USD FX paths are persisted as separate parallel UUID/direction arrays; selected price quote unit is persisted alongside the price revision.
 - ISO-4217 parsing rejects non-fiat special codes and asset tickers; FX rates are constrained positive in PostgreSQL and checked before reciprocal traversal.
 - Totals are calculated from the rounded `NUMERIC(38,18)` line values; half-scale ties use half-away-from-zero rounding.
+- Freshness windows are capped at `9223372036` seconds before `time.Duration` conversion to prevent integer overflow.
 - Local integration evidence is pending CI because the configured isolated PostgreSQL/S3 services are not available; generated checks passed after elevated retry; no Docker or host settings were changed.

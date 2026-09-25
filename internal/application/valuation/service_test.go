@@ -68,6 +68,16 @@ func TestValuationValidRequestRequiresBothClocksAndFreshness(t *testing.T) {
 	if validRequest(base) {
 		t.Fatal("expected missing knowledge clock to be rejected")
 	}
+	base.KnownAt = time.Now()
+	base.PriceMaxAgeSeconds = maxAgeSeconds + 1
+	if validRequest(base) {
+		t.Fatal("expected price freshness overflow to be rejected")
+	}
+	base.PriceMaxAgeSeconds = 1
+	base.FXMaxAgeSeconds = maxAgeSeconds + 1
+	if validRequest(base) {
+		t.Fatal("expected FX freshness overflow to be rejected")
+	}
 }
 
 func TestValuationPointInTimeSelectorRejectsFutureStaleAndUnknown(t *testing.T) {
