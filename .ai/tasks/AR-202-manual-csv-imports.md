@@ -1,7 +1,7 @@
 ---
 id: AR-202
 title: Add safe manual CSV imports
-status: review
+status: merged
 phase: 2
 depends_on: [AR-201]
 branch: task/AR-202-manual-csv-imports
@@ -70,16 +70,16 @@ imports with row-level diagnostics and no partial or executable content.
 
 ## Acceptance criteria
 
-- [ ] Published templates, examples, OpenAPI and JSON Schemas agree on version, ordered headers, cell rules, and decimal strings.
-- [ ] Preview covers valid imports and invalid encoding/BOM/CSV quoting, MIME, headers/cells, row/file bounds, timestamps, UUIDs, precision/scale, locale ambiguity, formulas, and duplicates; diagnostics cap at 100 without raw values.
-- [ ] Failed preview/commit leaves no snapshots, lines, price revisions, or committed-result rows; multi-row writes are transactionally atomic.
-- [ ] Preview token binds kind, target, schema, content SHA-256, and expiry; changed bytes/target/schema, reused or expired token, and token-kind mismatch fail without writes.
-- [ ] Concurrent same-kind commits with the same idempotency key create one result; identical replay returns the original result and changed request returns structured `409`.
-- [ ] Position import creates one immutable snapshot with exact values and optional cost/risk attributes; price import creates immutable revisions with correct raw object, knowledge-time basis, and exact decimals.
-- [ ] Successful imports archive byte-identical CSV under its content hash and persist a content-addressed raw-object row; failed imports create no committed raw/domain lineage.
-- [ ] Both import kinds expose preview/commit APIs with structured `400/409/413/415` errors, no raw CSV listing, and no CSV content in logs.
-- [ ] PostgreSQL migration passes from empty and AR-201 schemas; token/idempotency constraints are database-enforced and concurrent tests pass.
-- [ ] `task verify` and generated-contract drift checks pass; report separates local and hosted evidence.
+- [x] Published templates, examples, OpenAPI and JSON Schemas agree on version, ordered headers, cell rules, and decimal strings.
+- [x] Preview covers valid imports and invalid encoding/BOM/CSV quoting, MIME, headers/cells, row/file bounds, timestamps, UUIDs, precision/scale, locale ambiguity, formulas, and duplicates; diagnostics cap at 100 without raw values.
+- [x] Failed preview/commit leaves no snapshots, lines, price revisions, or committed-result rows; multi-row writes are transactionally atomic.
+- [x] Preview token binds kind, target, schema, content SHA-256, expiry, and position `captured_at`; changed bytes/target/schema/captured time, reused or expired token, and token-kind mismatch fail without writes.
+- [x] Concurrent same-kind commits with the same idempotency key create one result; identical replay returns the original result and changed request returns structured `409`.
+- [x] Position import creates one immutable snapshot with exact values and optional cost/risk attributes; price import creates immutable revisions with correct raw object, knowledge-time basis, and exact decimals.
+- [x] Successful imports archive byte-identical CSV under its content hash and persist a content-addressed raw-object row; failed imports create no committed raw/domain lineage.
+- [x] Both import kinds expose preview/commit APIs with structured `400/409/413/415` errors, no raw CSV listing, and no CSV content in logs.
+- [x] PostgreSQL migration passes from empty and AR-201 schemas; token/idempotency constraints are database-enforced and concurrent tests pass.
+- [x] `task verify` and generated-contract drift checks pass; report separates local and hosted evidence.
 
 ## Required verification
 

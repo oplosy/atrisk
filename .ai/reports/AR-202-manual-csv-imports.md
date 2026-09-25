@@ -10,7 +10,7 @@
 
 ## Result
 
-`needs-review`
+`complete`
 
 ## Acceptance evidence
 
@@ -24,12 +24,12 @@
 | AC-6 | Position writes use `NUMERIC` strings and nullable optional fields; price writes preserve normalized uppercase quote code, knowledge basis, exact price, and raw object id. |
 | AC-7 | `archive.ArchivePayload` is called before transactional raw-object registration; database lineage uses the content hash. |
 | AC-8 | Handler returns structured 400/409/413/415 errors with a local `import-<UnixNano>` request_id and does not log CSV bytes; `apps/api/cmd/api/main.go` now registers both import route prefixes and configures the established S3/Garage store from CI environment variables. |
-| AC-9 | Migration is ordered after AR-201/AR-105 and integration test is included; hosted migration execution remains required. |
+| AC-9 | Hosted CI run #73 passed `task migrate-test`, `task verify`, and generated-contract checks after the migration-version assertion was advanced to v5. |
 
 ## Stop-condition check
 
 - Decision or scope conflict: none. Main API routes now use the existing `ATLASRISK_S3_*`/AWS environment contract.
-- Local PostgreSQL/Docker was intentionally not started. Hosted CI must run the migration and `ImportAPI` integration test before merge.
+- Local PostgreSQL/Docker was intentionally not started. Hosted CI run #73 exercised PostgreSQL and ephemeral Garage and passed all required integration, migration, and verification steps.
 
 ## Verification
 
@@ -41,28 +41,28 @@
 | `go test ./internal/imports -count=1` | pass, including invalid-target and lowercase quote normalization regressions |
 | `go test ./apps/api/handlers/imports -count=1` | pass, error envelope request_id regression |
 | OpenAPI import commit header validation | pass; both operations reference required `ImportIdempotencyKey` |
-| `go test ./test/integration -run '^$' -count=1` | pass; integration package compiles. Captured-at conflict, archive-outage replay, invalid-token no-archive, and positions/manual-price HTTP preview/commit assertions are queued in the hosted `ImportAPI` PostgreSQL job |
+| `go test ./test/integration -run '^$' -count=1` | pass; integration package compiles. Captured-at conflict, archive-outage replay, invalid-token no-archive, and positions/manual-price HTTP preview/commit assertions passed in hosted CI |
 | `go vet ./apps/... ./internal/...` | pass |
 | `go build ./apps/...` | pass |
 | `node --test test/contract/contract.test.mjs` | pass, 11 tests (run with elevated child-process permission after sandbox `spawn EPERM`) |
 | `git diff --check` | pass |
 | `task test-go TEST=Parse` | not run; Task CLI unavailable locally |
-| `task test-go-integration TEST=ImportAPI` | not run; local PostgreSQL intentionally not started |
-| `task migrate-test` | Hosted run #72 exposed two stale hard-coded v4 expectations after migration 00005; both now expect v5. Rerun pending |
-| `task verify` | not run; local infrastructure intentionally untouched |
+| `task test-go-integration TEST=ImportAPI` | pass in hosted CI run #73, including both import kinds and HTTP preview/commit routes |
+| `task migrate-test` | pass in hosted CI run #73; run #72 identified the stale v4 assertion, corrected to v5 before rerun |
+| `task verify` | pass in hosted CI run #73 |
+| GitHub Actions CI run #73 | pass: all integration steps, migration verification, and full verification gate |
 
 ## Change inventory
 
-- Files changed: strict parser/service/handler, API route/archive wiring, migration, CSV templates/examples/schemas, OpenAPI/CI, PostgreSQL/HTTP integration test, regression tests, this report.
+- Files changed: strict parser/service/handler, API route/archive wiring, migration, CSV templates/examples/schemas, OpenAPI/CI, PostgreSQL/HTTP integration tests and migration expectations, regression tests, this report.
 - Schema/API changes: `import_preview_tokens`, `import_results`; four preview/commit multipart endpoints.
 - Generated artifacts: none; no generated contract source is owned by this packet.
 
 ## Git state
 
-- Branch: `task/AR-202-manual-csv-imports`
-- Commit SHA: `cdc14f7915a27dc02f6b1944028dffcfd5ecf45d`
-- Remote branch: not pushed by this worker
-- Worktree: clean after commit
+- Implementation branch: `task/AR-202-manual-csv-imports`, final commit `9dc5be8223b99a6be512d499cbc60c204157adcb`, merged by PR #29 into `main` at `2ea50c63758eabc4ff5c37f8940c9708a5fec582`.
+- Remote implementation branch retained for history.
+- Implementation worktree cleanup is performed after this metadata handoff; primary `main` is clean at the merge commit.
 
 ## Assumptions and risks
 
