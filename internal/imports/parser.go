@@ -233,6 +233,9 @@ func parsePosition(record []string, row int, r *Result, add func(int, string, st
 	}
 }
 func parsePrice(record []string, row int, r *Result, add func(int, string, string, string), seen map[string]struct{}) {
+	// Unit codes are semantic identifiers, not free-form labels. Normalize
+	// their case before validation, duplicate detection, and persistence.
+	record[1] = strings.ToUpper(record[1])
 	addCell(add, row, "instrument_id", record[0], true)
 	addCell(add, row, "quote_currency", record[1], true)
 	addCell(add, row, "observation_time", record[2], true)

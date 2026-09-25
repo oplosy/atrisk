@@ -3,10 +3,12 @@ package integration
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/textproto"
 	"testing"
 	"time"
 
@@ -67,7 +69,10 @@ func TestImportAPI(t *testing.T) {
 	_ = writer.WriteField("schema_version", manualimports.SchemaVersion)
 	_ = writer.WriteField("target_id", p.ID)
 	_ = writer.WriteField("captured_at", "2026-01-02T03:04:05+02:00")
-	part, err := writer.CreateFormFile("file", "positions-v1.csv")
+	part, err := writer.CreatePart(textproto.MIMEHeader{
+		"Content-Disposition": []string{`form-data; name="file"; filename="positions-v1.csv"`},
+		"Content-Type":        []string{"text/csv"},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,6 +88,15 @@ func TestImportAPI(t *testing.T) {
 	apiimports.New(svc).ServeHTTP(recorder, httpRequest)
 	if recorder.Code != http.StatusOK || !bytes.Contains(recorder.Body.Bytes(), []byte(`"valid":true`)) {
 		t.Fatalf("HTTP preview status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	replayWithoutArchive, err := (manualimports.Service{Pool: pool}).Commit(ctx, manualimports.CommitRequest{Kind: manualimports.KindPositions, TargetID: p.ID, SchemaVersion: manualimports.SchemaVersion, CapturedAt: "2026-01-02T03:04:05+02:00", Token: preview.Token, IdempotencyKey: "import-fixture-1", Body: body})
+	if err != nil || replayWithoutArchive["snapshot_id"] != result["snapshot_id"] {
+		t.Fatalf("archive-outage replay=%v err=%v", replayWithoutArchive, err)
+	}
+	beforeInvalidToken := len(store.objects)
+	_, err = svc.Commit(ctx, manualimports.CommitRequest{Kind: manualimports.KindPositions, TargetID: p.ID, SchemaVersion: manualimports.SchemaVersion, CapturedAt: "2026-01-02T03:04:05+02:00", Token: "invalid-token", IdempotencyKey: "import-fixture-invalid", Body: body})
+	if !errors.Is(err, manualimports.ErrConflict) || len(store.objects) != beforeInvalidToken {
+		t.Fatalf("invalid token archive side effect err=%v objects=%d before=%d", err, len(store.objects), beforeInvalidToken)
 	}
 	replay, err := svc.Commit(ctx, manualimports.CommitRequest{Kind: manualimports.KindPositions, TargetID: p.ID, SchemaVersion: manualimports.SchemaVersion, CapturedAt: "2026-01-02T03:04:05+02:00", Token: preview.Token, IdempotencyKey: "import-fixture-1", Body: body})
 	if err != nil || replay["snapshot_id"] != result["snapshot_id"] {

@@ -93,13 +93,13 @@
       "post": { "operationId": "previewPositionsImport", "requestBody": { "$ref": "#/components/requestBodies/CSVImport" }, "responses": { "200": { "description": "Bounded CSV preview", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ImportPreview" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" }, "413": { "$ref": "#/components/responses/PayloadTooLarge" }, "415": { "$ref": "#/components/responses/UnsupportedMediaType" } } }
     },
     "/api/v1/imports/positions/commit": {
-      "post": { "operationId": "commitPositionsImport", "requestBody": { "$ref": "#/components/requestBodies/CSVImport" }, "responses": { "201": { "description": "Committed position snapshot", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ImportResult" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" }, "409": { "$ref": "#/components/responses/Conflict" }, "413": { "$ref": "#/components/responses/PayloadTooLarge" }, "415": { "$ref": "#/components/responses/UnsupportedMediaType" } } }
+      "post": { "operationId": "commitPositionsImport", "parameters": [{ "$ref": "#/components/parameters/ImportIdempotencyKey" }], "requestBody": { "$ref": "#/components/requestBodies/CSVCommitImport" }, "responses": { "201": { "description": "Committed position snapshot", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ImportResult" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" }, "409": { "$ref": "#/components/responses/Conflict" }, "413": { "$ref": "#/components/responses/PayloadTooLarge" }, "415": { "$ref": "#/components/responses/UnsupportedMediaType" } } }
     },
     "/api/v1/imports/manual-prices/preview": {
       "post": { "operationId": "previewManualPricesImport", "requestBody": { "$ref": "#/components/requestBodies/CSVImport" }, "responses": { "200": { "description": "Bounded CSV preview", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ImportPreview" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" }, "413": { "$ref": "#/components/responses/PayloadTooLarge" }, "415": { "$ref": "#/components/responses/UnsupportedMediaType" } } }
     },
     "/api/v1/imports/manual-prices/commit": {
-      "post": { "operationId": "commitManualPricesImport", "requestBody": { "$ref": "#/components/requestBodies/CSVImport" }, "responses": { "201": { "description": "Committed price revisions", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ImportResult" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" }, "409": { "$ref": "#/components/responses/Conflict" }, "413": { "$ref": "#/components/responses/PayloadTooLarge" }, "415": { "$ref": "#/components/responses/UnsupportedMediaType" } } }
+      "post": { "operationId": "commitManualPricesImport", "parameters": [{ "$ref": "#/components/parameters/ImportIdempotencyKey" }], "requestBody": { "$ref": "#/components/requestBodies/CSVCommitImport" }, "responses": { "201": { "description": "Committed price revisions", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ImportResult" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" }, "409": { "$ref": "#/components/responses/Conflict" }, "413": { "$ref": "#/components/responses/PayloadTooLarge" }, "415": { "$ref": "#/components/responses/UnsupportedMediaType" } } }
     }
   },
   "components": {
@@ -147,7 +147,8 @@
       "ObservationPage": { "type": "object", "required": ["items", "limit", "has_more"], "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/Observation" } }, "limit": { "type": "integer" }, "next_cursor": { "type": "string" }, "has_more": { "type": "boolean" } } }
     },
     "requestBodies": {
-      "CSVImport": { "required": true, "content": { "multipart/form-data": { "schema": { "type": "object", "required": ["file", "schema_version", "target_id"], "properties": { "file": { "type": "string", "format": "binary" }, "schema_version": { "type": "string", "const": "1.0" }, "target_id": { "type": "string", "format": "uuid" }, "token": { "type": "string" } } } } } }
+      "CSVImport": { "required": true, "content": { "multipart/form-data": { "schema": { "type": "object", "required": ["file", "schema_version", "target_id"], "properties": { "file": { "type": "string", "format": "binary" }, "schema_version": { "type": "string", "const": "1.0" }, "target_id": { "type": "string", "format": "uuid" }, "captured_at": { "type": "string", "format": "date-time", "description": "Required for position imports; RFC 3339 with explicit offset." }, "token": { "type": "string" } } } } } },
+      "CSVCommitImport": { "required": true, "content": { "multipart/form-data": { "schema": { "type": "object", "required": ["file", "schema_version", "target_id", "token"], "properties": { "file": { "type": "string", "format": "binary" }, "schema_version": { "type": "string", "const": "1.0" }, "target_id": { "type": "string", "format": "uuid" }, "captured_at": { "type": "string", "format": "date-time", "description": "Required for position imports; RFC 3339 with explicit offset." }, "token": { "type": "string" } } } } } }
     },
     "parameters": {
       "SeriesId": { "name": "series_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
@@ -171,6 +172,11 @@
         "name": "Idempotency-Key", "in": "header", "required": false,
         "schema": { "type": "string", "minLength": 1, "maxLength": 255 },
         "description": "Stable key for retry-safe mutating requests."
+      },
+      "ImportIdempotencyKey": {
+        "name": "Idempotency-Key", "in": "header", "required": true,
+        "schema": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "description": "Required stable key for retry-safe CSV commits."
       }
     },
     "responses": {

@@ -136,6 +136,9 @@ jobs:
       - name: Run portfolio API integration
         run: task test-go-integration TEST=PortfolioAPI
 
+      - name: Run manual CSV import integration
+        run: task test-go-integration TEST=ImportAPI
+
       - name: Run verification gate
         run: task verify
 

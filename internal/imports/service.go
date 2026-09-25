@@ -57,11 +57,12 @@ func (s Service) now() time.Time {
 }
 
 func (s Service) Preview(ctx context.Context, req PreviewRequest) (PreviewResponse, error) {
+	target := strings.ToLower(strings.TrimSpace(req.TargetID))
+	if req.SchemaVersion != SchemaVersion || !validUUID(target) || (req.Kind != KindPositions && req.Kind != KindManualPrices) {
+		return PreviewResponse{}, ErrInvalidRequest
+	}
 	if s.Pool == nil {
 		return PreviewResponse{}, ErrUnavailable
-	}
-	if req.SchemaVersion != SchemaVersion || strings.TrimSpace(req.TargetID) == "" || (req.Kind != KindPositions && req.Kind != KindManualPrices) {
-		return PreviewResponse{}, ErrInvalidRequest
 	}
 	if req.Kind == KindPositions {
 		if _, err := parseRFC3339(req.CapturedAt); err != nil {
@@ -69,11 +70,10 @@ func (s Service) Preview(ctx context.Context, req PreviewRequest) (PreviewRespon
 		}
 	}
 	parsed := Parse(req.Body, req.Kind)
-	response := PreviewResponse{ImportKind: req.Kind, TargetID: req.TargetID, SchemaVersion: req.SchemaVersion, ContentSHA256: parsed.ContentSHA256, RowCount: parsed.RowCount, Valid: parsed.Valid, Diagnostics: parsed.Diagnostics, DiagnosticsTruncated: parsed.DiagnosticsTruncated}
+	response := PreviewResponse{ImportKind: req.Kind, TargetID: target, SchemaVersion: req.SchemaVersion, ContentSHA256: parsed.ContentSHA256, RowCount: parsed.RowCount, Valid: parsed.Valid, Diagnostics: parsed.Diagnostics, DiagnosticsTruncated: parsed.DiagnosticsTruncated}
 	if !parsed.Valid {
 		return response, nil
 	}
-	target := strings.TrimSpace(req.TargetID)
 	if req.Kind == KindPositions {
 		var exists string
 		if err := s.Pool.QueryRow(ctx, `SELECT id::text FROM portfolios WHERE id=$1::uuid`, target).Scan(&exists); err != nil {
@@ -97,11 +97,12 @@ func (s Service) Preview(ctx context.Context, req PreviewRequest) (PreviewRespon
 }
 
 func (s Service) Commit(ctx context.Context, req CommitRequest) (map[string]any, error) {
-	if s.Pool == nil || s.Archive == nil {
-		return nil, ErrUnavailable
-	}
-	if req.SchemaVersion != SchemaVersion || req.Token == "" || req.IdempotencyKey == "" || len(req.IdempotencyKey) > 255 || strings.TrimSpace(req.TargetID) == "" {
+	target := strings.ToLower(strings.TrimSpace(req.TargetID))
+	if req.SchemaVersion != SchemaVersion || !validUUID(target) || req.Token == "" || req.IdempotencyKey == "" || len(req.IdempotencyKey) > 255 {
 		return nil, ErrInvalidRequest
+	}
+	if s.Pool == nil {
+		return nil, ErrUnavailable
 	}
 	capturedAt := s.now()
 	if req.Kind == KindPositions {
@@ -118,12 +119,6 @@ func (s Service) Commit(ctx context.Context, req CommitRequest) (map[string]any,
 	digest := sha256.Sum256([]byte(req.Token))
 	tokenDigest := hex.EncodeToString(digest[:])
 	contentHash := parsed.ContentSHA256
-	// Archive is immutable and content-addressed. The database transaction below
-	// decides whether the raw object receives domain lineage.
-	ref, err := archive.ArchivePayload(ctx, s.Archive, req.Body, "text/csv; charset=utf-8", map[string]string{"import-kind": req.Kind})
-	if err != nil {
-		return nil, fmt.Errorf("archive CSV: %w", err)
-	}
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin import transaction: %w", err)
@@ -136,7 +131,7 @@ func (s Service) Commit(ctx context.Context, req CommitRequest) (map[string]any,
 	}
 	err = tx.QueryRow(ctx, `SELECT target_id::text, schema_version, content_sha256, row_count, response FROM import_results WHERE import_kind=$1 AND idempotency_key=$2`, req.Kind, req.IdempotencyKey).Scan(&existing.Target, &existing.Schema, &existing.Hash, &existing.Rows, &existing.Response)
 	if err == nil {
-		if existing.Target != req.TargetID || existing.Schema != req.SchemaVersion || existing.Hash != contentHash || existing.Rows != parsed.RowCount {
+		if existing.Target != target || existing.Schema != req.SchemaVersion || existing.Hash != contentHash || existing.Rows != parsed.RowCount {
 			return nil, ErrConflict
 		}
 		var response map[string]any
@@ -156,8 +151,19 @@ func (s Service) Commit(ctx context.Context, req CommitRequest) (map[string]any,
 	if err != nil {
 		return nil, fmt.Errorf("lookup preview token: %w", err)
 	}
-	if storedKind != req.Kind || storedTarget != req.TargetID || storedSchema != req.SchemaVersion || storedHash != contentHash {
+	if storedKind != req.Kind || storedTarget != target || storedSchema != req.SchemaVersion || storedHash != contentHash {
 		return nil, ErrConflict
+	}
+	if err := validateDomainRows(ctx, tx, req.Kind, target, parsed); err != nil {
+		return nil, err
+	}
+	if s.Archive == nil {
+		return nil, ErrUnavailable
+	}
+	// Archive only after idempotency, token, target, and domain validation.
+	ref, err := archive.ArchivePayload(ctx, s.Archive, req.Body, "text/csv; charset=utf-8", map[string]string{"import-kind": req.Kind})
+	if err != nil {
+		return nil, fmt.Errorf("archive CSV: %w", err)
 	}
 	var rawID string
 	err = tx.QueryRow(ctx, `INSERT INTO raw_objects (content_sha256,object_key,media_type,byte_length,retrieved_at,request_metadata) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (content_sha256) DO NOTHING RETURNING id::text`, ref.ContentSHA256, ref.Key, ref.MediaType, ref.ByteLength, s.now(), `{"import":true}`).Scan(&rawID)
@@ -169,7 +175,7 @@ func (s Service) Commit(ctx context.Context, req CommitRequest) (map[string]any,
 	}
 	var result map[string]any
 	if req.Kind == KindPositions {
-		result, err = s.commitPositions(ctx, tx, req.TargetID, capturedAt, parsed, rawID, contentHash)
+		result, err = s.commitPositions(ctx, tx, target, capturedAt, parsed, rawID, contentHash)
 	} else {
 		result, err = s.commitPrices(ctx, tx, parsed, rawID, contentHash)
 	}
@@ -177,7 +183,7 @@ func (s Service) Commit(ctx context.Context, req CommitRequest) (map[string]any,
 		return nil, err
 	}
 	result["import_kind"] = req.Kind
-	result["target_id"] = req.TargetID
+	result["target_id"] = target
 	result["schema_version"] = req.SchemaVersion
 	result["content_sha256"] = contentHash
 	result["row_count"] = parsed.RowCount
@@ -188,7 +194,7 @@ func (s Service) Commit(ctx context.Context, req CommitRequest) (map[string]any,
 	}
 	result["import_result_id"] = resultID
 	resultBytes, _ = json.Marshal(result)
-	err = tx.QueryRow(ctx, `INSERT INTO import_results (id,import_kind,idempotency_key,target_id,schema_version,content_sha256,row_count,raw_object_id,response) VALUES ($1::uuid,$2,$3,$4::uuid,$5,$6,$7,$8::uuid,$9) ON CONFLICT (import_kind,idempotency_key) DO NOTHING RETURNING id::text`, resultID, req.Kind, req.IdempotencyKey, req.TargetID, req.SchemaVersion, contentHash, parsed.RowCount, rawID, resultBytes).Scan(&resultID)
+	err = tx.QueryRow(ctx, `INSERT INTO import_results (id,import_kind,idempotency_key,target_id,schema_version,content_sha256,row_count,raw_object_id,response) VALUES ($1::uuid,$2,$3,$4::uuid,$5,$6,$7,$8::uuid,$9) ON CONFLICT (import_kind,idempotency_key) DO NOTHING RETURNING id::text`, resultID, req.Kind, req.IdempotencyKey, target, req.SchemaVersion, contentHash, parsed.RowCount, rawID, resultBytes).Scan(&resultID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		var target, schema, hash string
 		var rows int
@@ -196,7 +202,7 @@ func (s Service) Commit(ctx context.Context, req CommitRequest) (map[string]any,
 		if lookupErr := tx.QueryRow(ctx, `SELECT target_id::text,schema_version,content_sha256,row_count,response FROM import_results WHERE import_kind=$1 AND idempotency_key=$2`, req.Kind, req.IdempotencyKey).Scan(&target, &schema, &hash, &rows, &response); lookupErr != nil {
 			return nil, ErrConflict
 		}
-		if target != req.TargetID || schema != req.SchemaVersion || hash != contentHash || rows != parsed.RowCount {
+		if target != strings.ToLower(req.TargetID) || schema != req.SchemaVersion || hash != contentHash || rows != parsed.RowCount {
 			return nil, ErrConflict
 		}
 		var replay map[string]any
@@ -223,6 +229,32 @@ func newUUID() (string, error) {
 	b[6] = (b[6] & 0x0f) | 0x40
 	b[8] = (b[8] & 0x3f) | 0x80
 	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
+}
+
+func validateDomainRows(ctx context.Context, tx pgx.Tx, kind, target string, parsed Result) error {
+	if kind == KindPositions {
+		var portfolioID string
+		if err := tx.QueryRow(ctx, `SELECT id::text FROM portfolios WHERE id=$1::uuid`, target).Scan(&portfolioID); err != nil {
+			return ErrInvalidRequest
+		}
+		for _, row := range parsed.Positions {
+			var id string
+			if err := tx.QueryRow(ctx, `SELECT id::text FROM accounts WHERE portfolio_id=$1::uuid AND id=$2::uuid`, target, row.AccountID).Scan(&id); err != nil {
+				return ErrInvalidRequest
+			}
+			if err := tx.QueryRow(ctx, `SELECT id::text FROM instruments WHERE id=$1::uuid`, row.InstrumentID).Scan(&id); err != nil {
+				return ErrInvalidRequest
+			}
+		}
+		return nil
+	}
+	for _, row := range parsed.Prices {
+		var id string
+		if err := tx.QueryRow(ctx, `SELECT id::text FROM instruments WHERE id=$1::uuid`, row.InstrumentID).Scan(&id); err != nil {
+			return ErrInvalidRequest
+		}
+	}
+	return nil
 }
 
 func (s Service) commitPositions(ctx context.Context, tx pgx.Tx, target string, capturedAt time.Time, parsed Result, rawID, hash string) (map[string]any, error) {

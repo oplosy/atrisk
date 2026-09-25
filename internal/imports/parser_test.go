@@ -1,6 +1,9 @@
 package imports
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 const validPositions = "account_id,instrument_id,quantity,total_cost_basis,modified_duration_years,convexity_years_squared\n11111111-1111-4111-8111-111111111111,22222222-2222-4222-8222-222222222222,1.25,,4.2,0\n"
 
@@ -20,9 +23,17 @@ func TestParseRejectsUnsafeAndDuplicateRows(t *testing.T) {
 }
 
 func TestParseManualPriceExactAndTimestamp(t *testing.T) {
-	body := "instrument_id,quote_currency,observation_time,price,source_known_at\n22222222-2222-4222-8222-222222222222,USDT,2026-01-02T03:04:05+02:00,1.000000000000000001,2026-01-02T03:05:05Z\n"
+	body := "instrument_id,quote_currency,observation_time,price,source_known_at\n22222222-2222-4222-8222-222222222222,usdt,2026-01-02T03:04:05+02:00,1.000000000000000001,2026-01-02T03:05:05Z\n"
 	r := Parse([]byte(body), KindManualPrices)
-	if !r.Valid || len(r.Prices) != 1 || r.Prices[0].Price != "1.000000000000000001" {
+	if !r.Valid || len(r.Prices) != 1 || r.Prices[0].Price != "1.000000000000000001" || r.Prices[0].QuoteCurrency != "USDT" {
 		t.Fatalf("result=%+v", r)
+	}
+}
+
+func TestInvalidTargetIsRejectedBeforeDatabaseOrArchive(t *testing.T) {
+	service := Service{}
+	_, err := service.Commit(nil, CommitRequest{Kind: KindManualPrices, TargetID: "not-a-uuid", SchemaVersion: SchemaVersion, Token: "token", IdempotencyKey: "key"})
+	if !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("err=%v", err)
 	}
 }
