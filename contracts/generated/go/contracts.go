@@ -105,3 +105,114 @@ type UnknownSchemaVersionDetails struct {
 	SchemaVersion     string                                             `json:"schema_version"`
 	SupportedVersions []UnknownSchemaVersionDetailsSupportedVersionsItem `json:"supported_versions"`
 }
+
+type ExternalIdentifier struct {
+	Namespace  string `json:"namespace"`
+	ExternalID string `json:"external_id"`
+}
+
+type Instrument struct {
+	ID              string               `json:"id"`
+	CanonicalSymbol string               `json:"canonical_symbol"`
+	InstrumentType  string               `json:"instrument_type"`
+	NativeUnit      string               `json:"native_unit"`
+	ExternalIDs     []ExternalIdentifier `json:"external_ids"`
+	Status          string               `json:"status"`
+	CreatedAt       string               `json:"created_at"`
+}
+
+type CreateInstrumentRequest struct {
+	CanonicalSymbol string               `json:"canonical_symbol"`
+	InstrumentType  string               `json:"instrument_type"`
+	NativeUnit      string               `json:"native_unit"`
+	ExternalIDs     []ExternalIdentifier `json:"external_ids,omitempty"`
+	Status          *string              `json:"status,omitempty"`
+}
+
+type InstrumentStatusRequest struct {
+	Status string `json:"status"`
+}
+
+type InstrumentPage struct {
+	Items []Instrument `json:"items"`
+}
+
+type Portfolio struct {
+	ID                string         `json:"id"`
+	Name              string         `json:"name"`
+	ReportingCurrency string         `json:"reporting_currency"`
+	Metadata          map[string]any `json:"metadata"`
+	CreatedAt         string         `json:"created_at"`
+	UpdatedAt         string         `json:"updated_at"`
+}
+
+type PortfolioRequest struct {
+	Name              string         `json:"name"`
+	ReportingCurrency string         `json:"reporting_currency"`
+	Metadata          map[string]any `json:"metadata,omitempty"`
+}
+
+type PortfolioPage struct {
+	Items []Portfolio `json:"items"`
+}
+
+type Account struct {
+	ID          string         `json:"id"`
+	PortfolioID string         `json:"portfolio_id"`
+	Name        string         `json:"name"`
+	Metadata    map[string]any `json:"metadata"`
+	CreatedAt   string         `json:"created_at"`
+	UpdatedAt   string         `json:"updated_at"`
+}
+
+type AccountRequest struct {
+	Name     string         `json:"name"`
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+
+type AccountPage struct {
+	Items []Account `json:"items"`
+}
+
+type SnapshotLineInput struct {
+	AccountID             string  `json:"account_id"`
+	InstrumentID          string  `json:"instrument_id"`
+	Quantity              string  `json:"quantity"`
+	TotalCostBasis        *string `json:"total_cost_basis,omitempty"`
+	ModifiedDurationYears *string `json:"modified_duration_years,omitempty"`
+	ConvexityYearsSquared *string `json:"convexity_years_squared,omitempty"`
+}
+
+type CreateSnapshotRequest struct {
+	CapturedAt           string              `json:"captured_at"`
+	SupersedesSnapshotID *string             `json:"supersedes_snapshot_id,omitempty"`
+	Lines                []SnapshotLineInput `json:"lines"`
+}
+
+type SnapshotLine struct {
+	AccountID             string  `json:"account_id"`
+	InstrumentID          string  `json:"instrument_id"`
+	Quantity              string  `json:"quantity"`
+	TotalCostBasis        *string `json:"total_cost_basis,omitempty"`
+	ModifiedDurationYears *string `json:"modified_duration_years,omitempty"`
+	ConvexityYearsSquared *string `json:"convexity_years_squared,omitempty"`
+	ID                    string  `json:"id"`
+	AccountName           *string `json:"account_name,omitempty"`
+	CanonicalSymbol       *string `json:"canonical_symbol,omitempty"`
+	InstrumentType        *string `json:"instrument_type,omitempty"`
+	NativeUnit            *string `json:"native_unit,omitempty"`
+	Status                *string `json:"status,omitempty"`
+}
+
+type Snapshot struct {
+	ID                   string         `json:"id"`
+	PortfolioID          string         `json:"portfolio_id"`
+	CapturedAt           string         `json:"captured_at"`
+	SupersedesSnapshotID *string        `json:"supersedes_snapshot_id,omitempty"`
+	CreatedAt            string         `json:"created_at"`
+	Lines                []SnapshotLine `json:"lines"`
+}
+
+type SnapshotPage struct {
+	Items []Snapshot `json:"items"`
+}

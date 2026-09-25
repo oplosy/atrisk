@@ -55,3 +55,114 @@ export interface UnknownSchemaVersionDetails {
   schema_version: string;
   supported_versions: ["1.0"];
 }
+
+export interface ExternalIdentifier {
+  namespace: string;
+  external_id: string;
+}
+
+export interface Instrument {
+  id: string;
+  canonical_symbol: string;
+  instrument_type: "cash" | "currency" | "spot_crypto" | "manual_spot" | "fixed_rate_bond";
+  native_unit: string;
+  external_ids: ExternalIdentifier[];
+  status: "active" | "inactive" | "delisted";
+  created_at: string;
+}
+
+export interface CreateInstrumentRequest {
+  canonical_symbol: string;
+  instrument_type: "cash" | "currency" | "spot_crypto" | "manual_spot" | "fixed_rate_bond";
+  native_unit: string;
+  external_ids?: ExternalIdentifier[];
+  status?: "active" | "inactive" | "delisted";
+}
+
+export interface InstrumentStatusRequest {
+  status: "active" | "inactive" | "delisted";
+}
+
+export interface InstrumentPage {
+  items: Instrument[];
+}
+
+export interface Portfolio {
+  id: string;
+  name: string;
+  reporting_currency: "TRY" | "USD";
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PortfolioRequest {
+  name: string;
+  reporting_currency: "TRY" | "USD";
+  metadata?: Record<string, unknown>;
+}
+
+export interface PortfolioPage {
+  items: Portfolio[];
+}
+
+export interface Account {
+  id: string;
+  portfolio_id: string;
+  name: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AccountRequest {
+  name: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AccountPage {
+  items: Account[];
+}
+
+export interface SnapshotLineInput {
+  account_id: string;
+  instrument_id: string;
+  quantity: string;
+  total_cost_basis?: string;
+  modified_duration_years?: string;
+  convexity_years_squared?: string;
+}
+
+export interface CreateSnapshotRequest {
+  captured_at: string;
+  supersedes_snapshot_id?: string;
+  lines: SnapshotLineInput[];
+}
+
+export interface SnapshotLine {
+  account_id: string;
+  instrument_id: string;
+  quantity: string;
+  total_cost_basis?: string;
+  modified_duration_years?: string;
+  convexity_years_squared?: string;
+  id: string;
+  account_name?: string;
+  canonical_symbol?: string;
+  instrument_type?: string;
+  native_unit?: string;
+  status?: string;
+}
+
+export interface Snapshot {
+  id: string;
+  portfolio_id: string;
+  captured_at: string;
+  supersedes_snapshot_id?: string;
+  created_at: string;
+  lines: SnapshotLine[];
+}
+
+export interface SnapshotPage {
+  items: Snapshot[];
+}

@@ -8,6 +8,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Account struct {
+	ID          pgtype.UUID        `json:"id"`
+	PortfolioID pgtype.UUID        `json:"portfolio_id"`
+	Name        string             `json:"name"`
+	Metadata    []byte             `json:"metadata"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
 type DataSource struct {
 	ID             pgtype.UUID        `json:"id"`
 	Code           string             `json:"code"`
@@ -64,6 +73,13 @@ type Instrument struct {
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }
 
+type InstrumentExternalIdentifier struct {
+	InstrumentID pgtype.UUID        `json:"instrument_id"`
+	Namespace    string             `json:"namespace"`
+	ExternalID   string             `json:"external_id"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
 type LatestFxQuoteRevision struct {
 	ID                 pgtype.UUID        `json:"id"`
 	BaseCurrency       string             `json:"base_currency"`
@@ -114,6 +130,36 @@ type ObservationRevision struct {
 	KnowledgeTimeBasis string             `json:"knowledge_time_basis"`
 	RawObjectID        pgtype.UUID        `json:"raw_object_id"`
 	QualityFlags       []byte             `json:"quality_flags"`
+}
+
+type Portfolio struct {
+	ID                pgtype.UUID        `json:"id"`
+	Name              string             `json:"name"`
+	ReportingCurrency string             `json:"reporting_currency"`
+	Metadata          []byte             `json:"metadata"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PortfolioSnapshot struct {
+	ID                   pgtype.UUID        `json:"id"`
+	PortfolioID          pgtype.UUID        `json:"portfolio_id"`
+	CapturedAt           pgtype.Timestamptz `json:"captured_at"`
+	SupersedesSnapshotID pgtype.UUID        `json:"supersedes_snapshot_id"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+}
+
+type PortfolioSnapshotLine struct {
+	ID                    pgtype.UUID        `json:"id"`
+	PortfolioID           pgtype.UUID        `json:"portfolio_id"`
+	SnapshotID            pgtype.UUID        `json:"snapshot_id"`
+	AccountID             pgtype.UUID        `json:"account_id"`
+	InstrumentID          pgtype.UUID        `json:"instrument_id"`
+	Quantity              pgtype.Numeric     `json:"quantity"`
+	TotalCostBasis        pgtype.Numeric     `json:"total_cost_basis"`
+	ModifiedDurationYears pgtype.Numeric     `json:"modified_duration_years"`
+	ConvexityYearsSquared pgtype.Numeric     `json:"convexity_years_squared"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
 }
 
 type PriceRevision struct {

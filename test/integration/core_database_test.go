@@ -166,8 +166,8 @@ func TestCoreDatabaseMigrations(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&currentVersion); err != nil {
 		t.Fatalf("inspect migration version: %v", err)
 	}
-	if currentVersion != 3 {
-		t.Fatalf("expected asset-unit migration version 3, got %d", currentVersion)
+	if currentVersion != 4 {
+		t.Fatalf("expected portfolio migration version 4, got %d", currentVersion)
 	}
 	var assetUnitTypes int
 	if err := pool.QueryRow(ctx, `
@@ -288,6 +288,14 @@ func TestCoreDatabasePreviousVersionUpgrade(t *testing.T) {
 		versionDB.Close()
 		t.Fatalf("insert v1 instrument sentinel: %v", err)
 	}
+	for _, symbol := range []string{schemaName + "_btc_usdt", schemaName + "_eth_usdt"} {
+		if _, err := versionDB.ExecContext(ctx, `
+			INSERT INTO instruments (canonical_symbol, instrument_type, native_currency, external_ids)
+			VALUES ($1, 'crypto_spot', 'USD', '{"provider":"binance"}')`, symbol); err != nil {
+			versionDB.Close()
+			t.Fatalf("insert v1 Binance instrument %s: %v", symbol, err)
+		}
+	}
 	versionDB.Close()
 
 	var hardeningConstraints int
@@ -328,8 +336,8 @@ func TestCoreDatabasePreviousVersionUpgrade(t *testing.T) {
 	if err := upgradedDB.QueryRowContext(ctx, "SELECT max(version_id) FROM "+schemaName+"."+goose.DefaultTablename).Scan(&version); err != nil {
 		t.Fatalf("inspect upgraded schema migration version: %v", err)
 	}
-	if version != 3 {
-		t.Fatalf("expected isolated schema at migration version 3, got %d", version)
+	if version != 4 {
+		t.Fatalf("expected isolated schema at migration version 4, got %d", version)
 	}
 	if err := upgradedDB.QueryRowContext(ctx, `
 		SELECT count(*)::int
@@ -355,6 +363,40 @@ func TestCoreDatabasePreviousVersionUpgrade(t *testing.T) {
 	}
 	if sentinelCurrency != "TRY" {
 		t.Fatalf("v1 instrument value changed during upgrade: %q", sentinelCurrency)
+	}
+	var binanceIdentifiers int
+	if err := upgradedDB.QueryRowContext(ctx, `
+		SELECT count(*)::int FROM `+schemaName+`.instrument_external_identifiers
+		WHERE namespace = 'binance.symbol' AND external_id IN ($1, $2)`, schemaName+"_btc_usdt", schemaName+"_eth_usdt").Scan(&binanceIdentifiers); err != nil {
+		t.Fatalf("inspect upgraded Binance identifiers: %v", err)
+	}
+	if binanceIdentifiers != 2 {
+		t.Fatalf("expected two upgraded Binance identifiers, got %d", binanceIdentifiers)
+	}
+	binanceSymbol := schemaName + "_btc_usdt"
+	if _, err := upgradedDB.ExecContext(ctx, "UPDATE "+schemaName+".instruments SET status = 'inactive' WHERE canonical_symbol = $1", binanceSymbol); err != nil {
+		t.Fatalf("update upgraded Binance status: %v", err)
+	}
+	if _, err := upgradedDB.ExecContext(ctx, `
+		INSERT INTO instruments (canonical_symbol, instrument_type, native_currency, external_ids, status)
+		VALUES ($1, 'crypto_spot', 'USDT', '{"provider":"binance"}', 'active')
+		ON CONFLICT (canonical_symbol) DO UPDATE SET status = EXCLUDED.status`, binanceSymbol); err != nil {
+		t.Fatalf("replay Binance upsert after upgrade: %v", err)
+	}
+	var binanceStatus string
+	if err := upgradedDB.QueryRowContext(ctx, "SELECT status FROM "+schemaName+".instruments WHERE canonical_symbol = $1", binanceSymbol).Scan(&binanceStatus); err != nil {
+		t.Fatalf("inspect replayed Binance status: %v", err)
+	}
+	if binanceStatus != "active" {
+		t.Fatalf("replayed Binance status=%q", binanceStatus)
+	}
+	if err := upgradedDB.QueryRowContext(ctx, `
+		SELECT count(*)::int FROM `+schemaName+`.instrument_external_identifiers
+		WHERE namespace = 'binance.symbol' AND external_id = $1`, binanceSymbol).Scan(&binanceIdentifiers); err != nil {
+		t.Fatalf("inspect replayed Binance identifier: %v", err)
+	}
+	if binanceIdentifiers != 1 {
+		t.Fatalf("replayed Binance identifier count=%d", binanceIdentifiers)
 	}
 }
 

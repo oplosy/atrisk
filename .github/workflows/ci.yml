@@ -133,6 +133,9 @@ jobs:
       - name: Run data quality API integration
         run: task test-go-integration TEST=QualityAPI
 
+      - name: Run portfolio API integration
+        run: task test-go-integration TEST=PortfolioAPI
+
       - name: Run verification gate
         run: task verify
 
