@@ -53,7 +53,7 @@
 ## Git state
 
 - Branch: `task/AR-203-valuation-fx-provenance`
-- Commit SHA: pending final overflow-guard fix commit
+- Commit SHA: `353b6095f921fcca2d55e16e87098e02b540fe1f` (implementation); report update follows as a separate documentation commit.
 - Remote branch: push blocked by egress authorization policy; local branch is ready for authorized push
 - Worktree: clean
 
