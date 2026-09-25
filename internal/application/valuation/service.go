@@ -105,6 +105,7 @@ func (s Service) Create(ctx context.Context, request domain.Request) (domain.Run
 				results = append(results, result)
 				continue
 			}
+			result.PriceMethod = "revision"
 			result.PriceRevisionID = stringPointer(price.id)
 			result.PriceQuoteUnit = stringPointer(price.quote)
 			amount = new(big.Rat).Mul(line.quantity, price.price)

@@ -106,6 +106,9 @@ func TestValuationAPI(t *testing.T) {
 	if pricedLine.NativeAmount == nil || *pricedLine.NativeAmount != "6.000000000000000002" {
 		t.Fatalf("native amount=%v", pricedLine.NativeAmount)
 	}
+	if pricedLine.PriceMethod != "revision" {
+		t.Fatalf("priced line method=%q", pricedLine.PriceMethod)
+	}
 	if pricedLine.TryAmount == nil || *pricedLine.TryAmount != "240.000000000000000080" || pricedLine.PriceQuoteUnit == nil || *pricedLine.PriceQuoteUnit != "USD" {
 		t.Fatalf("try amount=%v quote=%v", pricedLine.TryAmount, pricedLine.PriceQuoteUnit)
 	}
