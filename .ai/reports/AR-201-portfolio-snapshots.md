@@ -50,6 +50,7 @@
 | `task test-go-integration TEST=PortfolioAPI` | not runnable locally because `task` executable is unavailable; `go test ./test/integration -run '^TestPortfolioAPI$' -count=1 -v` passed with an explicit skip because no test database URL is configured |
 | `task test-contract` | not runnable locally because `task` executable is unavailable; equivalent contract test and generator checks passed |
 | `task verify` | not runnable locally because `task` executable is unavailable; hosted CI runs `task verify` |
+| Hosted CI run #67 (`90f1a31`) | portfolio API integration passed; `task verify` exposed the upgrade fixture inserting `USDT` into the pre-AR-105 v1 `CHAR(3)` column. Fixture corrected to `USD`; rerun pending on the fix commit. |
 
 ## Change inventory
 

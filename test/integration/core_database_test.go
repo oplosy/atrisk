@@ -291,7 +291,7 @@ func TestCoreDatabasePreviousVersionUpgrade(t *testing.T) {
 	for _, symbol := range []string{schemaName + "_btc_usdt", schemaName + "_eth_usdt"} {
 		if _, err := versionDB.ExecContext(ctx, `
 			INSERT INTO instruments (canonical_symbol, instrument_type, native_currency, external_ids)
-			VALUES ($1, 'crypto_spot', 'USDT', '{"provider":"binance"}')`, symbol); err != nil {
+			VALUES ($1, 'crypto_spot', 'USD', '{"provider":"binance"}')`, symbol); err != nil {
 			versionDB.Close()
 			t.Fatalf("insert v1 Binance instrument %s: %v", symbol, err)
 		}
