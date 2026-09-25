@@ -1,7 +1,7 @@
 ---
 id: AR-203
 title: Implement valuation and FX provenance
-status: review
+status: merged
 phase: 2
 depends_on: [AR-106, AR-201]
 branch: task/AR-203-valuation-fx-provenance
@@ -69,22 +69,22 @@ and USD using cutoff/freshness-aware prices and an inspectable deterministic FX 
 
 ## Acceptance criteria
 
-- [ ] Each priced line records its price revision; each identity line explicitly
+- [x] Each priced line records its price revision; each identity line explicitly
   records method `identity` and no price ID; each conversion records ordered FX
   revision IDs and edge direction.
-- [ ] Tests prove future, stale, and not-yet-known revisions are excluded for both
+- [x] Tests prove future, stale, and not-yet-known revisions are excluded for both
   knowledge modes, including no source-time fallback.
-- [ ] Direct forward/reverse paths outrank USD bridge and ties resolve stably;
+- [x] Direct forward/reverse paths outrank USD bridge and ties resolve stably;
   no path is inferred through asset tickers or more than two edges.
-- [ ] Cash identity valuation works without a price revision and does not peg
+- [x] Cash identity valuation works without a price revision and does not peg
   convert; missing USDT-to-USD explicit path is blocked.
-- [ ] TRY/USD totals equal the sum of persisted line amounts at the stored scale;
+- [x] TRY/USD totals equal the sum of persisted line amounts at the stored scale;
   18-digit inputs survive API and PostgreSQL storage.
-- [ ] Required missing/stale prices or FX block the run with stable reason codes;
+- [x] Required missing/stale prices or FX block the run with stable reason codes;
   successful and blocked run records remain immutable.
-- [ ] Identical normalized inputs and selected revision IDs produce the same
+- [x] Identical normalized inputs and selected revision IDs produce the same
   canonical result hash.
-- [ ] OpenAPI/generated types are in sync; PostgreSQL integration exercises the
+- [x] OpenAPI/generated types are in sync; PostgreSQL integration exercises the
   actual HTTP endpoint and proves selected revisions retain reachable raw-object
   provenance. S3/archive behavior is covered by AR-102 archive/ingestion tests.
 
