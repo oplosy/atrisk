@@ -88,8 +88,12 @@ func (s Service) Preview(ctx context.Context, req PreviewRequest) (PreviewRespon
 	digest := sha256.Sum256([]byte(token))
 	tokenDigest := hex.EncodeToString(digest[:])
 	expires := s.now().Add(30 * time.Minute)
+	var capturedAt any
+	if req.Kind == KindPositions {
+		capturedAt, _ = parseRFC3339(req.CapturedAt)
+	}
 	diagnostics, _ := json.Marshal(parsed.Diagnostics)
-	if _, err := s.Pool.Exec(ctx, `INSERT INTO import_preview_tokens (token_digest, import_kind, target_id, schema_version, content_sha256, row_count, diagnostics, diagnostics_truncated, expires_at) VALUES ($1,$2,$3::uuid,$4,$5,$6,$7,$8,$9)`, tokenDigest, req.Kind, target, req.SchemaVersion, parsed.ContentSHA256, parsed.RowCount, diagnostics, parsed.DiagnosticsTruncated, expires); err != nil {
+	if _, err := s.Pool.Exec(ctx, `INSERT INTO import_preview_tokens (token_digest, import_kind, target_id, captured_at, schema_version, content_sha256, row_count, diagnostics, diagnostics_truncated, expires_at) VALUES ($1,$2,$3::uuid,$4,$5,$6,$7,$8,$9,$10)`, tokenDigest, req.Kind, target, capturedAt, req.SchemaVersion, parsed.ContentSHA256, parsed.RowCount, diagnostics, parsed.DiagnosticsTruncated, expires); err != nil {
 		return PreviewResponse{}, fmt.Errorf("persist preview token: %w", err)
 	}
 	response.Token, response.ExpiresAt = token, expires
@@ -127,11 +131,12 @@ func (s Service) Commit(ctx context.Context, req CommitRequest) (map[string]any,
 	var existing struct {
 		Target, Schema, Hash string
 		Rows                 int
+		CapturedAt           *time.Time
 		Response             []byte
 	}
-	err = tx.QueryRow(ctx, `SELECT target_id::text, schema_version, content_sha256, row_count, response FROM import_results WHERE import_kind=$1 AND idempotency_key=$2`, req.Kind, req.IdempotencyKey).Scan(&existing.Target, &existing.Schema, &existing.Hash, &existing.Rows, &existing.Response)
+	err = tx.QueryRow(ctx, `SELECT target_id::text, schema_version, content_sha256, captured_at, row_count, response FROM import_results WHERE import_kind=$1 AND idempotency_key=$2`, req.Kind, req.IdempotencyKey).Scan(&existing.Target, &existing.Schema, &existing.Hash, &existing.CapturedAt, &existing.Rows, &existing.Response)
 	if err == nil {
-		if existing.Target != target || existing.Schema != req.SchemaVersion || existing.Hash != contentHash || existing.Rows != parsed.RowCount {
+		if existing.Target != target || existing.Schema != req.SchemaVersion || existing.Hash != contentHash || !sameCapturedAt(existing.CapturedAt, capturedAtForKind(req.Kind, capturedAt)) || existing.Rows != parsed.RowCount {
 			return nil, ErrConflict
 		}
 		var response map[string]any
@@ -143,15 +148,15 @@ func (s Service) Commit(ctx context.Context, req CommitRequest) (map[string]any,
 	}
 	var storedKind, storedTarget, storedSchema, storedHash string
 	var expiry time.Time
-	var consumed *time.Time
-	err = tx.QueryRow(ctx, `SELECT import_kind,target_id::text,schema_version,content_sha256,expires_at,consumed_at FROM import_preview_tokens WHERE token_digest=$1 FOR UPDATE`, tokenDigest).Scan(&storedKind, &storedTarget, &storedSchema, &storedHash, &expiry, &consumed)
+	var consumed, storedCapturedAt *time.Time
+	err = tx.QueryRow(ctx, `SELECT import_kind,target_id::text,schema_version,content_sha256,captured_at,expires_at,consumed_at FROM import_preview_tokens WHERE token_digest=$1 FOR UPDATE`, tokenDigest).Scan(&storedKind, &storedTarget, &storedSchema, &storedHash, &storedCapturedAt, &expiry, &consumed)
 	if errors.Is(err, pgx.ErrNoRows) || consumed != nil || !expiry.After(s.now()) {
 		return nil, ErrConflict
 	}
 	if err != nil {
 		return nil, fmt.Errorf("lookup preview token: %w", err)
 	}
-	if storedKind != req.Kind || storedTarget != target || storedSchema != req.SchemaVersion || storedHash != contentHash {
+	if storedKind != req.Kind || storedTarget != target || storedSchema != req.SchemaVersion || storedHash != contentHash || !sameCapturedAt(storedCapturedAt, capturedAtForKind(req.Kind, capturedAt)) {
 		return nil, ErrConflict
 	}
 	if err := validateDomainRows(ctx, tx, req.Kind, target, parsed); err != nil {
@@ -194,15 +199,16 @@ func (s Service) Commit(ctx context.Context, req CommitRequest) (map[string]any,
 	}
 	result["import_result_id"] = resultID
 	resultBytes, _ = json.Marshal(result)
-	err = tx.QueryRow(ctx, `INSERT INTO import_results (id,import_kind,idempotency_key,target_id,schema_version,content_sha256,row_count,raw_object_id,response) VALUES ($1::uuid,$2,$3,$4::uuid,$5,$6,$7,$8::uuid,$9) ON CONFLICT (import_kind,idempotency_key) DO NOTHING RETURNING id::text`, resultID, req.Kind, req.IdempotencyKey, target, req.SchemaVersion, contentHash, parsed.RowCount, rawID, resultBytes).Scan(&resultID)
+	err = tx.QueryRow(ctx, `INSERT INTO import_results (id,import_kind,idempotency_key,target_id,captured_at,schema_version,content_sha256,row_count,raw_object_id,response) VALUES ($1::uuid,$2,$3,$4::uuid,$5,$6,$7,$8,$9::uuid,$10) ON CONFLICT (import_kind,idempotency_key) DO NOTHING RETURNING id::text`, resultID, req.Kind, req.IdempotencyKey, target, capturedAtForKind(req.Kind, capturedAt), req.SchemaVersion, contentHash, parsed.RowCount, rawID, resultBytes).Scan(&resultID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		var target, schema, hash string
 		var rows int
 		var response []byte
-		if lookupErr := tx.QueryRow(ctx, `SELECT target_id::text,schema_version,content_sha256,row_count,response FROM import_results WHERE import_kind=$1 AND idempotency_key=$2`, req.Kind, req.IdempotencyKey).Scan(&target, &schema, &hash, &rows, &response); lookupErr != nil {
+		var storedResultCapturedAt *time.Time
+		if lookupErr := tx.QueryRow(ctx, `SELECT target_id::text,schema_version,content_sha256,captured_at,row_count,response FROM import_results WHERE import_kind=$1 AND idempotency_key=$2`, req.Kind, req.IdempotencyKey).Scan(&target, &schema, &hash, &storedResultCapturedAt, &rows, &response); lookupErr != nil {
 			return nil, ErrConflict
 		}
-		if target != strings.ToLower(req.TargetID) || schema != req.SchemaVersion || hash != contentHash || rows != parsed.RowCount {
+		if target != strings.ToLower(req.TargetID) || schema != req.SchemaVersion || hash != contentHash || !sameCapturedAt(storedResultCapturedAt, capturedAtForKind(req.Kind, capturedAt)) || rows != parsed.RowCount {
 			return nil, ErrConflict
 		}
 		var replay map[string]any
@@ -229,6 +235,21 @@ func newUUID() (string, error) {
 	b[6] = (b[6] & 0x0f) | 0x40
 	b[8] = (b[8] & 0x3f) | 0x80
 	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
+}
+
+func capturedAtForKind(kind string, captured time.Time) *time.Time {
+	if kind != KindPositions {
+		return nil
+	}
+	value := captured.UTC()
+	return &value
+}
+
+func sameCapturedAt(left, right *time.Time) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return left.UTC().Equal(right.UTC())
 }
 
 func validateDomainRows(ctx context.Context, tx pgx.Tx, kind, target string, parsed Result) error {

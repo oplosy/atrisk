@@ -19,8 +19,8 @@
 | AC-1 | `contracts/imports/positions-v1.csv`, `manual-prices-v1.csv`, matching JSON Schemas/examples, and OpenAPI import paths. |
 | AC-2 | `internal/imports/parser.go` and `parser_test.go`: UTF-8/BOM, RFC4180, strict headers, UUIDs, exact decimal bounds, timestamps, formulas/control bytes, duplicate keys, and bounded diagnostics. |
 | AC-3 | `Service.Commit` uses one PostgreSQL transaction for raw-object registration, snapshot/line or price-revision writes, result, and token consumption; `test/integration/import_api_test.go` covers successful snapshot and replay. |
-| AC-4 | `import_preview_tokens` stores SHA-256, target, schema, expiry and consumption state; commit rechecks all bindings and bytes before archive access. Invalid token/target/domain requests are rejected without archive writes. |
-| AC-5 | `import_results` has database-enforced `(import_kind,idempotency_key)` uniqueness; replay is checked before archive access and returns the stored result during archive outage, while changed requests conflict. |
+| AC-4 | `import_preview_tokens` stores SHA-256, target, schema, captured_at, expiry and consumption state; commit rechecks all bindings and bytes before archive access. Invalid token/target/domain requests are rejected without archive writes. |
+| AC-5 | `import_results` has database-enforced `(import_kind,idempotency_key)` uniqueness and captures position `captured_at`; replay is checked before archive access and returns the stored result during archive outage, while changed request clocks conflict. |
 | AC-6 | Position writes use `NUMERIC` strings and nullable optional fields; price writes preserve normalized uppercase quote code, knowledge basis, exact price, and raw object id. |
 | AC-7 | `archive.ArchivePayload` is called before transactional raw-object registration; database lineage uses the content hash. |
 | AC-8 | Handler returns structured 400/409/413/415 errors and does not log CSV bytes; `apps/api/cmd/api/main.go` now registers both import route prefixes and configures the established S3/Garage store from CI environment variables. |
@@ -28,8 +28,8 @@
 
 ## Stop-condition check
 
-- Decision or scope conflict: main API S3/Garage wiring was not changed because the execution environment blocked a patch that connects uploaded payloads to an environment-configured external archive endpoint; parent/orchestrator must resolve this before merge.
-- Missing dependency, unsafe migration, or unavailable verification: local PostgreSQL/Docker was not started; hosted CI must run migration and `ImportAPI` integration. `task` was not invoked locally because infrastructure is intentionally untouched.
+- Decision or scope conflict: none. Main API routes now use the existing `ATLASRISK_S3_*`/AWS environment contract.
+- Local PostgreSQL/Docker was intentionally not started. Hosted CI must run the migration and `ImportAPI` integration test before merge.
 
 ## Verification
 
@@ -40,12 +40,12 @@
 | `go test ./apps/api/cmd/api ./internal/imports ./apps/api/handlers/imports -count=1` | pass |
 | `go test ./internal/imports -count=1` | pass, including invalid-target and lowercase quote normalization regressions |
 | OpenAPI import commit header validation | pass; both operations reference required `ImportIdempotencyKey` |
-| `go test ./test/integration -run '^$' -count=1` | pass, including archive-outage replay, invalid-token no-archive, and HTTP `text/csv` multipart regression coverage at compile level |
+| `go test ./test/integration -run '^$' -count=1` | pass; integration package compiles. Runtime assertions cover captured_at conflict, archive-outage replay, invalid-token no-archive, and both positions/manual-price HTTP preview/commit routes in hosted PostgreSQL CI |
 | `go vet ./apps/... ./internal/...` | pass |
 | `go build ./apps/...` | pass |
 | `node --test test/contract/contract.test.mjs` | pass, 11 tests (run with elevated child-process permission after sandbox `spawn EPERM`) |
 | `git diff --check` | pass |
-| `task test-go TEST=CSVImport` | not run; Task CLI/local DB unavailable |
+| `task test-go TEST=Parse` | not run; Task CLI unavailable locally |
 | `task test-go-integration TEST=ImportAPI` | not run; local PostgreSQL intentionally not started |
 | `task migrate-test` | not run; local PostgreSQL intentionally not started |
 | `task verify` | not run; local infrastructure intentionally untouched |
@@ -59,7 +59,7 @@
 ## Git state
 
 - Branch: `task/AR-202-manual-csv-imports`
-- Commit SHA: `ed3a482600acfbcf5266f04e90b015b5bcee9fdc` (safety fixes; implementation base `18b56826e7c1e608acdd236ab86ffed17dccfd9e`)
+- Commit SHA: to be filled after captured_at/idempotency fix commit
 - Remote branch: not pushed by this worker
 - Worktree: clean after commit
 

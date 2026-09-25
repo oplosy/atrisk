@@ -25,6 +25,7 @@ CREATE TABLE import_results (
     import_kind TEXT NOT NULL,
     idempotency_key TEXT NOT NULL,
     target_id UUID NOT NULL,
+    captured_at TIMESTAMPTZ,
     schema_version TEXT NOT NULL,
     content_sha256 CHAR(64) NOT NULL,
     row_count INTEGER NOT NULL,
