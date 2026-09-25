@@ -70,7 +70,7 @@ BEGIN
         END IF;
         INSERT INTO instrument_external_identifiers (instrument_id, namespace, external_id)
         VALUES (NEW.id, 'binance.symbol', NEW.canonical_symbol)
-        ON CONFLICT DO NOTHING;
+        ON CONFLICT (instrument_id, namespace) DO NOTHING;
     END IF;
     RETURN NEW;
 END;
