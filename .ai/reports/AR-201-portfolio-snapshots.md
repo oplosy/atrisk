@@ -10,7 +10,7 @@
 
 ## Result
 
-`needs-review`
+`independent-review-approved; hosted verification pending`
 
 ## Acceptance evidence
 
@@ -35,12 +35,15 @@
 |---|---|
 | `sqlc generate -f db/queries/core/sqlc.yaml` | pass; SQLC v1.31.1 generated portfolio bindings and shared interface/model output |
 | `go test ./... -count=1` | pass; all local Go unit/packages; integration test compiles and skips only without isolated DSN |
+| `GOCACHE=<workspace>/.cache/ar201-go-build go test ./... -count=1` (final orchestrator rerun) | pass; used workspace-local cache after the default Windows Go cache returned Access denied; PostgreSQL-backed tests still skip without isolated DSN |
 | `go test ./test/integration -run '^$' -count=1` | pass; integration package compile gate |
 | `go test ./test/integration -run '^TestCoreDatabasePreviousVersionUpgrade$' -count=1 -v` | pass with an explicit skip because no test database URL is configured; hosted CI executes the upgrade/update/upsert regression |
 | `go vet ./apps/... ./internal/...` | pass |
 | `go build ./apps/...` | pass |
 | `node --test test/contract/contract.test.mjs` | pass; 11 tests, including generated Portfolio/Account/Snapshot model coverage |
+| Final orchestrator rerun: `node test/contract/contract.test.mjs` | 10/11 checks passed, including portfolio generated-model coverage; Python compile/import subprocess was blocked by environment `spawn EPERM` |
 | `node scripts/verify/check-generated.mjs` | pass after committing generated outputs; pre-commit invocation correctly detected the intentional new generated artifacts |
+| Final orchestrator rerun: `node scripts/verify/check-generated.mjs` | blocked by environment `spawn EPERM` while starting its child process; prior post-commit check passed |
 | `git diff --check` | pass |
 | `task migrate-test` | not run locally; `task` executable unavailable and no isolated PostgreSQL DSN; hosted CI runs the required migration gate |
 | `task test-go TEST=Portfolio` | not runnable locally because `task` executable is unavailable; equivalent `go test ./... -count=1` passed |
@@ -57,9 +60,9 @@
 ## Git state
 
 - Branch: `task/AR-201-portfolio-snapshots`
-- Commit SHA: `449697d` (Binance trigger conflict-target fix; report metadata finalization follows)
-- Remote branch: `origin/task/AR-201-portfolio-snapshots` (local branch has unpushed commits; push/PR deferred to orchestrator)
-- Worktree: clean after commit
+- Latest implementation SHA: `449697d` (Binance trigger conflict-target fix)
+- Review checkpoint before this metadata transition: local HEAD `972c85b`, remote `origin/task/AR-201-portfolio-snapshots` at `20ec449`, 10 local commits ahead; push/PR deferred to orchestrator
+- Worktree: clean at implementation review; metadata-only lifecycle/report update is being committed separately
 
 ## Assumptions and risks
 
