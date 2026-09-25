@@ -14,7 +14,7 @@
 
 | Criterion | Evidence |
 |---|---|
-| AC-1 | `valuation_lines` stores revision/identity method, nullable price revision, selected price quote unit, and separate ordered TRY/USD FX revision UUIDs and directions; `TestValuationAPI` exercises identity and priced lines. |
+| AC-1 | `valuation_lines` stores explicit `revision`/`identity` method, nullable price revision, selected price quote unit, and separate ordered TRY/USD FX revision UUIDs and directions; `TestValuationAPI` asserts both identity and priced-line methods. |
 | AC-2 | SQL selectors and `eligibleRevision` enforce cutoff, max age, and system/source knowledge predicates without source-time fallback; unit coverage plus integration fixture covers future, stale, and source-not-yet-known rows. |
 | AC-3 | `pathFor` prefers direct forward/reverse over USD bridge, records direction, and unit tests cover reverse/direct precedence; TRY and USD paths persist separately. |
 | AC-4 | Identity lines do not create price revisions; non-ISO asset tickers are rejected by FX path selection and become blocked. |
@@ -37,6 +37,9 @@
 | `node --test test/contract/contract.test.mjs` | pass, 11/11 |
 | `go test ./test/integration -run '^TestValuationAPI$' -count=1` | compiles; skipped locally because isolated DB URL is unavailable |
 | `go test ./test/integration -run '^TestValuationAPI$' -count=1` after CI-diagnostic wrapper | pass locally; the test remains skipped because isolated DB URL is unavailable; when PostgreSQL is present, the initial POST failure now includes the underlying service error without changing the production HTTP payload |
+| `go test ./internal/application/valuation ./test/integration -run 'TestValuation' -count=1` after price-method fix | pass |
+| `go vet ./apps/... ./internal/...` after price-method fix | pass |
+| `git diff --check` after price-method fix | pass |
 | `go test ./test/integration -run '^TestCoreDatabaseMigrations$' -count=1` | blocked: `test database URL is required` |
 | `task test-go TEST=Valuation` | not run as Task binary was not available in this worktree session |
 | `task test-go-integration TEST=ValuationAPI` | not run; local isolated DB unavailable |
@@ -54,7 +57,7 @@
 ## Git state
 
 - Branch: `task/AR-203-valuation-fx-provenance`
-- Implementation commit: `969786a0e7d413917c33cc51a65df1f27d836b97` (CI diagnostic wrapper); report update follows as a separate documentation commit.
+- Implementation commits: `b89d7bbea8d01435bfe04fc5ab9e51a1bf0192a2` (priced-line method fix), `969786a0e7d413917c33cc51a65df1f27d836b97` (CI diagnostic wrapper); report update follows as a separate documentation commit.
 - Remote branch: pending authorized push for CI rerun; no additional PR will be opened.
 - Worktree: clean before this report update; will be clean after the report commit.
 
@@ -66,3 +69,4 @@
 - Freshness windows are capped at `9223372036` seconds before `time.Duration` conversion to prevent integer overflow.
 - Local integration evidence is pending CI because the isolated PostgreSQL test URL is unavailable; the valuation endpoint does not call S3. Generated checks passed after elevated retry; no Docker or host settings were changed.
 - Hosted PR #31 previously returned a generic HTTP 500 from the valuation POST after migrations passed. The test-only wrapper records `Create`'s returned error and adds it to the test failure message, avoiding a second write or any production error disclosure.
+- CI run `36131148142` identified SQLSTATE `23514` (`valuation_lines_identity_price`): eligible priced lines had revision ID and quote unit but an empty `price_method`. The service now sets `price_method='revision'` before persistence, and the integration test asserts it.
