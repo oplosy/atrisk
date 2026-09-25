@@ -1,7 +1,7 @@
 ---
 id: AR-201
 title: Implement instruments and portfolio snapshots
-status: review
+status: merged
 phase: 2
 depends_on: [AR-101]
 branch: task/AR-201-portfolio-snapshots
@@ -65,14 +65,14 @@ position snapshots with exact quantities and explicit supported-risk attributes.
 
 ## Acceptance criteria
 
-- [ ] Integration proves committed snapshots and lines reject `UPDATE`/`DELETE` through the application API and direct SQL; snapshot API has no mutating route.
-- [ ] Corrections create a same-portfolio linked replacement; the original and each prior correction remain unchanged and queryable.
-- [ ] Tests preserve quantity, total cost basis, modified duration, and convexity at 18 fractional digits through API and `NUMERIC(38,18)` storage; API contracts use decimal strings.
-- [ ] Duplicate external IDs are rejected by a database uniqueness constraint for the same namespace, while equal IDs in different namespaces are accepted, including concurrent inserts.
-- [ ] Every supported instrument type accepts its allowed attributes; invalid types, unsupported risk attributes, invalid status, wrong-portfolio account references, wrong-instrument references, and malformed decimal strings return structured errors without partial writes.
-- [ ] Portfolio/account CRUD and reporting-currency validation are covered; resources cannot be deleted after snapshots or lines reference them.
-- [ ] Migrations pass from empty schema and the current previous schema, including append-only and identifier-uniqueness constraints.
-- [ ] OpenAPI and generated contracts describe resource/snapshot/correction behavior without generated-file drift.
+- [x] Integration proves committed snapshots and lines reject `UPDATE`/`DELETE` through the application API and direct SQL; snapshot API has no mutating route.
+- [x] Corrections create a same-portfolio linked replacement; the original and each prior correction remain unchanged and queryable.
+- [x] Tests preserve quantity, total cost basis, modified duration, and convexity at 18 fractional digits through API and `NUMERIC(38,18)` storage; API contracts use decimal strings.
+- [x] Duplicate external IDs are rejected by a database uniqueness constraint for the same namespace, while equal IDs in different namespaces are accepted, including concurrent inserts.
+- [x] Every supported instrument type accepts its allowed attributes; invalid types, unsupported risk attributes, invalid status, wrong-portfolio account references, wrong-instrument references, and malformed decimal strings return structured errors without partial writes.
+- [x] Portfolio/account CRUD and reporting-currency validation are covered; resources cannot be deleted after snapshots or lines reference them.
+- [x] Migrations pass from empty schema and the current previous schema, including append-only and identifier-uniqueness constraints.
+- [x] OpenAPI and generated contracts describe resource/snapshot/correction behavior without generated-file drift.
 
 ## Required verification
 

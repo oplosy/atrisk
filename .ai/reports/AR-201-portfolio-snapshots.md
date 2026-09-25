@@ -10,13 +10,13 @@
 
 ## Result
 
-`independent-review-approved; hosted verification pending`
+`merged`
 
 ## Acceptance evidence
 
 | Criterion | Evidence |
 |---|---|
-| AC-1 | `test/integration/portfolio_api_test.go` exercises direct SQL UPDATE/DELETE rejection for snapshots/lines and asserts PUT/PATCH/DELETE snapshot routes return 405. Database execution requires the isolated hosted PostgreSQL gate. |
+| AC-1 | `test/integration/portfolio_api_test.go` exercises direct SQL UPDATE/DELETE rejection for snapshots/lines and asserts PUT/PATCH/DELETE snapshot routes return 405. Hosted CI run #68 passed the integration suite. |
 | AC-2 | `TestPortfolioAPI` creates a same-portfolio correction through `CreateSnapshot`, checks `supersedes_snapshot_id`, then reads the original and verifies its exact quantity remains unchanged. |
 | AC-3 | `NUMERIC(38,18)` columns in migration plus `TestPortfolioAPI` exact 18-fraction quantity/cost/duration/convexity assertions. `total_cost_basis` remains nullable per `docs/architecture/DATA_AND_RISK_MODEL.md`; omitted cost is returned as omitted/null rather than fabricated zero. |
 | AC-4 | `instrument_external_identifiers` has PostgreSQL `UNIQUE (namespace, external_id)` and `(instrument_id, namespace)` constraints; integration covers same/different namespaces and concurrent identical inserts. New service writes keep legacy JSON and normalized rows consistent in one transaction. The migration backfills legacy identifiers without treating Binance provider metadata as an identifier, and its PostgreSQL trigger is idempotent only for the same instrument/namespace while preserving cross-instrument `(namespace, external_id)` conflicts. The previous-schema upgrade regression updates and replays a Binance upsert while preserving one normalized identifier; the portfolio integration regression proves a duplicate Binance identifier on another instrument fails.
@@ -27,7 +27,7 @@
 ## Stop-condition check
 
 - Decision or scope conflict: `none`. Optional cost basis follows the accepted data model; no valuation, transaction ledger, or risk computation was added.
-- Missing dependency, unsafe migration, or unavailable verification: isolated PostgreSQL was not available locally, so migration/integration execution remains a hosted-CI requirement. No Docker/Desktop or local services were changed.
+- Missing dependency, unsafe migration, or unavailable verification: none after hosted CI run #68. Local PostgreSQL was not started; no Docker Desktop or local services were changed.
 
 ## Verification
 
@@ -50,7 +50,8 @@
 | `task test-go-integration TEST=PortfolioAPI` | not runnable locally because `task` executable is unavailable; `go test ./test/integration -run '^TestPortfolioAPI$' -count=1 -v` passed with an explicit skip because no test database URL is configured |
 | `task test-contract` | not runnable locally because `task` executable is unavailable; equivalent contract test and generator checks passed |
 | `task verify` | not runnable locally because `task` executable is unavailable; hosted CI runs `task verify` |
-| Hosted CI run #67 (`90f1a31`) | portfolio API integration passed; `task verify` exposed the upgrade fixture inserting `USDT` into the pre-AR-105 v1 `CHAR(3)` column. Fixture corrected to `USD`; rerun pending on the fix commit. |
+| Hosted CI run #67 (`90f1a31`) | portfolio API integration passed; `task verify` exposed the upgrade fixture inserting `USDT` into the pre-AR-105 v1 `CHAR(3)` column. Fixture corrected to `USD` in `8073c04`. |
+| Hosted CI run #68 (`8073c04`) | pass; `TestCoreDatabase` migration/upgrade checks, `TestPortfolioAPI`, `task verify`, and all workflow steps succeeded. |
 
 ## Change inventory
 
@@ -61,9 +62,9 @@
 ## Git state
 
 - Branch: `task/AR-201-portfolio-snapshots`
-- Latest implementation SHA: `449697d` (Binance trigger conflict-target fix)
-- Review checkpoint before this metadata transition: local HEAD `972c85b`, remote `origin/task/AR-201-portfolio-snapshots` at `20ec449`, 10 local commits ahead; push/PR deferred to orchestrator
-- Worktree: clean at implementation review; metadata-only lifecycle/report update is being committed separately
+- Implementation branch: `task/AR-201-portfolio-snapshots` at `8073c04899ec1bd7fc579e7510f622ee1dde920e`; PR #27 merged as `2b90a5fb6b84d7935f49069bc4daea0aa61de90c`
+- Hosted verification: CI run #68 passed on the PR head; task packet and report merged through a separate metadata PR
+- Primary checkout: `main` fast-forwarded to `origin/main`; metadata-only status-finalization branch is clean before commit
 
 ## Assumptions and risks
 
