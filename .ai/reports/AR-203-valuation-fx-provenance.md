@@ -40,7 +40,7 @@
 | `task test-go TEST=Valuation` | not run as Task binary was not available in this worktree session |
 | `task test-go-integration TEST=ValuationAPI` | not run; local isolated DB unavailable |
 | `task test-contract` | contract test component passed; full Task target not run |
-| `task check-generated` | rerun after the fix commit; generated artifacts were regenerated deterministically |
+| `node scripts/verify/check-generated.mjs` | pass after registered regeneration (elevated retry; initial sandbox attempt returned EPERM) |
 | `task migrate-test` | blocked by missing `ATLASRISK_TEST_DATABASE_URL` |
 | `task verify` | not run because required local DB/infrastructure is unavailable |
 
