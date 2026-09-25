@@ -1,7 +1,7 @@
 ---
 id: AR-201
 title: Implement instruments and portfolio snapshots
-status: ready
+status: active
 phase: 2
 depends_on: [AR-101]
 branch: task/AR-201-portfolio-snapshots
