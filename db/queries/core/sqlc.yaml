@@ -6,6 +6,7 @@ sql:
       - "."
       - "../timeline"
       - "../quality"
+      - "../portfolio"
     gen:
       go:
         package: database
