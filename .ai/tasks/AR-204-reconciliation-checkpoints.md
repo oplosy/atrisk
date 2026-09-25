@@ -1,11 +1,11 @@
 ---
 id: AR-204
 title: Add valuation reconciliation checkpoints
-status: ready
+status: active
 phase: 2
 depends_on: [AR-203]
 branch: task/AR-204-reconciliation-checkpoints
-base_sha: 964384c28d224420d8dcf62965967425bc53fc39
+base_sha: 947b4e01debe5339bda8718aaf5cadee9f0c9e30
 owned_paths: [internal/domain/reconciliation/, internal/application/reconciliation/, db/queries/reconciliation/, apps/api/handlers/reconciliation/]
 shared_paths: [db/migrations/, contracts/openapi/, apps/api/cmd/api/]
 adrs: [ADR-010, ADR-011, ADR-012, ADR-025]
