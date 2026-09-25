@@ -88,6 +88,18 @@
     },
     "/api/v1/snapshots/{snapshot_id}": {
       "get": { "operationId": "getPortfolioSnapshot", "parameters": [{ "$ref": "#/components/parameters/SnapshotId" }], "responses": { "200": { "description": "Immutable snapshot with lines", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Snapshot" } } } }, "404": { "$ref": "#/components/responses/NotFound" } } }
+    },
+    "/api/v1/imports/positions/preview": {
+      "post": { "operationId": "previewPositionsImport", "requestBody": { "$ref": "#/components/requestBodies/CSVImport" }, "responses": { "200": { "description": "Bounded CSV preview", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ImportPreview" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" }, "413": { "$ref": "#/components/responses/PayloadTooLarge" }, "415": { "$ref": "#/components/responses/UnsupportedMediaType" } } }
+    },
+    "/api/v1/imports/positions/commit": {
+      "post": { "operationId": "commitPositionsImport", "requestBody": { "$ref": "#/components/requestBodies/CSVImport" }, "responses": { "201": { "description": "Committed position snapshot", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ImportResult" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" }, "409": { "$ref": "#/components/responses/Conflict" }, "413": { "$ref": "#/components/responses/PayloadTooLarge" }, "415": { "$ref": "#/components/responses/UnsupportedMediaType" } } }
+    },
+    "/api/v1/imports/manual-prices/preview": {
+      "post": { "operationId": "previewManualPricesImport", "requestBody": { "$ref": "#/components/requestBodies/CSVImport" }, "responses": { "200": { "description": "Bounded CSV preview", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ImportPreview" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" }, "413": { "$ref": "#/components/responses/PayloadTooLarge" }, "415": { "$ref": "#/components/responses/UnsupportedMediaType" } } }
+    },
+    "/api/v1/imports/manual-prices/commit": {
+      "post": { "operationId": "commitManualPricesImport", "requestBody": { "$ref": "#/components/requestBodies/CSVImport" }, "responses": { "201": { "description": "Committed price revisions", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ImportResult" } } } }, "400": { "$ref": "#/components/responses/InvalidRequest" }, "409": { "$ref": "#/components/responses/Conflict" }, "413": { "$ref": "#/components/responses/PayloadTooLarge" }, "415": { "$ref": "#/components/responses/UnsupportedMediaType" } } }
     }
   },
   "components": {
@@ -128,8 +140,14 @@
       "SnapshotLine": { "allOf": [{ "$ref": "#/components/schemas/SnapshotLineInput" }, { "type": "object", "required": ["id"], "properties": { "id": { "type": "string", "format": "uuid" }, "account_name": { "type": "string" }, "canonical_symbol": { "type": "string" }, "instrument_type": { "type": "string" }, "native_unit": { "type": "string" }, "status": { "type": "string" } } }] },
       "Snapshot": { "type": "object", "additionalProperties": false, "required": ["id", "portfolio_id", "captured_at", "created_at", "lines"], "properties": { "id": { "type": "string", "format": "uuid" }, "portfolio_id": { "type": "string", "format": "uuid" }, "captured_at": { "type": "string", "format": "date-time" }, "supersedes_snapshot_id": { "type": "string", "format": "uuid" }, "created_at": { "type": "string", "format": "date-time" }, "lines": { "type": "array", "items": { "$ref": "#/components/schemas/SnapshotLine" } } } },
       "SnapshotPage": { "type": "object", "required": ["items"], "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/Snapshot" } } } },
+      "ImportDiagnostic": { "type": "object", "additionalProperties": false, "required": ["row", "column", "code", "message"], "properties": { "row": { "type": "integer", "minimum": 1 }, "column": { "type": "string" }, "code": { "type": "string" }, "message": { "type": "string" } } },
+      "ImportPreview": { "type": "object", "additionalProperties": false, "required": ["import_kind", "target_id", "schema_version", "content_sha256", "row_count", "valid", "diagnostics", "diagnostics_truncated"], "properties": { "token": { "type": "string" }, "import_kind": { "type": "string", "enum": ["positions", "manual-prices"] }, "target_id": { "type": "string", "format": "uuid" }, "schema_version": { "type": "string", "const": "1.0" }, "content_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }, "row_count": { "type": "integer", "minimum": 0, "maximum": 25000 }, "valid": { "type": "boolean" }, "diagnostics": { "type": "array", "maxItems": 100, "items": { "$ref": "#/components/schemas/ImportDiagnostic" } }, "diagnostics_truncated": { "type": "boolean" }, "expires_at": { "type": "string", "format": "date-time" } } },
+      "ImportResult": { "type": "object", "additionalProperties": false, "required": ["import_kind", "target_id", "schema_version", "content_sha256", "row_count", "import_result_id", "raw_object_sha256"], "properties": { "import_kind": { "type": "string", "enum": ["positions", "manual-prices"] }, "target_id": { "type": "string", "format": "uuid" }, "schema_version": { "type": "string", "const": "1.0" }, "content_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }, "row_count": { "type": "integer" }, "import_result_id": { "type": "string", "format": "uuid" }, "snapshot_id": { "type": "string", "format": "uuid" }, "revision_count": { "type": "integer" }, "raw_object_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } } },
       "SeriesPage": { "type": "object", "required": ["items", "limit", "has_more"], "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/Series" } }, "limit": { "type": "integer" }, "next_cursor": { "type": "string" }, "has_more": { "type": "boolean" } } },
       "ObservationPage": { "type": "object", "required": ["items", "limit", "has_more"], "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/Observation" } }, "limit": { "type": "integer" }, "next_cursor": { "type": "string" }, "has_more": { "type": "boolean" } } }
+    },
+    "requestBodies": {
+      "CSVImport": { "required": true, "content": { "multipart/form-data": { "schema": { "type": "object", "required": ["file", "schema_version", "target_id"], "properties": { "file": { "type": "string", "format": "binary" }, "schema_version": { "type": "string", "const": "1.0" }, "target_id": { "type": "string", "format": "uuid" }, "token": { "type": "string" } } } } } }
     },
     "parameters": {
       "SeriesId": { "name": "series_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
@@ -159,7 +177,9 @@
       "InvalidRequest": { "description": "Invalid series identifier, mode, limit, cursor, or time window", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Problem" } } } },
       "NotFound": { "description": "Resource not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Problem" } } } },
       "Conflict": { "description": "Resource conflicts with an existing identifier or immutable reference", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Problem" } } } },
-      "SourceAsOfUnsupported": { "description": "The source has no defensible source-vintage clock", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Problem" } } } }
+      "SourceAsOfUnsupported": { "description": "The source has no defensible source-vintage clock", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Problem" } } } },
+      "PayloadTooLarge": { "description": "CSV exceeds the 10 MiB bound", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Problem" } } } },
+      "UnsupportedMediaType": { "description": "Only CSV media types are accepted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Problem" } } } }
     },
     "headers": {
       "RequestId": {
