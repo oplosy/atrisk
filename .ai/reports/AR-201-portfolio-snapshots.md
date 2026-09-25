@@ -56,7 +56,7 @@
 ## Git state
 
 - Branch: `task/AR-201-portfolio-snapshots`
-- Commit SHA: `1aceae2cb183fe3cff115a3e91f4f4dc4a2253f4`
+- Commit SHA: `536c1c0f60f4221cab5543053958cb706cba24d4` (implementation commit; this report finalization is a follow-up metadata commit)
 - Remote branch: `origin/task/AR-201-portfolio-snapshots` (local branch ahead by 4 commits; push/PR deferred to orchestrator)
 - Worktree: clean after commit
 
