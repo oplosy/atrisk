@@ -7,7 +7,7 @@ depends_on: [AR-203]
 branch: task/AR-204-reconciliation-checkpoints
 base_sha: 947b4e01debe5339bda8718aaf5cadee9f0c9e30
 owned_paths: [internal/domain/reconciliation/, internal/application/reconciliation/, db/queries/reconciliation/, apps/api/handlers/reconciliation/]
-shared_paths: [db/migrations/, contracts/openapi/, apps/api/cmd/api/]
+shared_paths: [db/migrations/, contracts/openapi/, apps/api/cmd/api/, test/integration/]
 adrs: [ADR-010, ADR-011, ADR-012, ADR-025]
 ---
 
