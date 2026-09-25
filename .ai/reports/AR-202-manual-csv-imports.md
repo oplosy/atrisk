@@ -54,7 +54,7 @@
 ## Git state
 
 - Branch: `task/AR-202-manual-csv-imports`
-- Commit SHA: `41827c4eea63a3578e32c0672962386698a55e60`
+- Commit SHA: `18b56826e7c1e608acdd236ab86ffed17dccfd9e`
 - Remote branch: not pushed by this worker
 - Worktree: clean after commit
 
