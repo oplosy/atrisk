@@ -59,7 +59,7 @@
 ## Git state
 
 - Branch: `task/AR-202-manual-csv-imports`
-- Commit SHA: to be filled after captured_at/idempotency fix commit
+- Commit SHA: `1fef896a5bde3910e3a6ae2bd0eb673c4f942e2d`
 - Remote branch: not pushed by this worker
 - Worktree: clean after commit
 
