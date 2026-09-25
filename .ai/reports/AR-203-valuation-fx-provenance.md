@@ -25,7 +25,7 @@
 
 ## Stop-condition check
 
-- Decision or scope conflict: `none`; the packet's original S3 wording remains authority-controlled, while implementation only reads PostgreSQL raw-object provenance and does not call S3.
+- Decision or scope conflict: `none`; the packet now correctly scopes valuation integration to PostgreSQL and raw-object provenance reachability. AR-102 owns S3/archive behavior.
 - Missing dependency, unsafe migration, or unavailable verification: local PostgreSQL URL was not configured, so migration/integration execution is blocked locally; CI is configured to run it.
 
 ## Verification
@@ -63,4 +63,4 @@
 - ISO-4217 parsing rejects non-fiat special codes and asset tickers; FX rates are constrained positive in PostgreSQL and checked before reciprocal traversal.
 - Totals are calculated from the rounded `NUMERIC(38,18)` line values; half-scale ties use half-away-from-zero rounding.
 - Freshness windows are capped at `9223372036` seconds before `time.Duration` conversion to prevent integer overflow.
-- Local integration evidence is pending CI because the configured isolated PostgreSQL/S3 services are not available; generated checks passed after elevated retry; no Docker or host settings were changed.
+- Local integration evidence is pending CI because the isolated PostgreSQL test URL is unavailable; the valuation endpoint does not call S3. Generated checks passed after elevated retry; no Docker or host settings were changed.

@@ -1,7 +1,7 @@
 ---
 id: AR-203
 title: Implement valuation and FX provenance
-status: ready
+status: review
 phase: 2
 depends_on: [AR-106, AR-201]
 branch: task/AR-203-valuation-fx-provenance
@@ -24,8 +24,10 @@ and USD using cutoff/freshness-aware prices and an inspectable deterministic FX 
   quote lineage, immutable valuation runs/results, API and quality aggregation.
 - Request-scoped freshness policy, persisted with every valuation run; do not add
   mutable per-instrument freshness configuration in this task.
-- API/OpenAPI/generated contract, migration/query generation, and PostgreSQL/S3-backed
-  integration coverage for the valuation endpoint.
+- API/OpenAPI/generated contract, migration/query generation, and PostgreSQL-backed
+  integration coverage for the valuation endpoint. The valuation service reads
+  raw-object provenance through immutable revision rows; archive storage behavior
+  remains covered by AR-102 and is not an S3 dependency of this endpoint.
 
 ## V1 valuation contract
 
@@ -82,8 +84,9 @@ and USD using cutoff/freshness-aware prices and an inspectable deterministic FX 
   successful and blocked run records remain immutable.
 - [ ] Identical normalized inputs and selected revision IDs produce the same
   canonical result hash.
-- [ ] OpenAPI/generated types are in sync and integration tests exercise the
-  actual HTTP endpoint against PostgreSQL and configured S3-compatible archive.
+- [ ] OpenAPI/generated types are in sync; PostgreSQL integration exercises the
+  actual HTTP endpoint and proves selected revisions retain reachable raw-object
+  provenance. S3/archive behavior is covered by AR-102 archive/ingestion tests.
 
 ## Required verification
 
