@@ -20,6 +20,14 @@ func TestParseDecimalPreservesEighteenFractionalDigits(t *testing.T) {
 	if _, err := parseDecimal("not-a-decimal", false); err == nil {
 		t.Fatal("accepted malformed decimal")
 	}
+	if _, err := parseDecimal("123456789012345678901", false); err == nil {
+		t.Fatal("accepted more than 20 integer digits")
+	}
+	if value, err := parseDecimal("12345678901234567890.123456789012345678", false); err != nil {
+		t.Fatalf("rejected NUMERIC(38,18) boundary: %v", err)
+	} else if got := numericString(value); got != "12345678901234567890.123456789012345678" {
+		t.Fatalf("boundary value=%q", got)
+	}
 	if value, err := parseDecimal("", true); err != nil || value.Valid {
 		t.Fatalf("optional decimal: value=%+v err=%v", value, err)
 	}

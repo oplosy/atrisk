@@ -288,6 +288,14 @@ func TestCoreDatabasePreviousVersionUpgrade(t *testing.T) {
 		versionDB.Close()
 		t.Fatalf("insert v1 instrument sentinel: %v", err)
 	}
+	for _, symbol := range []string{schemaName + "_btc_usdt", schemaName + "_eth_usdt"} {
+		if _, err := versionDB.ExecContext(ctx, `
+			INSERT INTO instruments (canonical_symbol, instrument_type, native_currency, external_ids)
+			VALUES ($1, 'crypto_spot', 'USDT', '{"provider":"binance"}')`, symbol); err != nil {
+			versionDB.Close()
+			t.Fatalf("insert v1 Binance instrument %s: %v", symbol, err)
+		}
+	}
 	versionDB.Close()
 
 	var hardeningConstraints int
@@ -355,6 +363,15 @@ func TestCoreDatabasePreviousVersionUpgrade(t *testing.T) {
 	}
 	if sentinelCurrency != "TRY" {
 		t.Fatalf("v1 instrument value changed during upgrade: %q", sentinelCurrency)
+	}
+	var binanceIdentifiers int
+	if err := upgradedDB.QueryRowContext(ctx, `
+		SELECT count(*)::int FROM `+schemaName+`.instrument_external_identifiers
+		WHERE namespace = 'binance.symbol' AND external_id IN ($1, $2)`, schemaName+"_btc_usdt", schemaName+"_eth_usdt").Scan(&binanceIdentifiers); err != nil {
+		t.Fatalf("inspect upgraded Binance identifiers: %v", err)
+	}
+	if binanceIdentifiers != 2 {
+		t.Fatalf("expected two upgraded Binance identifiers, got %d", binanceIdentifiers)
 	}
 }
 

@@ -82,3 +82,99 @@ class UnknownSchemaVersionDetails(ContractModel):
     kind: str = Field(min_length=1)
     schema_version: str = Field(min_length=1)
     supported_versions: list[Literal["1.0"]] = Field(min_length=1, max_length=1)
+
+
+class ExternalIdentifier(ContractModel):
+    namespace: str
+    external_id: str
+
+class Instrument(ContractModel):
+    id: str
+    canonical_symbol: str
+    instrument_type: Literal["cash", "currency", "spot_crypto", "manual_spot", "fixed_rate_bond"]
+    native_unit: str
+    external_ids: list[ExternalIdentifier]
+    status: Literal["active", "inactive", "delisted"]
+    created_at: str
+
+class CreateInstrumentRequest(ContractModel):
+    canonical_symbol: str
+    instrument_type: Literal["cash", "currency", "spot_crypto", "manual_spot", "fixed_rate_bond"]
+    native_unit: str
+    external_ids: list[ExternalIdentifier] | None = None
+    status: Literal["active", "inactive", "delisted"] | None = None
+
+class InstrumentStatusRequest(ContractModel):
+    status: Literal["active", "inactive", "delisted"]
+
+class InstrumentPage(ContractModel):
+    items: list[Instrument]
+
+class Portfolio(ContractModel):
+    id: str
+    name: str
+    reporting_currency: Literal["TRY", "USD"]
+    metadata: dict[str, Any]
+    created_at: str
+    updated_at: str
+
+class PortfolioRequest(ContractModel):
+    name: str
+    reporting_currency: Literal["TRY", "USD"]
+    metadata: dict[str, Any] | None = None
+
+class PortfolioPage(ContractModel):
+    items: list[Portfolio]
+
+class Account(ContractModel):
+    id: str
+    portfolio_id: str
+    name: str
+    metadata: dict[str, Any]
+    created_at: str
+    updated_at: str
+
+class AccountRequest(ContractModel):
+    name: str
+    metadata: dict[str, Any] | None = None
+
+class AccountPage(ContractModel):
+    items: list[Account]
+
+class SnapshotLineInput(ContractModel):
+    account_id: str
+    instrument_id: str
+    quantity: str
+    total_cost_basis: str | None = None
+    modified_duration_years: str | None = None
+    convexity_years_squared: str | None = None
+
+class CreateSnapshotRequest(ContractModel):
+    captured_at: str
+    supersedes_snapshot_id: str | None = None
+    lines: list[SnapshotLineInput]
+
+class SnapshotLine(ContractModel):
+    account_id: str
+    instrument_id: str
+    quantity: str
+    total_cost_basis: str | None = None
+    modified_duration_years: str | None = None
+    convexity_years_squared: str | None = None
+    id: str
+    account_name: str | None = None
+    canonical_symbol: str | None = None
+    instrument_type: str | None = None
+    native_unit: str | None = None
+    status: str | None = None
+
+class Snapshot(ContractModel):
+    id: str
+    portfolio_id: str
+    captured_at: str
+    supersedes_snapshot_id: str | None = None
+    created_at: str
+    lines: list[SnapshotLine]
+
+class SnapshotPage(ContractModel):
+    items: list[Snapshot]

@@ -13,14 +13,71 @@ CREATE TABLE instrument_external_identifiers (
 );
 
 -- Keep the pre-AR-201 JSON representation compatible while introducing a
--- relational uniqueness boundary. New writes update both representations in
--- one transaction; this backfills identities that already existed.
+-- relational uniqueness boundary. The old Binance writer stores provider
+-- metadata, not a unique external identifier; canonical symbols are the
+-- stable bridge identifier for those rows.
 INSERT INTO instrument_external_identifiers (instrument_id, namespace, external_id)
 SELECT i.id, entry.key, entry.value
 FROM instruments AS i
-CROSS JOIN LATERAL jsonb_each_text(i.external_ids) AS entry
-WHERE length(btrim(entry.key)) > 0 AND length(btrim(entry.value)) > 0
-;
+CROSS JOIN LATERAL jsonb_each_text(CASE WHEN jsonb_typeof(i.external_ids) = 'object' THEN i.external_ids ELSE '{}'::jsonb END) AS entry
+WHERE i.external_ids->>'provider' = 'binance'
+  AND entry.key = 'binance_symbol'
+  AND length(btrim(entry.value)) > 0
+ON CONFLICT DO NOTHING;
+
+INSERT INTO instrument_external_identifiers (instrument_id, namespace, external_id)
+SELECT i.id, 'binance.symbol', i.canonical_symbol
+FROM instruments AS i
+WHERE i.external_ids->>'provider' = 'binance'
+ON CONFLICT DO NOTHING;
+
+-- Other legacy JSON keys are backfilled only when their pair is unambiguous.
+-- Conflicting provider/status metadata remains intact in JSON and cannot make
+-- an upgrade fail or silently claim a false unique identity.
+WITH legacy AS (
+    SELECT i.id AS instrument_id, entry.key AS namespace, entry.value AS external_id
+    FROM instruments AS i
+    CROSS JOIN LATERAL jsonb_each_text(CASE WHEN jsonb_typeof(i.external_ids) = 'object' THEN i.external_ids ELSE '{}'::jsonb END) AS entry
+    WHERE entry.key NOT IN ('provider', 'upstream_status', 'binance_symbol')
+      AND length(btrim(entry.key)) > 0
+      AND length(btrim(entry.value)) > 0
+), unambiguous AS (
+    SELECT namespace, external_id
+    FROM legacy
+    GROUP BY namespace, external_id
+    HAVING count(*) = 1
+)
+INSERT INTO instrument_external_identifiers (instrument_id, namespace, external_id)
+SELECT legacy.instrument_id, legacy.namespace, legacy.external_id
+FROM legacy
+JOIN unambiguous USING (namespace, external_id)
+ON CONFLICT DO NOTHING;
+
+CREATE OR REPLACE FUNCTION ensure_binance_external_identifier()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $function$
+BEGIN
+    IF NEW.external_ids->>'provider' = 'binance' THEN
+        IF EXISTS (
+            SELECT 1 FROM instrument_external_identifiers
+            WHERE instrument_id = NEW.id
+              AND namespace = 'binance.symbol'
+              AND external_id <> NEW.canonical_symbol
+        ) THEN
+            RAISE EXCEPTION 'Binance canonical symbol conflicts with normalized identifier'
+                USING ERRCODE = '23514';
+        END IF;
+        INSERT INTO instrument_external_identifiers (instrument_id, namespace, external_id)
+        VALUES (NEW.id, 'binance.symbol', NEW.canonical_symbol);
+    END IF;
+    RETURN NEW;
+END;
+$function$;
+
+CREATE TRIGGER instruments_binance_external_identifier
+    AFTER INSERT OR UPDATE ON instruments
+    FOR EACH ROW EXECUTE FUNCTION ensure_binance_external_identifier();
 
 CREATE TRIGGER instrument_external_identifiers_immutable
     BEFORE UPDATE OR DELETE ON instrument_external_identifiers
@@ -134,6 +191,8 @@ DROP TRIGGER IF EXISTS portfolio_snapshot_lines_immutable ON portfolio_snapshot_
 DROP TRIGGER IF EXISTS portfolio_snapshots_immutable ON portfolio_snapshots;
 DROP TRIGGER IF EXISTS portfolio_snapshot_lines_validate ON portfolio_snapshot_lines;
 DROP TRIGGER IF EXISTS instrument_external_identifiers_immutable ON instrument_external_identifiers;
+DROP TRIGGER IF EXISTS instruments_binance_external_identifier ON instruments;
+DROP FUNCTION IF EXISTS ensure_binance_external_identifier();
 DROP FUNCTION IF EXISTS validate_portfolio_snapshot_line();
 DROP TABLE IF EXISTS portfolio_snapshot_lines;
 DROP TABLE IF EXISTS portfolio_snapshots;

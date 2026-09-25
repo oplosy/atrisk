@@ -176,6 +176,23 @@ test("generated Go models preserve schema enum and literal distinctions", async 
   assert.match(go, /JobEnvelopeSchemaVersionV1_0 JobEnvelopeSchemaVersion = "1\.0"/);
 });
 
+test("portfolio resource schemas are represented in every generated contract target", async () => {
+  const openapi = await readJson("contracts/openapi/openapi.json");
+  for (const name of ["Portfolio", "Account", "Snapshot"]) {
+    assert.ok(openapi.components.schemas[name], name);
+  }
+  const [go, typescript, python] = await Promise.all([
+    readFile(resolve(root, "contracts/generated/go/contracts.go"), "utf8"),
+    readFile(resolve(root, "contracts/generated/typescript/contracts.ts"), "utf8"),
+    readFile(resolve(root, "contracts/generated/python/contracts.py"), "utf8"),
+  ]);
+  for (const name of ["Portfolio", "Account", "Snapshot"]) {
+    assert.match(go, new RegExp(`type ${name} struct`), name);
+    assert.match(typescript, new RegExp(`export interface ${name}`), name);
+    assert.match(python, new RegExp(`class ${name}\\(ContractModel\\)`), name);
+  }
+});
+
 test("all JSON Schema sources declare a draft and stable version const", async () => {
   const names = [
     "error-envelope",

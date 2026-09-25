@@ -652,15 +652,15 @@ func parseDecimal(value string, optional bool) (pgtype.Numeric, error) {
 	}
 	digits := strings.TrimPrefix(value, "-")
 	parts := strings.SplitN(digits, ".", 2)
-	if len(parts) == 2 && len(parts[1]) > 18 {
+	fractionalDigits := ""
+	if len(parts) == 2 {
+		fractionalDigits = parts[1]
+	}
+	if len(fractionalDigits) > 18 {
 		return pgtype.Numeric{}, ErrInvalidRequest
 	}
-	if len(strings.TrimLeft(parts[0], "0"))+len(func() string {
-		if len(parts) == 2 {
-			return parts[1]
-		}
-		return ""
-	}()) > 38 {
+	integerDigits := strings.TrimLeft(parts[0], "0")
+	if len(integerDigits) > 20 || len(integerDigits)+len(fractionalDigits) > 38 {
 		return pgtype.Numeric{}, ErrInvalidRequest
 	}
 	var result pgtype.Numeric

@@ -35,14 +35,26 @@ func TestPortfolioAPI(t *testing.T) {
 	if _, err := service.CreateInstrument(ctx, application.CreateInstrumentRequest{CanonicalSymbol: "bad-type", InstrumentType: "future", NativeUnit: "USD"}); !errors.Is(err, application.ErrInvalidRequest) {
 		t.Fatalf("invalid type error=%v", err)
 	}
-	if _, err := service.CreateInstrument(ctx, application.CreateInstrumentRequest{CanonicalSymbol: "bad-unit", InstrumentType: domain.InstrumentCash, NativeUnit: "usdt"}); !errors.Is(err, application.ErrInvalidRequest) {
-		t.Fatalf("invalid unit error=%v", err)
+	normalized, err := service.CreateInstrument(ctx, application.CreateInstrumentRequest{CanonicalSymbol: "lower-unit", InstrumentType: domain.InstrumentCash, NativeUnit: "usdt"})
+	if err != nil {
+		t.Fatalf("lowercase native unit: %v", err)
+	}
+	if normalized.NativeUnit != "USDT" {
+		t.Fatalf("native unit was not normalized: %q", normalized.NativeUnit)
 	}
 	if _, err := service.CreateInstrument(ctx, application.CreateInstrumentRequest{CanonicalSymbol: "duplicate-external", InstrumentType: domain.InstrumentCash, NativeUnit: "USD", ExternalIDs: []domain.ExternalIdentifier{{Namespace: "fixture-cash", ExternalID: "id-cash"}}}); !errors.Is(err, application.ErrConflict) {
 		t.Fatalf("duplicate external error=%v", err)
 	}
 	if _, err := service.CreateInstrument(ctx, application.CreateInstrumentRequest{CanonicalSymbol: "different-namespace", InstrumentType: domain.InstrumentCash, NativeUnit: "USD", ExternalIDs: []domain.ExternalIdentifier{{Namespace: "another", ExternalID: "id-cash"}}}); err != nil {
 		t.Fatalf("different namespace external id: %v", err)
+	}
+	if _, err := service.CreateInstrument(ctx, application.CreateInstrumentRequest{CanonicalSymbol: "normalized-seed", InstrumentType: domain.InstrumentCash, NativeUnit: "USD", ExternalIDs: []domain.ExternalIdentifier{{Namespace: "binance.symbol", ExternalID: "BINANCE-DUPLICATE"}}}); err != nil {
+		t.Fatalf("seed normalized Binance identifier: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO instruments (canonical_symbol, instrument_type, native_currency, external_ids)
+		VALUES ('BINANCE-DUPLICATE', 'spot_crypto', 'USDT', '{"provider":"binance"}')`); err == nil {
+		t.Fatal("Binance writer bypassed normalized external-ID uniqueness")
 	}
 
 	portfolio, err := service.CreatePortfolio(ctx, application.CreatePortfolioRequest{Name: "Fixture portfolio", ReportingCurrency: "TRY", Metadata: map[string]any{"fixture": true}})

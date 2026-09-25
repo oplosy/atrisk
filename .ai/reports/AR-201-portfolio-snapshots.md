@@ -19,10 +19,10 @@
 | AC-1 | `test/integration/portfolio_api_test.go` exercises direct SQL UPDATE/DELETE rejection for snapshots/lines and asserts PUT/PATCH/DELETE snapshot routes return 405. Database execution requires the isolated hosted PostgreSQL gate. |
 | AC-2 | `TestPortfolioAPI` creates a same-portfolio correction through `CreateSnapshot`, checks `supersedes_snapshot_id`, then reads the original and verifies its exact quantity remains unchanged. |
 | AC-3 | `NUMERIC(38,18)` columns in migration plus `TestPortfolioAPI` exact 18-fraction quantity/cost/duration/convexity assertions. `total_cost_basis` remains nullable per `docs/architecture/DATA_AND_RISK_MODEL.md`; omitted cost is returned as omitted/null rather than fabricated zero. |
-| AC-4 | `instrument_external_identifiers` has PostgreSQL `UNIQUE (namespace, external_id)` and `(instrument_id, namespace)` constraints; integration covers same/different namespaces and concurrent identical inserts. New service writes keep legacy JSON and normalized rows consistent in one transaction; migration backfills legacy JSON. |
-| AC-5 | Domain/service validation covers all five supported types, lifecycle status and uppercase unit codes; integration covers malformed type/unit, unsupported risk attributes, wrong account portfolio, wrong instrument, and transactional instrument creation. PostgreSQL trigger rechecks fixed-bond duration/convexity rules. |
+| AC-4 | `instrument_external_identifiers` has PostgreSQL `UNIQUE (namespace, external_id)` and `(instrument_id, namespace)` constraints; integration covers same/different namespaces and concurrent identical inserts. New service writes keep legacy JSON and normalized rows consistent in one transaction. The migration backfills legacy identifiers without treating Binance provider metadata as an identifier, and its PostgreSQL trigger makes the existing Binance writer participate in normalized uniqueness transactionally. |
+| AC-5 | Domain/service validation covers all five supported types, lifecycle status and uppercase unit codes; lowercase native units are normalized to uppercase per ADR-024. Integration covers malformed type/unit, unsupported risk attributes, wrong account portfolio, wrong instrument, and transactional instrument creation. Decimal parsing rejects values outside NUMERIC(38,18) precision before database access; PostgreSQL trigger rechecks fixed-bond duration/convexity rules. |
 | AC-6 | Portfolio/account create/list/read/update/delete methods and routes are implemented; reporting currency is restricted to TRY/USD; integration proves referenced account/portfolio deletion is rejected. |
-| AC-7 | `contracts/openapi/openapi.json` describes instrument, portfolio, account, snapshot, line and correction routes with decimal-string fields; SQLC output was regenerated from the migration/query source and the contract/generated drift check was run. |
+| AC-7 | `contracts/openapi/openapi.json` describes instrument, portfolio, account, snapshot, line and correction routes with decimal-string fields. The contract generator now emits all portfolio/account/snapshot API schemas in Go, TypeScript, and Python, with a drift test covering the generated targets. SQLC output was regenerated from the migration/query source. |
 
 ## Stop-condition check
 
@@ -38,30 +38,31 @@
 | `go test ./test/integration -run '^$' -count=1` | pass; integration package compile gate |
 | `go vet ./apps/... ./internal/...` | pass |
 | `go build ./apps/...` | pass |
-| `node --test test/contract/contract.test.mjs` | pass; 10 tests |
-| `node scripts/verify/check-generated.mjs` | pass after Git stat refresh; contract generator leaves no generated drift |
+| `node --test test/contract/contract.test.mjs` | pass; 11 tests, including generated Portfolio/Account/Snapshot model coverage |
+| `node scripts/verify/check-generated.mjs` | pass after committing generated outputs; pre-commit invocation correctly detected the intentional new generated artifacts |
 | `git diff --check` | pass |
 | `task migrate-test` | not run locally; `task` executable unavailable and no isolated PostgreSQL DSN; hosted CI runs the required migration gate |
-| `task test-go TEST=Portfolio` | equivalent local `go test ./... -count=1` passed; Task executable unavailable locally |
-| `task test-go-integration TEST=PortfolioAPI` | not run locally; requires isolated PostgreSQL; hosted CI workflow step added |
-| `task test-contract` | equivalent contract test and generator checks passed; Task executable unavailable locally |
-| `task verify` | not run locally; Task executable unavailable locally; hosted CI runs `task verify` |
+| `task test-go TEST=Portfolio` | not runnable locally because `task` executable is unavailable; equivalent `go test ./... -count=1` passed |
+| `task test-go-integration TEST=PortfolioAPI` | not runnable locally because `task` executable is unavailable; `go test ./test/integration -run '^TestPortfolioAPI$' -count=1 -v` passed with an explicit skip because no test database URL is configured |
+| `task test-contract` | not runnable locally because `task` executable is unavailable; equivalent contract test and generator checks passed |
+| `task verify` | not runnable locally because `task` executable is unavailable; hosted CI runs `task verify` |
 
 ## Change inventory
 
-- Files changed: AR-201 domain model/service/handler/tests; `db/migrations/00004_portfolio_snapshots.sql`; `db/queries/portfolio/portfolio.sql`; SQLC config/generated database files; API mount; OpenAPI; integration test; CI integration step; this report; core migration-version assertions.
+- Files changed: AR-201 domain model/service/handler/tests; `db/migrations/00004_portfolio_snapshots.sql`; `db/queries/portfolio/portfolio.sql`; SQLC config/generated database files; API mount; OpenAPI; integration test; CI integration step; contract generator/generated outputs; this report; core migration-version assertions.
 - Schema/API changes: normalized immutable instrument identifiers; portfolios/accounts; immutable snapshots and lines; same-portfolio correction FK; exact decimal storage; structured resource APIs and read-only snapshot contract.
-- Generated artifacts: SQLC `internal/platform/database/{models.go,querier.go,portfolio.sql.go}` and regenerated contract outputs (content-stable); no generated drift remains.
+- Generated artifacts: SQLC `internal/platform/database/{models.go,querier.go,portfolio.sql.go}` and regenerated contract outputs, including Portfolio/Account/Snapshot models in Go/TypeScript/Python; no generated drift remains after commit.
 
 ## Git state
 
 - Branch: `task/AR-201-portfolio-snapshots`
-- Commit SHA: to be filled after commit
-- Remote branch: `origin/task/AR-201-portfolio-snapshots` is not updated by this worker
+- Commit SHA: `1aceae2cb183fe3cff115a3e91f4f4dc4a2253f4`
+- Remote branch: `origin/task/AR-201-portfolio-snapshots` (local branch ahead by 4 commits; push/PR deferred to orchestrator)
 - Worktree: clean after commit
 
 ## Assumptions and risks
 
 - Hosted PostgreSQL 18 is the authoritative migration/integration environment; local Docker was intentionally not started or changed.
 - The existing `instruments.native_currency` column is the persisted native-unit field established by ADR-024/AR-105; the public API names it `native_unit` without adding a divergent duplicate column.
-- Legacy `instruments.external_ids` JSON objects are backfilled into the normalized uniqueness table; migration fails closed on conflicting pre-existing `(namespace, external_id)` values rather than silently dropping one.
+- Legacy `instruments.external_ids` JSON objects are backfilled into the normalized uniqueness table. Provider/status metadata is excluded, ambiguous legacy pairs are preserved only in JSON, and new Binance-writer inserts fail on normalized uniqueness conflicts instead of silently dropping the row.
+- Local Docker/Desktop and services were not started, stopped, reset, or reconfigured; hosted PostgreSQL remains the unresolved runtime gate.

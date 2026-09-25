@@ -133,6 +133,115 @@ const pyValidators = (schema) =>
         return value
 `).join("");
 
+const apiModelNames = [
+  "ExternalIdentifier",
+  "Instrument",
+  "CreateInstrumentRequest",
+  "InstrumentStatusRequest",
+  "InstrumentPage",
+  "Portfolio",
+  "PortfolioRequest",
+  "PortfolioPage",
+  "Account",
+  "AccountRequest",
+  "AccountPage",
+  "SnapshotLineInput",
+  "CreateSnapshotRequest",
+  "SnapshotLine",
+  "Snapshot",
+  "SnapshotPage",
+];
+const apiSchema = (name, seen = new Set()) => {
+  if (seen.has(name)) throw new Error(`cyclic API schema composition: ${name}`);
+  seen.add(name);
+  const schema = source.components.schemas[name];
+  if (!schema) throw new Error(`missing API schema: ${name}`);
+  const properties = {};
+  const required = new Set(schema.required ?? []);
+  for (const part of schema.allOf ?? [schema]) {
+    if (part.$ref) {
+      const refName = part.$ref.split("/").at(-1);
+      const resolved = apiSchema(refName, new Set(seen));
+      Object.assign(properties, resolved.properties);
+      for (const field of resolved.required) required.add(field);
+      continue;
+    }
+    Object.assign(properties, part.properties ?? {});
+    for (const field of part.required ?? []) required.add(field);
+  }
+  return { properties, required: [...required] };
+};
+const apiRefName = (property) => property.$ref?.split("/").at(-1);
+const apiGoBaseType = (property, fieldName) => {
+  const ref = apiRefName(property);
+  if (ref) return ref;
+  if (property.type === "array") {
+    const itemRef = apiRefName(property.items ?? {});
+    if (itemRef) return `[]${itemRef}`;
+    return `[]${property.items?.type === "integer" ? "int" : property.items?.type === "number" ? "float64" : "string"}`;
+  }
+  if (property.type === "string") return "string";
+  if (property.type === "integer") return "int";
+  if (property.type === "number") return "float64";
+  if (property.type === "boolean") return "bool";
+  return "map[string]any";
+};
+const apiGoType = (property, fieldName, required) => {
+  const type = apiGoBaseType(property, fieldName);
+  if (required || type.startsWith("[]") || type.startsWith("map[")) return type;
+  return `*${type}`;
+};
+const apiTsType = (property) => {
+  const ref = apiRefName(property);
+  if (ref) return ref;
+  if (property.type === "array") {
+    const itemRef = apiRefName(property.items ?? {});
+    if (itemRef) return `${itemRef}[]`;
+    return `${property.items?.type === "integer" || property.items?.type === "number" ? "number" : "string"}[]`;
+  }
+  if (property.type === "string") return property.enum?.map((value) => JSON.stringify(value)).join(" | ") || "string";
+  if (property.type === "integer" || property.type === "number") return "number";
+  if (property.type === "boolean") return "boolean";
+  return "Record<string, unknown>";
+};
+const apiPyType = (property) => {
+  const ref = apiRefName(property);
+  if (ref) return ref;
+  if (property.type === "array") {
+    const itemRef = apiRefName(property.items ?? {});
+    if (itemRef) return `list[${itemRef}]`;
+    return `list[${property.items?.type === "integer" ? "int" : property.items?.type === "number" ? "float" : "str"}]`;
+  }
+  if (property.type === "string") return property.enum ? `Literal[${property.enum.map((value) => JSON.stringify(value)).join(", ")}]` : "str";
+  if (property.type === "integer") return "int";
+  if (property.type === "number") return "float";
+  if (property.type === "boolean") return "bool";
+  return "dict[str, Any]";
+};
+const apiGoFields = (name) => {
+  const schema = apiSchema(name);
+  return Object.entries(schema.properties).map(([field, property]) => {
+    const required = schema.required.includes(field);
+    return `\t${pascal(field)} ${apiGoType(property, `${name}${pascal(field)}`, required)} \`json:"${field}${required ? "" : ",omitempty"}"\``;
+  }).join("\n");
+};
+const apiTsFields = (name) => {
+  const schema = apiSchema(name);
+  return Object.entries(schema.properties).map(([field, property]) =>
+    `  ${field}${schema.required.includes(field) ? "" : "?"}: ${apiTsType(property)};`,
+  ).join("\n");
+};
+const apiPyFields = (name) => {
+  const schema = apiSchema(name);
+  return Object.entries(schema.properties).map(([field, property]) => {
+    const required = schema.required.includes(field);
+    return `    ${field}: ${apiPyType(property)}${required ? "" : " | None = None"}`;
+  }).join("\n");
+};
+const apiGoModels = apiModelNames.map((name) => `type ${name} struct {\n${apiGoFields(name)}\n}`).join("\n\n");
+const apiTsModels = apiModelNames.map((name) => `export interface ${name} {\n${apiTsFields(name)}\n}`).join("\n\n");
+const apiPyModels = apiModelNames.map((name) => `class ${name}(ContractModel):\n${apiPyFields(name)}`).join("\n\n");
+
 const write = async (relativePath, contents) => {
   const target = resolve(root, relativePath);
   await mkdir(dirname(target), { recursive: true });
@@ -186,6 +295,8 @@ ${goImportManifestFields}
 type UnknownSchemaVersionDetails struct {
 ${goUnknownFields}
 }
+
+${apiGoModels}
 `;
 
 const typescript = `${header}export const SUPPORTED_SCHEMA_VERSION = "${schemaVersion}" as const;
@@ -221,6 +332,8 @@ ${tsFields(manifestSchema, "ImportColumn")}
 export interface UnknownSchemaVersionDetails {
 ${tsFields(versionErrorSchema.properties.details)}
 }
+
+${apiTsModels}
 `;
 
 const python = `${pythonHeader}from __future__ import annotations
@@ -265,6 +378,9 @@ ${pyFields(manifestSchema, "ImportColumn")}
 
 class UnknownSchemaVersionDetails(ContractModel):
 ${pyFields(versionErrorSchema.properties.details)}
+
+
+${apiPyModels}
 `;
 
 await write("contracts/generated/go/contracts.go", go);
@@ -272,7 +388,7 @@ await write("contracts/generated/typescript/contracts.ts", typescript);
 await write("contracts/generated/python/contracts.py", python);
 await write(
   "contracts/generated/python/__init__.py",
-  `${pythonHeader}from .contracts import (\n    ErrorEnvelope,\n    ImportColumn,\n    ImportManifest,\n    JobEnvelope,\n    PageMeta,\n    ResultEnvelope,\n    UnknownSchemaVersionDetails,\n)\n\n__all__ = [\n    "ErrorEnvelope",\n    "ImportColumn",\n    "ImportManifest",\n    "JobEnvelope",\n    "PageMeta",\n    "ResultEnvelope",\n    "UnknownSchemaVersionDetails",\n]\n`,
+  `${pythonHeader}from .contracts import (\n${["ErrorEnvelope", "ImportColumn", "ImportManifest", "JobEnvelope", "PageMeta", "ResultEnvelope", "UnknownSchemaVersionDetails", ...apiModelNames].map((name) => `    ${name},`).join("\n")}\n)\n\n__all__ = [\n${["ErrorEnvelope", "ImportColumn", "ImportManifest", "JobEnvelope", "PageMeta", "ResultEnvelope", "UnknownSchemaVersionDetails", ...apiModelNames].map((name) => `    "${name}",`).join("\n")}\n]\n`,
 );
 await run("gofmt", ["-w", resolve(root, "contracts/generated/go/contracts.go")]);
 console.log("Generated Go, TypeScript, and Python contract models.");
