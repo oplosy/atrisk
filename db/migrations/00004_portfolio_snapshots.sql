@@ -69,7 +69,8 @@ BEGIN
                 USING ERRCODE = '23514';
         END IF;
         INSERT INTO instrument_external_identifiers (instrument_id, namespace, external_id)
-        VALUES (NEW.id, 'binance.symbol', NEW.canonical_symbol);
+        VALUES (NEW.id, 'binance.symbol', NEW.canonical_symbol)
+        ON CONFLICT DO NOTHING;
     END IF;
     RETURN NEW;
 END;

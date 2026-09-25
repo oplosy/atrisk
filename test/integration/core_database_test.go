@@ -373,6 +373,31 @@ func TestCoreDatabasePreviousVersionUpgrade(t *testing.T) {
 	if binanceIdentifiers != 2 {
 		t.Fatalf("expected two upgraded Binance identifiers, got %d", binanceIdentifiers)
 	}
+	binanceSymbol := schemaName + "_btc_usdt"
+	if _, err := upgradedDB.ExecContext(ctx, "UPDATE "+schemaName+".instruments SET status = 'inactive' WHERE canonical_symbol = $1", binanceSymbol); err != nil {
+		t.Fatalf("update upgraded Binance status: %v", err)
+	}
+	if _, err := upgradedDB.ExecContext(ctx, `
+		INSERT INTO instruments (canonical_symbol, instrument_type, native_currency, external_ids, status)
+		VALUES ($1, 'crypto_spot', 'USDT', '{"provider":"binance"}', 'active')
+		ON CONFLICT (canonical_symbol) DO UPDATE SET status = EXCLUDED.status`, binanceSymbol); err != nil {
+		t.Fatalf("replay Binance upsert after upgrade: %v", err)
+	}
+	var binanceStatus string
+	if err := upgradedDB.QueryRowContext(ctx, "SELECT status FROM "+schemaName+".instruments WHERE canonical_symbol = $1", binanceSymbol).Scan(&binanceStatus); err != nil {
+		t.Fatalf("inspect replayed Binance status: %v", err)
+	}
+	if binanceStatus != "active" {
+		t.Fatalf("replayed Binance status=%q", binanceStatus)
+	}
+	if err := upgradedDB.QueryRowContext(ctx, `
+		SELECT count(*)::int FROM `+schemaName+`.instrument_external_identifiers
+		WHERE namespace = 'binance.symbol' AND external_id = $1`, binanceSymbol).Scan(&binanceIdentifiers); err != nil {
+		t.Fatalf("inspect replayed Binance identifier: %v", err)
+	}
+	if binanceIdentifiers != 1 {
+		t.Fatalf("replayed Binance identifier count=%d", binanceIdentifiers)
+	}
 }
 
 func TestCoreDatabase(t *testing.T) {
