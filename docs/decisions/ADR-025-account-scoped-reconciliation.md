@@ -20,7 +20,9 @@ valuation line persists exact TRY and USD amounts.
   `try_amount` or `usd_amount`; it never reruns valuation or converts currencies.
 - Only valuation runs with state `valid` may be reconciled. `degraded`,
   `blocked`, incomplete, or account-empty inputs are rejected with stable reason
-  codes.
+  codes. For the selected account, every snapshot line must have exactly one
+  valid valuation line with a non-null selected-currency amount; a missing,
+  invalid, or duplicate line rejects the checkpoint.
 - Supported checkpoint currencies are TRY and USD and must select the matching
   persisted amount. The externally stated currency must match. The external
   cutoff must equal the valuation cutoff as a UTC instant. No implicit FX or
@@ -74,6 +76,7 @@ valuation line persists exact TRY and USD amounts.
     stable machine-readable reason code.
 - Created checkpoint states are exactly `reconciled` and `unreconciled`.
   Stable conflict reason codes are `VALUATION_NOT_VALID`,
+  `VALUATION_ACCOUNT_LINES_INCOMPLETE`, `VALUATION_LINE_DUPLICATE`,
   `ACCOUNT_NOT_IN_SNAPSHOT`, `ACCOUNT_HAS_NO_LINES`, `CURRENCY_MISMATCH`,
   `CUTOFF_MISMATCH`, `LINE_CHECK_UNKNOWN`, `LINE_CHECK_DUPLICATE`,
   `LINE_CHECK_CROSS_ACCOUNT`, `LINE_CHECK_INCOMPLETE`, and
@@ -84,8 +87,10 @@ valuation line persists exact TRY and USD amounts.
 
 - Reconciliation requires account-filtered sums of persisted valuation lines;
   a portfolio-wide total is not a substitute.
-- The database must enforce account/portfolio linkage and immutability for
-  policy versions and checkpoints, plus uniqueness/serialization for
+- The database must enforce valuation/snapshot/account linkage, checkpoint and
+  line-check membership, tolerance-version/account linkage, and immutability
+  for policy versions and checkpoints. Valuation lines are unique by
+  `(run_id, snapshot_line_id)`; policy versions are unique and serialized by
   `(account_id, version)`.
 - The API must expose tolerance-version creation, checkpoint creation, and
   checkpoint retrieval with contract-first request/response schemas.
