@@ -23,7 +23,7 @@
 | AC-5 | `import_results` has database-enforced `(import_kind,idempotency_key)` uniqueness and captures position `captured_at`; replay is checked before archive access and returns the stored result during archive outage, while changed request clocks conflict. |
 | AC-6 | Position writes use `NUMERIC` strings and nullable optional fields; price writes preserve normalized uppercase quote code, knowledge basis, exact price, and raw object id. |
 | AC-7 | `archive.ArchivePayload` is called before transactional raw-object registration; database lineage uses the content hash. |
-| AC-8 | Handler returns structured 400/409/413/415 errors and does not log CSV bytes; `apps/api/cmd/api/main.go` now registers both import route prefixes and configures the established S3/Garage store from CI environment variables. |
+| AC-8 | Handler returns structured 400/409/413/415 errors with a local `import-<UnixNano>` request_id and does not log CSV bytes; `apps/api/cmd/api/main.go` now registers both import route prefixes and configures the established S3/Garage store from CI environment variables. |
 | AC-9 | Migration is ordered after AR-201/AR-105 and integration test is included; hosted migration execution remains required. |
 
 ## Stop-condition check
@@ -39,15 +39,16 @@
 | `go test ./test/integration -run '^$' -count=1` | pass, integration package compiles |
 | `go test ./apps/api/cmd/api ./internal/imports ./apps/api/handlers/imports -count=1` | pass |
 | `go test ./internal/imports -count=1` | pass, including invalid-target and lowercase quote normalization regressions |
+| `go test ./apps/api/handlers/imports -count=1` | pass, error envelope request_id regression |
 | OpenAPI import commit header validation | pass; both operations reference required `ImportIdempotencyKey` |
-| `go test ./test/integration -run '^$' -count=1` | pass; integration package compiles. Runtime assertions cover captured_at conflict, archive-outage replay, invalid-token no-archive, and both positions/manual-price HTTP preview/commit routes in hosted PostgreSQL CI |
+| `go test ./test/integration -run '^$' -count=1` | pass; integration package compiles. Captured-at conflict, archive-outage replay, invalid-token no-archive, and positions/manual-price HTTP preview/commit assertions are queued in the hosted `ImportAPI` PostgreSQL job |
 | `go vet ./apps/... ./internal/...` | pass |
 | `go build ./apps/...` | pass |
 | `node --test test/contract/contract.test.mjs` | pass, 11 tests (run with elevated child-process permission after sandbox `spawn EPERM`) |
 | `git diff --check` | pass |
 | `task test-go TEST=Parse` | not run; Task CLI unavailable locally |
 | `task test-go-integration TEST=ImportAPI` | not run; local PostgreSQL intentionally not started |
-| `task migrate-test` | not run; local PostgreSQL intentionally not started |
+| `task migrate-test` | not run locally; CI now runs this against its ephemeral PostgreSQL service |
 | `task verify` | not run; local infrastructure intentionally untouched |
 
 ## Change inventory

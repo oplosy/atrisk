@@ -3,10 +3,12 @@ package imports
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"net/http"
 	"strings"
+	"time"
 
 	application "github.com/oplosy/atrisk/internal/imports"
 )
@@ -99,7 +101,7 @@ func writeImportError(w http.ResponseWriter, err error) {
 	}
 }
 func writeError(w http.ResponseWriter, status int, code, message string) {
-	writeJSON(w, status, map[string]string{"code": code, "message": message})
+	writeJSON(w, status, map[string]string{"code": code, "message": message, "request_id": fmt.Sprintf("import-%d", time.Now().UTC().UnixNano())})
 }
 func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json")
