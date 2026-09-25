@@ -139,6 +139,9 @@ jobs:
       - name: Run manual CSV import integration
         run: task test-go-integration TEST=ImportAPI
 
+      - name: Run valuation integration
+        run: task test-go-integration TEST=ValuationAPI
+
       - name: Run database migration verification
         run: task migrate-test
 

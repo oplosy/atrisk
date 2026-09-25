@@ -95,6 +95,7 @@ const pyType = (property, nestedName) => {
   if (property.type === "boolean") return "bool";
   return "dict[str, Any]";
 };
+const pyIdentifier = (name) => name === "try" ? "try_" : name;
 const goFields = (schema, nestedName, modelName) =>
   Object.entries(schema.properties).map(([name, property]) => {
     const optional = !(schema.required ?? []).includes(name);
@@ -108,6 +109,7 @@ const tsFields = (schema, nestedName) =>
   }).join("\n");
 const pyField = (name, property, required, nestedName) => {
   const type = pyType(property, nestedName);
+  const identifier = pyIdentifier(name);
   const constraints = [];
   for (const [schemaKey, fieldKey] of [["minLength", "min_length"], ["maxLength", "max_length"], ["pattern", "pattern"], ["minimum", "ge"], ["maximum", "le"], ["minItems", "min_length"], ["maxItems", "max_length"]]) {
     if (property[schemaKey] !== undefined) constraints.push(`${fieldKey}=${JSON.stringify(property[schemaKey])}`);
@@ -115,7 +117,12 @@ const pyField = (name, property, required, nestedName) => {
   const suffix = required
     ? constraints.length > 0 ? ` = Field(${constraints.join(", ")})` : ""
     : ` = Field(default=None${constraints.length > 0 ? `, ${constraints.join(", ")}` : ""})`;
-  return `    ${name}: ${required ? type : `${type} | None`}${suffix}`;
+  const fieldArgs = [
+    ...(identifier === name ? [] : [`alias=${JSON.stringify(name)}`]),
+    ...constraints,
+  ];
+  if (required) return `    ${identifier}: ${type}${fieldArgs.length > 0 ? ` = Field(${fieldArgs.join(", ")})` : ""}`;
+  return `    ${identifier}: ${type} | None = Field(default=None${fieldArgs.length > 0 ? `, ${fieldArgs.join(", ")}` : ""})`;
 };
 const pyFields = (schema, nestedName) =>
   Object.entries(schema.properties).map(([name, property]) =>
@@ -150,6 +157,12 @@ const apiModelNames = [
   "SnapshotLine",
   "Snapshot",
   "SnapshotPage",
+  "ValuationRequest",
+  "FXPathEntry",
+  "ValuationReason",
+  "ValuationLine",
+  "ValuationTotals",
+  "ValuationRun",
 ];
 const apiSchema = (name, seen = new Set()) => {
   if (seen.has(name)) throw new Error(`cyclic API schema composition: ${name}`);
@@ -180,6 +193,7 @@ const apiGoBaseType = (property, fieldName) => {
     if (itemRef) return `[]${itemRef}`;
     return `[]${property.items?.type === "integer" ? "int" : property.items?.type === "number" ? "float64" : "string"}`;
   }
+  if (Array.isArray(property.type) && property.type.includes("string")) return "string";
   if (property.type === "string") return "string";
   if (property.type === "integer") return "int";
   if (property.type === "number") return "float64";
@@ -199,6 +213,7 @@ const apiTsType = (property) => {
     if (itemRef) return `${itemRef}[]`;
     return `${property.items?.type === "integer" || property.items?.type === "number" ? "number" : "string"}[]`;
   }
+  if (Array.isArray(property.type) && property.type.includes("string")) return "string | null";
   if (property.type === "string") return property.enum?.map((value) => JSON.stringify(value)).join(" | ") || "string";
   if (property.type === "integer" || property.type === "number") return "number";
   if (property.type === "boolean") return "boolean";
@@ -212,6 +227,7 @@ const apiPyType = (property) => {
     if (itemRef) return `list[${itemRef}]`;
     return `list[${property.items?.type === "integer" ? "int" : property.items?.type === "number" ? "float" : "str"}]`;
   }
+  if (Array.isArray(property.type) && property.type.includes("string")) return "str | None";
   if (property.type === "string") return property.enum ? `Literal[${property.enum.map((value) => JSON.stringify(value)).join(", ")}]` : "str";
   if (property.type === "integer") return "int";
   if (property.type === "number") return "float";
@@ -235,7 +251,9 @@ const apiPyFields = (name) => {
   const schema = apiSchema(name);
   return Object.entries(schema.properties).map(([field, property]) => {
     const required = schema.required.includes(field);
-    return `    ${field}: ${apiPyType(property)}${required ? "" : " | None = None"}`;
+    const identifier = pyIdentifier(field);
+    const alias = identifier === field ? "" : ` = Field(alias=${JSON.stringify(field)})`;
+    return `    ${identifier}: ${apiPyType(property)}${required ? alias : ` | None${alias || " = None"}`}`;
   }).join("\n");
 };
 const apiGoModels = apiModelNames.map((name) => `type ${name} struct {\n${apiGoFields(name)}\n}`).join("\n\n");

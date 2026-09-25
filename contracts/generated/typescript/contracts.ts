@@ -166,3 +166,59 @@ export interface Snapshot {
 export interface SnapshotPage {
   items: Snapshot[];
 }
+
+export interface ValuationRequest {
+  snapshot_id: string;
+  cutoff: string;
+  knowledge_mode: "system_as_of" | "source_as_of";
+  known_at: string;
+  price_max_age_seconds: number;
+  fx_max_age_seconds: number;
+}
+
+export interface FXPathEntry {
+  quote_revision_id: string;
+  direction: "forward" | "reverse";
+}
+
+export interface ValuationReason {
+  code: string;
+  message: string;
+}
+
+export interface ValuationLine {
+  id?: string;
+  snapshot_line_id: string;
+  instrument_id: string;
+  native_currency: string;
+  native_amount?: string | null;
+  try_amount?: string | null;
+  usd_amount?: string | null;
+  state: "valid" | "degraded" | "blocked";
+  reason_codes: ValuationReason[];
+  price_method: "revision" | "identity";
+  price_revision_id?: string | null;
+  price_quote_unit?: string | null;
+  try_fx_path: FXPathEntry[];
+  usd_fx_path: FXPathEntry[];
+}
+
+export interface ValuationTotals {
+  try: string | null;
+  usd: string | null;
+}
+
+export interface ValuationRun {
+  id: string;
+  snapshot_id: string;
+  cutoff: string;
+  knowledge_mode: "system_as_of" | "source_as_of";
+  known_at: string;
+  price_max_age_seconds: number;
+  fx_max_age_seconds: number;
+  state: "valid" | "degraded" | "blocked";
+  result_hash: string;
+  lines: ValuationLine[];
+  totals: ValuationTotals;
+  created_at: string;
+}

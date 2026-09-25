@@ -166,8 +166,8 @@ func TestCoreDatabaseMigrations(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&currentVersion); err != nil {
 		t.Fatalf("inspect migration version: %v", err)
 	}
-	if currentVersion != 5 {
-		t.Fatalf("expected latest migration version 5, got %d", currentVersion)
+	if currentVersion != 6 {
+		t.Fatalf("expected latest migration version 6, got %d", currentVersion)
 	}
 	var assetUnitTypes int
 	if err := pool.QueryRow(ctx, `
@@ -336,8 +336,8 @@ func TestCoreDatabasePreviousVersionUpgrade(t *testing.T) {
 	if err := upgradedDB.QueryRowContext(ctx, "SELECT max(version_id) FROM "+schemaName+"."+goose.DefaultTablename).Scan(&version); err != nil {
 		t.Fatalf("inspect upgraded schema migration version: %v", err)
 	}
-	if version != 5 {
-		t.Fatalf("expected isolated schema at migration version 5, got %d", version)
+	if version != 6 {
+		t.Fatalf("expected isolated schema at migration version 6, got %d", version)
 	}
 	if err := upgradedDB.QueryRowContext(ctx, `
 		SELECT count(*)::int
