@@ -124,7 +124,7 @@ func (s Service) Create(ctx context.Context, request domain.Request) (domain.Run
 			result.tryRat = new(big.Rat).Mul(amount, tryPath.rate)
 			result.TryAmount = stringPointer(formatDecimal(result.tryRat))
 			result.TryFXPath = append(result.TryFXPath, tryPath.edges...)
-			tryTotal.Add(tryTotal, result.tryRat)
+			tryTotal.Add(tryTotal, roundedDecimal(result.tryRat))
 		}
 		if usdErr != nil || usdPath == nil {
 			result.ReasonCodes = append(result.ReasonCodes, fxReason("USD", usdErr))
@@ -132,7 +132,7 @@ func (s Service) Create(ctx context.Context, request domain.Request) (domain.Run
 			result.usdRat = new(big.Rat).Mul(amount, usdPath.rate)
 			result.USDAmount = stringPointer(formatDecimal(result.usdRat))
 			result.USDFXPath = append(result.USDFXPath, usdPath.edges...)
-			usdTotal.Add(usdTotal, result.usdRat)
+			usdTotal.Add(usdTotal, roundedDecimal(result.usdRat))
 		}
 		if len(result.ReasonCodes) > 0 {
 			result.State = domain.StateBlocked
@@ -551,6 +551,17 @@ func formatDecimal(value *big.Rat) string {
 	}
 	point := len(digits) - 18
 	return sign + digits[:point] + "." + digits[point:]
+}
+
+// roundedDecimal applies the same half-away-from-zero scale reduction used
+// before values are stored in NUMERIC(38,18), so totals are sums of persisted
+// line values rather than sums of higher-precision intermediates.
+func roundedDecimal(value *big.Rat) *big.Rat {
+	rounded, err := parseDecimal(formatDecimal(value))
+	if err != nil {
+		return new(big.Rat)
+	}
+	return rounded
 }
 
 func nullableString(value *string) any {

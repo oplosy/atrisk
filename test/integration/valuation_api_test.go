@@ -100,6 +100,13 @@ func TestValuationAPI(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM valuation_lines l JOIN price_revisions p ON p.id=l.price_revision_id JOIN raw_objects r ON r.id=p.raw_object_id WHERE l.run_id=$1`, mustUUID(t, run.ID)).Scan(&reachable); err != nil || reachable != 1 {
 		t.Fatalf("price raw provenance reachable=%d err=%v", reachable, err)
 	}
+	var persistedTRY, persistedUSD string
+	if err := pool.QueryRow(ctx, `SELECT COALESCE(sum(try_amount),0)::text, COALESCE(sum(usd_amount),0)::text FROM valuation_lines WHERE run_id=$1`, mustUUID(t, run.ID)).Scan(&persistedTRY, &persistedUSD); err != nil {
+		t.Fatal(err)
+	}
+	if run.Totals.TRY == nil || *run.Totals.TRY != persistedTRY || run.Totals.USD == nil || *run.Totals.USD != persistedUSD {
+		t.Fatalf("run totals do not equal persisted line sums: run=%+v persisted try=%s usd=%s", run.Totals, persistedTRY, persistedUSD)
+	}
 	var changed int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM valuation_runs WHERE id=$1`, mustUUID(t, run.ID)).Scan(&changed); err != nil || changed != 1 {
 		t.Fatalf("persisted run count=%d err=%v", changed, err)

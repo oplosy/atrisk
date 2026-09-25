@@ -18,6 +18,22 @@ func TestValuationFormatDecimalPreservesEighteenDigits(t *testing.T) {
 	}
 }
 
+func TestValuationTotalsSumPersistedHalfScaleLines(t *testing.T) {
+	halfScale := mustDecimal("0.0000000000000000005")
+	first := roundedDecimal(halfScale)
+	second := roundedDecimal(halfScale)
+	total := new(big.Rat).Add(first, second)
+	if got := formatDecimal(first); got != "0.000000000000000001" {
+		t.Fatalf("first persisted value=%s", got)
+	}
+	if got := formatDecimal(second); got != "0.000000000000000001" {
+		t.Fatalf("second persisted value=%s", got)
+	}
+	if got := formatDecimal(total); got != "0.000000000000000002" {
+		t.Fatalf("persisted total=%s", got)
+	}
+}
+
 func TestValuationPathPrefersDirectAndRecordsReverse(t *testing.T) {
 	observation := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
 	quotes := []fxRevision{

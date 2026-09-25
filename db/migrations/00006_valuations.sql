@@ -62,6 +62,8 @@ CREATE TRIGGER valuation_lines_immutable
 
 -- +goose Down
 -- +goose StatementBegin
+ALTER TABLE fx_quote_revisions
+    DROP CONSTRAINT IF EXISTS fx_quote_revisions_rate_positive;
 DROP TRIGGER IF EXISTS valuation_lines_immutable ON valuation_lines;
 DROP TRIGGER IF EXISTS valuation_runs_immutable ON valuation_runs;
 DROP TABLE IF EXISTS valuation_lines;

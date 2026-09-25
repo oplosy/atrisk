@@ -53,11 +53,13 @@
 ## Git state
 
 - Branch: `task/AR-203-valuation-fx-provenance`
-- Commit SHA: `77313c60de9a0a2e2873a6bae069a60998aa1c79`
+- Commit SHA: pending final fix commit
 - Remote branch: push blocked by egress authorization policy; local branch is ready for authorized push
 - Worktree: clean
 
 ## Assumptions and risks
 
-- `fx_quote_revision_ids` and `fx_directions` are parallel arrays; the revision foreign keys retain reachability to raw evidence through existing immutable revision rows.
-- Local integration evidence is pending CI because the configured isolated PostgreSQL/S3 services are not available; no Docker or host settings were changed.
+- TRY and USD FX paths are persisted as separate parallel UUID/direction arrays; selected price quote unit is persisted alongside the price revision.
+- ISO-4217 parsing rejects non-fiat special codes and asset tickers; FX rates are constrained positive in PostgreSQL and checked before reciprocal traversal.
+- Totals are calculated from the rounded `NUMERIC(38,18)` line values; half-scale ties use half-away-from-zero rounding.
+- Local integration evidence is pending CI because the configured isolated PostgreSQL/S3 services are not available; generated checks passed after elevated retry; no Docker or host settings were changed.
