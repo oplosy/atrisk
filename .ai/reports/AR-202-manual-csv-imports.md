@@ -48,7 +48,7 @@
 | `git diff --check` | pass |
 | `task test-go TEST=Parse` | not run; Task CLI unavailable locally |
 | `task test-go-integration TEST=ImportAPI` | not run; local PostgreSQL intentionally not started |
-| `task migrate-test` | not run locally; CI now runs this against its ephemeral PostgreSQL service |
+| `task migrate-test` | Hosted run #72 exposed two stale hard-coded v4 expectations after migration 00005; both now expect v5. Rerun pending |
 | `task verify` | not run; local infrastructure intentionally untouched |
 
 ## Change inventory
