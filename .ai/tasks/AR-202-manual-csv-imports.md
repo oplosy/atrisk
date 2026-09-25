@@ -1,13 +1,13 @@
 ---
 id: AR-202
 title: Add safe manual CSV imports
-status: active
+status: review
 phase: 2
 depends_on: [AR-201]
 branch: task/AR-202-manual-csv-imports
 base_sha: ff60b94dbd31a623e4ade6fe6eb3950e01e02ae0
 owned_paths: [internal/imports/, apps/api/handlers/imports/, contracts/imports/, test/fixtures/imports/]
-shared_paths: [contracts/openapi/, db/migrations/, db/queries/portfolio/, db/queries/imports/, db/queries/core/sqlc.yaml, internal/platform/database/, .github/workflows/ci.yml]
+shared_paths: [contracts/openapi/, contracts/generated/, scripts/generate/contract-models.mjs, test/contract/, test/integration/, apps/api/cmd/api/, db/migrations/, db/queries/portfolio/, db/queries/imports/, db/queries/core/sqlc.yaml, internal/platform/database/, .github/workflows/ci.yml]
 adrs: [ADR-009, ADR-010, ADR-016]
 ---
 
@@ -84,7 +84,7 @@ imports with row-level diagnostics and no partial or executable content.
 ## Required verification
 
 ```text
-task test-go TEST=CSVImport
+task test-go TEST=Parse
 task test-go-integration TEST=ImportAPI
 task test-contract
 task migrate-test
