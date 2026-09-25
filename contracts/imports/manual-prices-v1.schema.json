@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://atlasrisk.local/contracts/imports/manual-prices-v1.schema.json",
+  "title": "AtlasRisk manual price CSV row",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["instrument_id", "quote_currency", "observation_time", "price"],
+  "properties": {
+    "instrument_id": {"type":"string","format":"uuid"},
+    "quote_currency": {"type":"string","pattern":"^[A-Z0-9]+$"},
+    "observation_time": {"type":"string","format":"date-time"},
+    "price": {"type":"string","pattern":"^[+]?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,18})?$"},
+    "source_known_at": {"type":["string","null"],"format":"date-time"}
+  },
+  "x-csv-schema-version": "1.0",
+  "x-csv-headers": ["instrument_id","quote_currency","observation_time","price","source_known_at"]
+}

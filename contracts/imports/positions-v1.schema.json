@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://atlasrisk.local/contracts/imports/positions-v1.schema.json",
+  "title": "AtlasRisk positions CSV row",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["account_id", "instrument_id", "quantity"],
+  "properties": {
+    "account_id": {"type":"string","format":"uuid"},
+    "instrument_id": {"type":"string","format":"uuid"},
+    "quantity": {"type":"string","pattern":"^[+-]?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,18})?$"},
+    "total_cost_basis": {"type":["string","null"],"pattern":"^[+-]?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,18})?$"},
+    "modified_duration_years": {"type":["string","null"],"pattern":"^[+-]?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,18})?$"},
+    "convexity_years_squared": {"type":["string","null"],"pattern":"^[+-]?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,18})?$"}
+  },
+  "x-csv-schema-version": "1.0",
+  "x-csv-headers": ["account_id","instrument_id","quantity","total_cost_basis","modified_duration_years","convexity_years_squared"]
+}

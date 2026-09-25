@@ -10,13 +10,16 @@ import (
 	"runtime"
 	"time"
 
+	apiimports "github.com/oplosy/atrisk/apps/api/handlers/imports"
 	apiportfolio "github.com/oplosy/atrisk/apps/api/handlers/portfolio"
 	apiquality "github.com/oplosy/atrisk/apps/api/handlers/quality"
 	"github.com/oplosy/atrisk/apps/api/handlers/timeline"
 	applicationportfolio "github.com/oplosy/atrisk/internal/application/portfolio"
 	appquality "github.com/oplosy/atrisk/internal/application/quality"
 	application "github.com/oplosy/atrisk/internal/application/timeline"
+	"github.com/oplosy/atrisk/internal/archive"
 	"github.com/oplosy/atrisk/internal/buildinfo"
+	applicationimports "github.com/oplosy/atrisk/internal/imports"
 	"github.com/oplosy/atrisk/internal/platform/database"
 )
 
@@ -48,6 +51,20 @@ func main() {
 	queries := database.New(pool)
 	portfolioHandler := apiportfolio.New(applicationportfolio.Service{Queries: queries, Beginner: pool})
 	qualityHandler := apiquality.New(appquality.Service{Queries: queries})
+	var importArchive archive.Store
+	if endpoint := os.Getenv("ATLASRISK_S3_ENDPOINT"); endpoint != "" {
+		store, storeErr := archive.NewS3StoreFromConfig(ctx, archive.ClientConfig{
+			Endpoint: endpoint, Region: os.Getenv("ATLASRISK_S3_REGION"),
+			AccessKeyID: os.Getenv("AWS_ACCESS_KEY_ID"), SecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
+			Bucket: os.Getenv("ATLASRISK_S3_BUCKET"),
+		})
+		if storeErr != nil {
+			log.Printf("configure import archive: %v", storeErr)
+		} else {
+			importArchive = store
+		}
+	}
+	importHandler := apiimports.New(applicationimports.Service{Pool: pool, Archive: importArchive})
 	mux := http.NewServeMux()
 	mux.Handle("/api/v1/instruments", portfolioHandler)
 	mux.Handle("/api/v1/instruments/", portfolioHandler)
@@ -65,6 +82,8 @@ func main() {
 	mux.Handle("/api/v1/snapshots/", portfolioHandler)
 	mux.Handle("/v1/snapshots", portfolioHandler)
 	mux.Handle("/v1/snapshots/", portfolioHandler)
+	mux.Handle("/api/v1/imports/", importHandler)
+	mux.Handle("/v1/imports/", importHandler)
 	mux.Handle("/api/v1/quality/evaluate", qualityHandler)
 	mux.Handle("/v1/quality/evaluate", qualityHandler)
 	mux.Handle("/", timeline.New(application.Service{Queries: queries}))
