@@ -8,7 +8,7 @@
 
 ## Result
 
-`needs-review`
+`merged`
 
 ## Acceptance evidence
 
@@ -32,21 +32,15 @@
 
 | Command | Result |
 |---|---|
-| `go test ./apps/... ./internal/... -run 'TestValuation' -count=1` | pass |
-| `go vet ./apps/... ./internal/...` | pass |
-| `node --test test/contract/contract.test.mjs` | pass, 11/11 |
-| `go test ./test/integration -run '^TestValuationAPI$' -count=1` | compiles; skipped locally because isolated DB URL is unavailable |
-| `go test ./test/integration -run '^TestValuationAPI$' -count=1` after CI-diagnostic wrapper | pass locally; the test remains skipped because isolated DB URL is unavailable; when PostgreSQL is present, the initial POST failure now includes the underlying service error without changing the production HTTP payload |
-| `go test ./internal/application/valuation ./test/integration -run 'TestValuation' -count=1` after price-method fix | pass |
-| `go vet ./apps/... ./internal/...` after price-method fix | pass |
-| `git diff --check` after price-method fix | pass |
-| `go test ./test/integration -run '^TestCoreDatabaseMigrations$' -count=1` | blocked: `test database URL is required` |
-| `task test-go TEST=Valuation` | not run as Task binary was not available in this worktree session |
-| `task test-go-integration TEST=ValuationAPI` | not run; local isolated DB unavailable |
-| `task test-contract` | contract test component passed; full Task target not run |
-| `node scripts/verify/check-generated.mjs` | pass after registered regeneration (elevated retry; initial sandbox attempt returned EPERM) |
-| `task migrate-test` | blocked by missing `ATLASRISK_TEST_DATABASE_URL` |
-| `task verify` | not run because required local DB/infrastructure is unavailable |
+| `go test ./apps/... ./internal/... -run 'TestValuation' -count=1` | pass locally |
+| `go test ./test/integration -run '^$' -count=1` | pass locally (integration package compiles); live database execution is unavailable locally because `ATLASRISK_TEST_DATABASE_URL` is unset |
+| `go vet ./apps/... ./internal/...` | pass locally |
+| `node --test test/contract/contract.test.mjs` | pass locally, 11/11 |
+| `node scripts/verify/check-generated.mjs` | pass locally |
+| `git diff --check` | pass |
+| `task test-go-integration TEST=ValuationAPI` | pass in hosted CI run `36131588618` |
+| `task migrate-test` | pass in hosted CI run `36131588618` |
+| `task verify` | pass in hosted CI run `36131588618`; all CI job steps succeeded |
 
 ## Change inventory
 
@@ -56,9 +50,12 @@
 
 ## Git state
 
-- Branch: `task/AR-203-valuation-fx-provenance`
-- Implementation commits: `b89d7bbea8d01435bfe04fc5ab9e51a1bf0192a2` (priced-line method fix), `969786a0e7d413917c33cc51a65df1f27d836b97` (CI diagnostic wrapper); report update follows as a separate documentation commit.
-- Remote branch: pending authorized push for CI rerun; no additional PR will be opened.
+- Implementation branch: `task/AR-203-valuation-fx-provenance` (pushed)
+- PR: [#31](https://github.com/oplosy/atrisk/pull/31), merged
+- PR head: `36c70145ae304a80da8690aa4a129096e47ab2f4`
+- Merge commit: `585ea5772f6ea9ecbe0beb35a2090632e2be8579`
+- Hosted CI: run `36131588618` passed, including valuation API integration, migration verification, and `task verify`.
+- Primary `main`: fast-forwarded to the merge commit; this status-finalization report is delivered by a separate PR.
 - Worktree: clean before this report update; will be clean after the report commit.
 
 ## Assumptions and risks
@@ -67,6 +64,5 @@
 - ISO-4217 parsing rejects non-fiat special codes and asset tickers; FX rates are constrained positive in PostgreSQL and checked before reciprocal traversal.
 - Totals are calculated from the rounded `NUMERIC(38,18)` line values; half-scale ties use half-away-from-zero rounding.
 - Freshness windows are capped at `9223372036` seconds before `time.Duration` conversion to prevent integer overflow.
-- Local integration evidence is pending CI because the isolated PostgreSQL test URL is unavailable; the valuation endpoint does not call S3. Generated checks passed after elevated retry; no Docker or host settings were changed.
-- Hosted PR #31 previously returned a generic HTTP 500 from the valuation POST after migrations passed. The test-only wrapper records `Create`'s returned error and adds it to the test failure message, avoiding a second write or any production error disclosure.
-- CI run `36131148142` identified SQLSTATE `23514` (`valuation_lines_identity_price`): eligible priced lines had revision ID and quote unit but an empty `price_method`. The service now sets `price_method='revision'` before persistence, and the integration test asserts it.
+- Local live integration remains unavailable because the isolated PostgreSQL URL is unset; hosted CI run `36131588618` provides the runtime integration and migration evidence. The valuation endpoint does not call S3. No Docker or host settings were changed.
+- The initial hosted integration failure was traced to eligible priced lines missing `price_method='revision'`; the service and integration assertion were fixed before the successful CI run. The test-only diagnostic wrapper reports service errors only in test output and does not disclose them in production HTTP responses.
