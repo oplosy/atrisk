@@ -30,6 +30,7 @@ not reopen these decisions implicitly.
 | ADR-022 | LLM enrichment deferred | A future LLM may classify sourced news/theses or draft explanations, but cannot supply prices, predictions, shocks, or risk numbers. |
 | ADR-023 | Durable database schedules | Collector schedules/checkpoints are claimed from PostgreSQL with leases and idempotency; V1 does not depend on OS cron or an external scheduler. |
 | ADR-024 | Financial unit codes distinguish fiat currencies from asset tickers | Instrument denomination and price quote-unit fields use normalized uppercase text codes so digital assets such as `USDT` are preserved exactly; FX quote revisions remain ISO 4217 fiat currencies. No asset peg or conversion is inferred: valuation into a reporting currency requires an explicit, persisted price/FX path, otherwise the result is degraded or blocked. |
+| ADR-025 | Account-scoped immutable reconciliation checkpoints | Checkpoints bind a valid valuation to one account, compare exact persisted TRY/USD line sums, snapshot a versioned tolerance, and preserve optional line-check evidence without changing valuation history. |
 
 ## Decision quality gate
 
