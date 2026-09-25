@@ -1,7 +1,7 @@
 ---
 id: AR-202
 title: Add safe manual CSV imports
-status: ready
+status: active
 phase: 2
 depends_on: [AR-201]
 branch: task/AR-202-manual-csv-imports
