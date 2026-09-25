@@ -19,7 +19,7 @@
 | AC-1 | `test/integration/portfolio_api_test.go` exercises direct SQL UPDATE/DELETE rejection for snapshots/lines and asserts PUT/PATCH/DELETE snapshot routes return 405. Database execution requires the isolated hosted PostgreSQL gate. |
 | AC-2 | `TestPortfolioAPI` creates a same-portfolio correction through `CreateSnapshot`, checks `supersedes_snapshot_id`, then reads the original and verifies its exact quantity remains unchanged. |
 | AC-3 | `NUMERIC(38,18)` columns in migration plus `TestPortfolioAPI` exact 18-fraction quantity/cost/duration/convexity assertions. `total_cost_basis` remains nullable per `docs/architecture/DATA_AND_RISK_MODEL.md`; omitted cost is returned as omitted/null rather than fabricated zero. |
-| AC-4 | `instrument_external_identifiers` has PostgreSQL `UNIQUE (namespace, external_id)` and `(instrument_id, namespace)` constraints; integration covers same/different namespaces and concurrent identical inserts. New service writes keep legacy JSON and normalized rows consistent in one transaction. The migration backfills legacy identifiers without treating Binance provider metadata as an identifier, and its PostgreSQL trigger makes the existing Binance writer participate in normalized uniqueness transactionally. |
+| AC-4 | `instrument_external_identifiers` has PostgreSQL `UNIQUE (namespace, external_id)` and `(instrument_id, namespace)` constraints; integration covers same/different namespaces and concurrent identical inserts. New service writes keep legacy JSON and normalized rows consistent in one transaction. The migration backfills legacy identifiers without treating Binance provider metadata as an identifier, and its idempotent PostgreSQL trigger makes the existing Binance writer participate in normalized uniqueness transactionally. The previous-schema upgrade regression updates and replays a Binance upsert while preserving one normalized identifier. |
 | AC-5 | Domain/service validation covers all five supported types, lifecycle status and uppercase unit codes; lowercase native units are normalized to uppercase per ADR-024. Integration covers malformed type/unit, unsupported risk attributes, wrong account portfolio, wrong instrument, and transactional instrument creation. Decimal parsing rejects values outside NUMERIC(38,18) precision before database access; PostgreSQL trigger rechecks fixed-bond duration/convexity rules. |
 | AC-6 | Portfolio/account create/list/read/update/delete methods and routes are implemented; reporting currency is restricted to TRY/USD; integration proves referenced account/portfolio deletion is rejected. |
 | AC-7 | `contracts/openapi/openapi.json` describes instrument, portfolio, account, snapshot, line and correction routes with decimal-string fields. The contract generator now emits all portfolio/account/snapshot API schemas in Go, TypeScript, and Python, with a drift test covering the generated targets. SQLC output was regenerated from the migration/query source. |
@@ -36,6 +36,7 @@
 | `sqlc generate -f db/queries/core/sqlc.yaml` | pass; SQLC v1.31.1 generated portfolio bindings and shared interface/model output |
 | `go test ./... -count=1` | pass; all local Go unit/packages; integration test compiles and skips only without isolated DSN |
 | `go test ./test/integration -run '^$' -count=1` | pass; integration package compile gate |
+| `go test ./test/integration -run '^TestCoreDatabasePreviousVersionUpgrade$' -count=1 -v` | pass with an explicit skip because no test database URL is configured; hosted CI executes the upgrade/update/upsert regression |
 | `go vet ./apps/... ./internal/...` | pass |
 | `go build ./apps/...` | pass |
 | `node --test test/contract/contract.test.mjs` | pass; 11 tests, including generated Portfolio/Account/Snapshot model coverage |
@@ -56,7 +57,7 @@
 ## Git state
 
 - Branch: `task/AR-201-portfolio-snapshots`
-- Commit SHA: `536c1c0f60f4221cab5543053958cb706cba24d4` (implementation commit; this report finalization is a follow-up metadata commit)
+- Commit SHA: `734ad0a` (Binance trigger idempotency fix; report metadata finalization follows)
 - Remote branch: `origin/task/AR-201-portfolio-snapshots` (local branch ahead by 4 commits; push/PR deferred to orchestrator)
 - Worktree: clean after commit
 
