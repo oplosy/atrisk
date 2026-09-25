@@ -178,3 +178,51 @@ class Snapshot(ContractModel):
 
 class SnapshotPage(ContractModel):
     items: list[Snapshot]
+
+class ValuationRequest(ContractModel):
+    snapshot_id: str
+    cutoff: str
+    knowledge_mode: Literal["system_as_of", "source_as_of"]
+    known_at: str
+    price_max_age_seconds: int
+    fx_max_age_seconds: int
+
+class FXPathEntry(ContractModel):
+    quote_revision_id: str
+    direction: Literal["forward", "reverse"]
+
+class ValuationReason(ContractModel):
+    code: str
+    message: str
+
+class ValuationLine(ContractModel):
+    id: str | None = None
+    snapshot_line_id: str
+    instrument_id: str
+    native_currency: str
+    native_amount: str | None | None = None
+    try_amount: str | None | None = None
+    usd_amount: str | None | None = None
+    state: Literal["valid", "degraded", "blocked"]
+    reason_codes: list[ValuationReason]
+    price_method: Literal["revision", "identity"]
+    price_revision_id: str | None | None = None
+    fx_path: list[FXPathEntry]
+
+class ValuationTotals(ContractModel):
+    try_: str | None = Field(alias="try")
+    usd: str | None
+
+class ValuationRun(ContractModel):
+    id: str
+    snapshot_id: str
+    cutoff: str
+    knowledge_mode: Literal["system_as_of", "source_as_of"]
+    known_at: str
+    price_max_age_seconds: int
+    fx_max_age_seconds: int
+    state: Literal["valid", "degraded", "blocked"]
+    result_hash: str
+    lines: list[ValuationLine]
+    totals: ValuationTotals
+    created_at: str

@@ -216,3 +216,57 @@ type Snapshot struct {
 type SnapshotPage struct {
 	Items []Snapshot `json:"items"`
 }
+
+type ValuationRequest struct {
+	SnapshotID         string `json:"snapshot_id"`
+	Cutoff             string `json:"cutoff"`
+	KnowledgeMode      string `json:"knowledge_mode"`
+	KnownAt            string `json:"known_at"`
+	PriceMaxAgeSeconds int    `json:"price_max_age_seconds"`
+	FxMaxAgeSeconds    int    `json:"fx_max_age_seconds"`
+}
+
+type FXPathEntry struct {
+	QuoteRevisionID string `json:"quote_revision_id"`
+	Direction       string `json:"direction"`
+}
+
+type ValuationReason struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+type ValuationLine struct {
+	ID              *string           `json:"id,omitempty"`
+	SnapshotLineID  string            `json:"snapshot_line_id"`
+	InstrumentID    string            `json:"instrument_id"`
+	NativeCurrency  string            `json:"native_currency"`
+	NativeAmount    *string           `json:"native_amount,omitempty"`
+	TryAmount       *string           `json:"try_amount,omitempty"`
+	UsdAmount       *string           `json:"usd_amount,omitempty"`
+	State           string            `json:"state"`
+	ReasonCodes     []ValuationReason `json:"reason_codes"`
+	PriceMethod     string            `json:"price_method"`
+	PriceRevisionID *string           `json:"price_revision_id,omitempty"`
+	FxPath          []FXPathEntry     `json:"fx_path"`
+}
+
+type ValuationTotals struct {
+	Try string `json:"try"`
+	Usd string `json:"usd"`
+}
+
+type ValuationRun struct {
+	ID                 string          `json:"id"`
+	SnapshotID         string          `json:"snapshot_id"`
+	Cutoff             string          `json:"cutoff"`
+	KnowledgeMode      string          `json:"knowledge_mode"`
+	KnownAt            string          `json:"known_at"`
+	PriceMaxAgeSeconds int             `json:"price_max_age_seconds"`
+	FxMaxAgeSeconds    int             `json:"fx_max_age_seconds"`
+	State              string          `json:"state"`
+	ResultHash         string          `json:"result_hash"`
+	Lines              []ValuationLine `json:"lines"`
+	Totals             ValuationTotals `json:"totals"`
+	CreatedAt          string          `json:"created_at"`
+}
