@@ -11,5 +11,6 @@ RETURNING *;
 -- name: InsertValuationLine :exec
 INSERT INTO valuation_lines (run_id, snapshot_line_id, native_currency,
     native_amount, try_amount, usd_amount, state, reason_codes, price_method,
-    price_revision_id, fx_quote_revision_ids, fx_directions)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);
+    price_revision_id, price_quote_unit, try_fx_quote_revision_ids,
+    try_fx_directions, usd_fx_quote_revision_ids, usd_fx_directions)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15);

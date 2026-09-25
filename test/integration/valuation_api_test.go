@@ -34,6 +34,10 @@ func TestValuationAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	blockedSpot, err := portfolioService.CreateInstrument(ctx, applicationportfolio.CreateInstrumentRequest{CanonicalSymbol: "valuation-blocked-spot", InstrumentType: domainportfolio.InstrumentManualSpot, NativeUnit: "USD"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	portfolio, err := portfolioService.CreatePortfolio(ctx, applicationportfolio.CreatePortfolioRequest{Name: "valuation-fixture", ReportingCurrency: "TRY"})
 	if err != nil {
 		t.Fatal(err)
@@ -67,14 +71,30 @@ func TestValuationAPI(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&run); err != nil {
 		t.Fatal(err)
 	}
-	if run.State != domainvaluation.StateValid || len(run.Lines) != 2 || run.Lines[0].PriceMethod != "identity" {
+	if run.State != domainvaluation.StateValid || len(run.Lines) != 2 {
 		t.Fatalf("unexpected valuation=%+v", run)
 	}
-	if run.Lines[1].NativeAmount == nil || *run.Lines[1].NativeAmount != "6.000000000000000002" {
-		t.Fatalf("native amount=%v", run.Lines[1].NativeAmount)
+	var pricedLine domainvaluation.Line
+	identityFound := false
+	for _, line := range run.Lines {
+		if line.InstrumentID == spot.ID {
+			pricedLine = line
+		}
+		if line.InstrumentID == usdCash.ID && line.PriceMethod == "identity" {
+			identityFound = true
+		}
 	}
-	if run.Lines[1].TryAmount == nil || *run.Lines[1].TryAmount != "240.000000000000000080" {
-		t.Fatalf("try amount=%v", run.Lines[1].TryAmount)
+	if !identityFound {
+		t.Fatalf("identity line missing: %+v", run.Lines)
+	}
+	if pricedLine.NativeAmount == nil || *pricedLine.NativeAmount != "6.000000000000000002" {
+		t.Fatalf("native amount=%v", pricedLine.NativeAmount)
+	}
+	if pricedLine.TryAmount == nil || *pricedLine.TryAmount != "240.000000000000000080" || pricedLine.PriceQuoteUnit == nil || *pricedLine.PriceQuoteUnit != "USD" {
+		t.Fatalf("try amount=%v quote=%v", pricedLine.TryAmount, pricedLine.PriceQuoteUnit)
+	}
+	if len(pricedLine.TryFXPath) != 1 || len(pricedLine.USDFXPath) != 0 {
+		t.Fatalf("separate FX paths try=%v usd=%v", pricedLine.TryFXPath, pricedLine.USDFXPath)
 	}
 	var reachable int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM valuation_lines l JOIN price_revisions p ON p.id=l.price_revision_id JOIN raw_objects r ON r.id=p.raw_object_id WHERE l.run_id=$1`, mustUUID(t, run.ID)).Scan(&reachable); err != nil || reachable != 1 {
@@ -87,12 +107,39 @@ func TestValuationAPI(t *testing.T) {
 	if _, err := pool.Exec(ctx, `UPDATE valuation_runs SET state='blocked' WHERE id=$1`, mustUUID(t, run.ID)); err == nil {
 		t.Fatal("valuation run was mutable")
 	}
+
+	// Future, stale, and source-not-yet-known revisions are all excluded by a
+	// source-as-of request; source-as-of must not fall back to system-known time.
+	blockedSnapshot, err := portfolioService.CreateSnapshot(ctx, portfolio.ID, applicationportfolio.CreateSnapshotRequest{CapturedAt: cutoff, Lines: []applicationportfolio.SnapshotLineInput{{AccountID: account.ID, InstrumentID: blockedSpot.ID, Quantity: "1"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw3 := insertValuationRaw(t, pool, "valuation-future")
+	raw4 := insertValuationRaw(t, pool, "valuation-stale")
+	raw5 := insertValuationRaw(t, pool, "valuation-source-late")
+	if _, err := pool.Exec(ctx, `INSERT INTO price_revisions (instrument_id,quote_currency,observation_time,price,source_known_at,system_known_at,knowledge_time_basis,raw_object_id) VALUES ($1,'USD',$2,'9',$2,$2,'source_published_at',$3),($1,'USD',$4,'8',$4,$4,'source_published_at',$5),($1,'USD',$6,'7',$7,$6,'source_published_at',$8)`, mustUUID(t, blockedSpot.ID), cutoff.Add(time.Minute), raw3, cutoff.Add(-2*time.Hour), raw4, cutoff, cutoff.Add(2*time.Hour), raw5); err != nil {
+		t.Fatal(err)
+	}
+	blockedBody, _ := json.Marshal(domainvaluation.Request{SnapshotID: blockedSnapshot.ID, Cutoff: cutoff, KnowledgeMode: domainvaluation.KnowledgeSource, KnownAt: cutoff.Add(time.Hour), PriceMaxAgeSeconds: 60, FXMaxAgeSeconds: 60})
+	blockedReq := httptest.NewRequest(http.MethodPost, "/api/v1/valuations", bytes.NewReader(blockedBody))
+	blockedRec := httptest.NewRecorder()
+	h.ServeHTTP(blockedRec, blockedReq)
+	if blockedRec.Code != http.StatusCreated {
+		t.Fatalf("blocked valuation status=%d body=%s", blockedRec.Code, blockedRec.Body.String())
+	}
+	var blockedRun domainvaluation.Run
+	if err := json.NewDecoder(blockedRec.Body).Decode(&blockedRun); err != nil {
+		t.Fatal(err)
+	}
+	if blockedRun.State != domainvaluation.StateBlocked || len(blockedRun.Lines) != 1 || len(blockedRun.Lines[0].ReasonCodes) == 0 || blockedRun.Lines[0].ReasonCodes[0].Code != "PRICE_MISSING_OR_STALE" {
+		t.Fatalf("point-in-time blocked result=%+v", blockedRun)
+	}
 }
 
 func insertValuationRaw(t *testing.T, pool *pgxpool.Pool, suffix string) pgtype.UUID {
 	t.Helper()
 	var id pgtype.UUID
-	sha := strings.Repeat("0", 62) + map[string]string{"valuation-price": "01", "valuation-fx": "02"}[suffix]
+	sha := strings.Repeat("0", 62) + map[string]string{"valuation-price": "01", "valuation-fx": "02", "valuation-future": "03", "valuation-stale": "04", "valuation-source-late": "05"}[suffix]
 	if err := pool.QueryRow(context.Background(), `INSERT INTO raw_objects (content_sha256,object_key,media_type,byte_length,retrieved_at) VALUES ($1,$2,'application/json',1,clock_timestamp()) RETURNING id`, sha, "valuation/"+suffix).Scan(&id); err != nil {
 		t.Fatal(err)
 	}

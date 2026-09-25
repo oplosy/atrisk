@@ -207,7 +207,9 @@ class ValuationLine(ContractModel):
     reason_codes: list[ValuationReason]
     price_method: Literal["revision", "identity"]
     price_revision_id: str | None | None = None
-    fx_path: list[FXPathEntry]
+    price_quote_unit: str | None | None = None
+    try_fx_path: list[FXPathEntry]
+    usd_fx_path: list[FXPathEntry]
 
 class ValuationTotals(ContractModel):
     try_: str | None = Field(alias="try")

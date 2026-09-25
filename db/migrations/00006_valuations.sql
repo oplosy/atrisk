@@ -31,14 +31,21 @@ CREATE TABLE valuation_lines (
     reason_codes JSONB NOT NULL DEFAULT '[]'::jsonb,
     price_method TEXT NOT NULL,
     price_revision_id UUID REFERENCES price_revisions (id),
-    fx_quote_revision_ids UUID[] NOT NULL DEFAULT '{}',
-    fx_directions TEXT[] NOT NULL DEFAULT '{}',
+    price_quote_unit TEXT,
+    try_fx_quote_revision_ids UUID[] NOT NULL DEFAULT '{}',
+    try_fx_directions TEXT[] NOT NULL DEFAULT '{}',
+    usd_fx_quote_revision_ids UUID[] NOT NULL DEFAULT '{}',
+    usd_fx_directions TEXT[] NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
     CONSTRAINT valuation_lines_state CHECK (state IN ('valid', 'degraded', 'blocked')),
     CONSTRAINT valuation_lines_price_method CHECK (price_method IN ('revision', 'identity')),
-    CONSTRAINT valuation_lines_identity_price CHECK ((price_method = 'identity' AND price_revision_id IS NULL) OR (price_method = 'revision' AND price_revision_id IS NOT NULL)),
-    CONSTRAINT valuation_lines_fx_parallel_arrays CHECK (cardinality(fx_quote_revision_ids) = cardinality(fx_directions))
+    CONSTRAINT valuation_lines_identity_price CHECK ((price_method = 'identity' AND price_revision_id IS NULL AND price_quote_unit IS NULL) OR (price_method = 'revision' AND ((price_revision_id IS NOT NULL AND price_quote_unit IS NOT NULL) OR (state = 'blocked' AND price_revision_id IS NULL AND price_quote_unit IS NULL)))),
+    CONSTRAINT valuation_lines_try_fx_parallel_arrays CHECK (cardinality(try_fx_quote_revision_ids) = cardinality(try_fx_directions)),
+    CONSTRAINT valuation_lines_usd_fx_parallel_arrays CHECK (cardinality(usd_fx_quote_revision_ids) = cardinality(usd_fx_directions))
 );
+
+ALTER TABLE fx_quote_revisions
+    ADD CONSTRAINT fx_quote_revisions_rate_positive CHECK (rate > 0);
 
 CREATE INDEX valuation_runs_snapshot_idx ON valuation_runs (snapshot_id, created_at DESC, id DESC);
 CREATE INDEX valuation_lines_run_idx ON valuation_lines (run_id, id);

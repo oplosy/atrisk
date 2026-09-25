@@ -198,7 +198,9 @@ export interface ValuationLine {
   reason_codes: ValuationReason[];
   price_method: "revision" | "identity";
   price_revision_id?: string | null;
-  fx_path: FXPathEntry[];
+  price_quote_unit?: string | null;
+  try_fx_path: FXPathEntry[];
+  usd_fx_path: FXPathEntry[];
 }
 
 export interface ValuationTotals {

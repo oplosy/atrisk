@@ -41,7 +41,9 @@ type Line struct {
 	ReasonCodes     []Reason      `json:"reason_codes"`
 	PriceMethod     string        `json:"price_method"`
 	PriceRevisionID *string       `json:"price_revision_id"`
-	FXPath          []FXPathEntry `json:"fx_path"`
+	PriceQuoteUnit  *string       `json:"price_quote_unit"`
+	TryFXPath       []FXPathEntry `json:"try_fx_path"`
+	USDFXPath       []FXPathEntry `json:"usd_fx_path"`
 }
 
 type Totals struct {

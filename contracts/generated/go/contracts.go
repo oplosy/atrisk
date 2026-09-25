@@ -248,7 +248,9 @@ type ValuationLine struct {
 	ReasonCodes     []ValuationReason `json:"reason_codes"`
 	PriceMethod     string            `json:"price_method"`
 	PriceRevisionID *string           `json:"price_revision_id,omitempty"`
-	FxPath          []FXPathEntry     `json:"fx_path"`
+	PriceQuoteUnit  *string           `json:"price_quote_unit,omitempty"`
+	TryFxPath       []FXPathEntry     `json:"try_fx_path"`
+	UsdFxPath       []FXPathEntry     `json:"usd_fx_path"`
 }
 
 type ValuationTotals struct {

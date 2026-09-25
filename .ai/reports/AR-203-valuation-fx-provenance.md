@@ -14,18 +14,18 @@
 
 | Criterion | Evidence |
 |---|---|
-| AC-1 | `valuation_lines` stores revision/identity method, nullable price revision, ordered FX revision UUIDs and directions; `TestValuationAPI` exercises identity and priced lines. |
-| AC-2 | SQL selectors enforce cutoff, max age, and system/source knowledge predicates without source-time fallback; unit coverage plus integration fixture added. |
-| AC-3 | `pathFor` prefers direct forward/reverse over USD bridge, records direction, and unit tests cover reverse/direct precedence. |
+| AC-1 | `valuation_lines` stores revision/identity method, nullable price revision, selected price quote unit, and separate ordered TRY/USD FX revision UUIDs and directions; `TestValuationAPI` exercises identity and priced lines. |
+| AC-2 | SQL selectors and `eligibleRevision` enforce cutoff, max age, and system/source knowledge predicates without source-time fallback; unit coverage plus integration fixture covers future, stale, and source-not-yet-known rows. |
+| AC-3 | `pathFor` prefers direct forward/reverse over USD bridge, records direction, and unit tests cover reverse/direct precedence; TRY and USD paths persist separately. |
 | AC-4 | Identity lines do not create price revisions; non-ISO asset tickers are rejected by FX path selection and become blocked. |
 | AC-5 | Exact `big.Rat` arithmetic formats `NUMERIC(38,18)` strings; unit and integration tests cover 18-digit input. |
-| AC-6 | Missing/stale price or FX path yields stable reason codes and blocked immutable run/line records; immutable triggers added. |
+| AC-6 | Missing/stale price or FX path yields stable reason codes and blocked immutable run/line records; immutable triggers and positive-rate constraints added. |
 | AC-7 | SHA-256 result hash covers normalized request, selected IDs, amounts, states, and totals. |
-| AC-8 | OpenAPI and generated Go/TypeScript/Python models updated; HTTP integration test added for PostgreSQL. |
+| AC-8 | OpenAPI and generated Go/TypeScript/Python models updated; HTTP integration test added for PostgreSQL and raw-object reachability is asserted through selected revisions. |
 
 ## Stop-condition check
 
-- Decision or scope conflict: `none`.
+- Decision or scope conflict: `none`; the packet's original S3 wording remains authority-controlled, while implementation only reads PostgreSQL raw-object provenance and does not call S3.
 - Missing dependency, unsafe migration, or unavailable verification: local PostgreSQL URL was not configured, so migration/integration execution is blocked locally; CI is configured to run it.
 
 ## Verification
@@ -33,13 +33,14 @@
 | Command | Result |
 |---|---|
 | `go test ./apps/... ./internal/... -run 'TestValuation' -count=1` | pass |
+| `go vet ./apps/... ./internal/...` | pass |
 | `node --test test/contract/contract.test.mjs` | pass, 11/11 |
-| `go test ./test/integration -run '^TestValuationAPI$' -count=1` | skipped locally because isolated DB URL is unavailable |
+| `go test ./test/integration -run '^TestValuationAPI$' -count=1` | compiles; skipped locally because isolated DB URL is unavailable |
 | `go test ./test/integration -run '^TestCoreDatabaseMigrations$' -count=1` | blocked: `test database URL is required` |
 | `task test-go TEST=Valuation` | not run as Task binary was not available in this worktree session |
 | `task test-go-integration TEST=ValuationAPI` | not run; local isolated DB unavailable |
 | `task test-contract` | contract test component passed; full Task target not run |
-| `task check-generated` | expected failure while generated files are uncommitted; regeneration is deterministic |
+| `task check-generated` | rerun after the fix commit; generated artifacts were regenerated deterministically |
 | `task migrate-test` | blocked by missing `ATLASRISK_TEST_DATABASE_URL` |
 | `task verify` | not run because required local DB/infrastructure is unavailable |
 
@@ -52,7 +53,7 @@
 ## Git state
 
 - Branch: `task/AR-203-valuation-fx-provenance`
-- Commit SHA: `d987520`
+- Commit SHA: `77313c60de9a0a2e2873a6bae069a60998aa1c79`
 - Remote branch: push blocked by egress authorization policy; local branch is ready for authorized push
 - Worktree: clean
 
