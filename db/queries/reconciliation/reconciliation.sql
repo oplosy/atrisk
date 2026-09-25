@@ -1,0 +1,2 @@
+-- Reconciliation SQL is task-owned and append-only. The application issues
+-- these statements in one transaction to preserve account serialization.

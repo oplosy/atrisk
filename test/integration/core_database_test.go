@@ -166,8 +166,8 @@ func TestCoreDatabaseMigrations(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&currentVersion); err != nil {
 		t.Fatalf("inspect migration version: %v", err)
 	}
-	if currentVersion != 6 {
-		t.Fatalf("expected latest migration version 6, got %d", currentVersion)
+	if currentVersion != 7 {
+		t.Fatalf("expected latest migration version 7, got %d", currentVersion)
 	}
 	var assetUnitTypes int
 	if err := pool.QueryRow(ctx, `

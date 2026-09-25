@@ -8,15 +8,18 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	apiimports "github.com/oplosy/atrisk/apps/api/handlers/imports"
 	apiportfolio "github.com/oplosy/atrisk/apps/api/handlers/portfolio"
 	apiquality "github.com/oplosy/atrisk/apps/api/handlers/quality"
+	apireconciliation "github.com/oplosy/atrisk/apps/api/handlers/reconciliation"
 	"github.com/oplosy/atrisk/apps/api/handlers/timeline"
 	apivaluation "github.com/oplosy/atrisk/apps/api/handlers/valuation"
 	applicationportfolio "github.com/oplosy/atrisk/internal/application/portfolio"
 	appquality "github.com/oplosy/atrisk/internal/application/quality"
+	applicationreconciliation "github.com/oplosy/atrisk/internal/application/reconciliation"
 	application "github.com/oplosy/atrisk/internal/application/timeline"
 	appvaluation "github.com/oplosy/atrisk/internal/application/valuation"
 	"github.com/oplosy/atrisk/internal/archive"
@@ -54,6 +57,7 @@ func main() {
 	portfolioHandler := apiportfolio.New(applicationportfolio.Service{Queries: queries, Beginner: pool})
 	qualityHandler := apiquality.New(appquality.Service{Queries: queries})
 	valuationHandler := apivaluation.New(appvaluation.Service{Pool: pool})
+	reconciliationHandler := apireconciliation.New(applicationreconciliation.Service{Pool: pool})
 	var importArchive archive.Store
 	if endpoint := os.Getenv("ATLASRISK_S3_ENDPOINT"); endpoint != "" {
 		store, storeErr := archive.NewS3StoreFromConfig(ctx, archive.ClientConfig{
@@ -78,9 +82,9 @@ func main() {
 	mux.Handle("/v1/portfolios", portfolioHandler)
 	mux.Handle("/v1/portfolios/", portfolioHandler)
 	mux.Handle("/api/v1/accounts", portfolioHandler)
-	mux.Handle("/api/v1/accounts/", portfolioHandler)
+	mux.Handle("/api/v1/accounts/", dispatchPortfolioReconciliation(portfolioHandler, reconciliationHandler))
 	mux.Handle("/v1/accounts", portfolioHandler)
-	mux.Handle("/v1/accounts/", portfolioHandler)
+	mux.Handle("/v1/accounts/", dispatchPortfolioReconciliation(portfolioHandler, reconciliationHandler))
 	mux.Handle("/api/v1/snapshots", portfolioHandler)
 	mux.Handle("/api/v1/snapshots/", portfolioHandler)
 	mux.Handle("/v1/snapshots", portfolioHandler)
@@ -90,9 +94,11 @@ func main() {
 	mux.Handle("/api/v1/quality/evaluate", qualityHandler)
 	mux.Handle("/v1/quality/evaluate", qualityHandler)
 	mux.Handle("/api/v1/valuations", valuationHandler)
-	mux.Handle("/api/v1/valuations/", valuationHandler)
+	mux.Handle("/api/v1/valuations/", dispatchValuationReconciliation(valuationHandler, reconciliationHandler))
 	mux.Handle("/v1/valuations", valuationHandler)
-	mux.Handle("/v1/valuations/", valuationHandler)
+	mux.Handle("/v1/valuations/", dispatchValuationReconciliation(valuationHandler, reconciliationHandler))
+	mux.Handle("/api/v1/reconciliations/", reconciliationHandler)
+	mux.Handle("/v1/reconciliations/", reconciliationHandler)
 	mux.Handle("/", timeline.New(application.Service{Queries: queries}))
 	handler := mux
 	server := &http.Server{Addr: *listen, Handler: handler, ReadHeaderTimeout: 5 * time.Second}
@@ -100,4 +106,24 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
+}
+
+func dispatchPortfolioReconciliation(primary, reconciliation http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(strings.Trim(r.URL.Path, "/"), "/reconciliation-tolerances") {
+			reconciliation.ServeHTTP(w, r)
+			return
+		}
+		primary.ServeHTTP(w, r)
+	})
+}
+
+func dispatchValuationReconciliation(primary, reconciliation http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(strings.Trim(r.URL.Path, "/"), "/reconciliations") {
+			reconciliation.ServeHTTP(w, r)
+			return
+		}
+		primary.ServeHTTP(w, r)
+	})
 }
