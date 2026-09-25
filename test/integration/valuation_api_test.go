@@ -20,6 +20,21 @@ import (
 	"github.com/oplosy/atrisk/internal/platform/database"
 )
 
+type recordingValuationService struct {
+	delegate applicationvaluation.Service
+	lastErr  error
+}
+
+func (s *recordingValuationService) Create(ctx context.Context, request domainvaluation.Request) (domainvaluation.Run, error) {
+	result, err := s.delegate.Create(ctx, request)
+	s.lastErr = err
+	return result, err
+}
+
+func (s *recordingValuationService) Get(ctx context.Context, id string) (domainvaluation.Run, error) {
+	return s.delegate.Get(ctx, id)
+}
+
 func TestValuationAPI(t *testing.T) {
 	migrateTestDatabase(t)
 	_, pool := testDatabase(t)
@@ -59,13 +74,14 @@ func TestValuationAPI(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO fx_quote_revisions (base_currency,quote_currency,observation_time,rate,source_known_at,knowledge_time_basis,raw_object_id) VALUES ('USD','TRY',$1,'40',$1,'source_published_at',$2)`, cutoff, raw2); err != nil {
 		t.Fatal(err)
 	}
-	h := apivaluation.New(applicationvaluation.Service{Pool: pool})
+	recorder := &recordingValuationService{delegate: applicationvaluation.Service{Pool: pool}}
+	h := apivaluation.New(recorder)
 	body, _ := json.Marshal(domainvaluation.Request{SnapshotID: snapshot.ID, Cutoff: cutoff, KnowledgeMode: domainvaluation.KnowledgeSource, KnownAt: cutoff.Add(time.Hour), PriceMaxAgeSeconds: 60, FXMaxAgeSeconds: 60})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/valuations", bytes.NewReader(body))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusCreated {
-		t.Fatalf("create status=%d body=%s", rec.Code, rec.Body.String())
+		t.Fatalf("create status=%d body=%s underlying=%v", rec.Code, rec.Body.String(), recorder.lastErr)
 	}
 	var run domainvaluation.Run
 	if err := json.NewDecoder(rec.Body).Decode(&run); err != nil {
