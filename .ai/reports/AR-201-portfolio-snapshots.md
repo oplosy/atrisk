@@ -58,7 +58,7 @@
 
 - Branch: `task/AR-201-portfolio-snapshots`
 - Commit SHA: `734ad0a` (Binance trigger idempotency fix; report metadata finalization follows)
-- Remote branch: `origin/task/AR-201-portfolio-snapshots` (local branch ahead by 4 commits; push/PR deferred to orchestrator)
+- Remote branch: `origin/task/AR-201-portfolio-snapshots` (local branch has unpushed commits; push/PR deferred to orchestrator)
 - Worktree: clean after commit
 
 ## Assumptions and risks
