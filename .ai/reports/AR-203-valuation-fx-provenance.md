@@ -53,7 +53,7 @@
 ## Git state
 
 - Branch: `task/AR-203-valuation-fx-provenance`
-- Commit SHA: pending final fix commit
+- Commit SHA: `5f50575982f18207404b4e36f4263058e0703123` (implementation); report update follows as a separate documentation commit.
 - Remote branch: push blocked by egress authorization policy; local branch is ready for authorized push
 - Worktree: clean
 
