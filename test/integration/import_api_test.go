@@ -1,11 +1,16 @@
 package integration
 
 import (
+	"bytes"
 	"context"
 	"io"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	apiimports "github.com/oplosy/atrisk/apps/api/handlers/imports"
 	application "github.com/oplosy/atrisk/internal/application/portfolio"
 	"github.com/oplosy/atrisk/internal/archive"
 	"github.com/oplosy/atrisk/internal/domain/portfolio"
@@ -56,6 +61,28 @@ func TestImportAPI(t *testing.T) {
 	}
 	if result["snapshot_id"] == nil || len(store.objects) != 1 {
 		t.Fatalf("result=%v archive=%d", result, len(store.objects))
+	}
+	var requestBody bytes.Buffer
+	writer := multipart.NewWriter(&requestBody)
+	_ = writer.WriteField("schema_version", manualimports.SchemaVersion)
+	_ = writer.WriteField("target_id", p.ID)
+	_ = writer.WriteField("captured_at", "2026-01-02T03:04:05+02:00")
+	part, err := writer.CreateFormFile("file", "positions-v1.csv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write(body); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	httpRequest := httptest.NewRequest(http.MethodPost, "/api/v1/imports/positions/preview", &requestBody)
+	httpRequest.Header.Set("Content-Type", writer.FormDataContentType())
+	recorder := httptest.NewRecorder()
+	apiimports.New(svc).ServeHTTP(recorder, httpRequest)
+	if recorder.Code != http.StatusOK || !bytes.Contains(recorder.Body.Bytes(), []byte(`"valid":true`)) {
+		t.Fatalf("HTTP preview status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 	replay, err := svc.Commit(ctx, manualimports.CommitRequest{Kind: manualimports.KindPositions, TargetID: p.ID, SchemaVersion: manualimports.SchemaVersion, CapturedAt: "2026-01-02T03:04:05+02:00", Token: preview.Token, IdempotencyKey: "import-fixture-1", Body: body})
 	if err != nil || replay["snapshot_id"] != result["snapshot_id"] {
