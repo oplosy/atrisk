@@ -1,7 +1,7 @@
 ---
 id: AR-301
 title: Implement risk jobs and golden fixtures
-status: active
+status: merged
 phase: 3
 depends_on: [AR-107, AR-203]
 branch: task/AR-301-risk-job-contract
@@ -31,11 +31,11 @@ versioned deterministic risk job against immutable input snapshots.
 
 ## Acceptance criteria
 
-- [ ] Concurrent workers cannot execute the same active lease simultaneously.
-- [ ] Expired leases recover safely; completion is idempotent.
-- [ ] Unknown schema/kind is a permanent explicit failure.
-- [ ] Retryable and permanent failures transition differently and retain evidence.
-- [ ] Go and Python agree on every golden payload and canonical hash.
+- [x] Concurrent workers cannot execute the same active lease simultaneously.
+- [x] Expired leases recover safely; completion is idempotent.
+- [x] Unknown schema/kind is a permanent explicit failure.
+- [x] Retryable and permanent failures transition differently and retain evidence.
+- [x] Go and Python agree on every golden payload and canonical hash.
 
 ## Required verification
 
