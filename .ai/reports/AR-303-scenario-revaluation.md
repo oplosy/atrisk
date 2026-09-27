@@ -50,11 +50,12 @@
 ## Git state
 
 - Branch: `task/AR-303-scenario-revaluation`
-- Commit SHA: pending reviewer approval and commit
-- Remote branch: not pushed yet
-- Worktree: dirty
+- Commit SHA: `e8d223a` (local commit; final SHA may change if the handoff record is amended)
+- Remote branch: not pushed; external push was blocked by the approval gate for this branch payload/destination
+- Worktree: clean after commit
 
 ## Assumptions and risks
 
 - Database trigger behavior is covered by integration assertions but remains unexecuted locally; merge is contingent on hosted PostgreSQL CI.
 - Docker Desktop was not restarted or reconfigured.
+- Independent reviewer verdict: ready for merge; no blocking findings remain.
