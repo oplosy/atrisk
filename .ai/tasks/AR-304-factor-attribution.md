@@ -1,10 +1,11 @@
 ---
 id: AR-304
 title: Implement explainable stress attribution
-status: draft
+status: ready
 phase: 3
 depends_on: [AR-303]
 branch: task/AR-304-factor-attribution
+base_sha: 5ba3f3d3c7d7f82d959dd5498efc1ee20d0ca9fa
 owned_paths: [risk-engine/src/atlasrisk/attribution/, risk-engine/tests/attribution/]
 shared_paths: [contracts/jobs/, test/fixtures/risk/]
 adrs: [ADR-013, ADR-014]
@@ -38,7 +39,7 @@ Shapley allocation, while unsupported or numerical residuals remain visible.
 ## Required verification
 
 ```text
-task test-python TEST=attribution
-task test-golden TEST=attribution
+uv run --project risk-engine --locked pytest risk-engine/tests/attribution -q
+uv run --project risk-engine --locked pytest risk-engine/tests/attribution/test_golden.py -q
 task test-contract
 ```
