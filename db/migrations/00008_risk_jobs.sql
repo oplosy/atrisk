@@ -88,20 +88,38 @@ CREATE TRIGGER risk_jobs_input_immutable
     BEFORE UPDATE ON risk_jobs
     FOR EACH ROW EXECUTE FUNCTION risk_jobs_guard_input();
 
--- Attempts are evidence and cannot be rewritten or removed.
-CREATE TRIGGER risk_job_attempts_immutable
+-- Attempt identity and lease ownership are immutable. Completion may fill the
+-- single unfinished evidence row exactly once, inside the job transition tx.
+CREATE OR REPLACE FUNCTION risk_job_attempts_guard()
+RETURNS trigger LANGUAGE plpgsql AS $function$
+BEGIN
+    IF TG_OP = 'DELETE'
+       OR NEW.job_id IS DISTINCT FROM OLD.job_id
+       OR NEW.attempt IS DISTINCT FROM OLD.attempt
+       OR NEW.worker_id IS DISTINCT FROM OLD.worker_id
+       OR NEW.lease_expires_at IS DISTINCT FROM OLD.lease_expires_at
+       OR NEW.started_at IS DISTINCT FROM OLD.started_at
+       OR (OLD.finished_at IS NOT NULL AND NEW IS DISTINCT FROM OLD) THEN
+        RAISE EXCEPTION 'risk job attempt evidence is immutable' USING ERRCODE = '55000';
+    END IF;
+    RETURN NEW;
+END;
+$function$;
+
+CREATE TRIGGER risk_job_attempts_guard
     BEFORE UPDATE OR DELETE ON risk_job_attempts
-    FOR EACH ROW EXECUTE FUNCTION prevent_immutable_row_mutation();
+    FOR EACH ROW EXECUTE FUNCTION risk_job_attempts_guard();
 
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
-DROP TRIGGER IF EXISTS risk_job_attempts_immutable ON risk_job_attempts;
+DROP TRIGGER IF EXISTS risk_job_attempts_guard ON risk_job_attempts;
 DROP TRIGGER IF EXISTS risk_jobs_input_immutable ON risk_jobs;
 DROP TRIGGER IF EXISTS risk_jobs_updated_at ON risk_jobs;
 DROP FUNCTION IF EXISTS risk_jobs_guard_input();
 DROP FUNCTION IF EXISTS risk_jobs_touch_updated_at();
+DROP FUNCTION IF EXISTS risk_job_attempts_guard();
 DROP TABLE IF EXISTS risk_job_attempts;
 DROP TABLE IF EXISTS risk_jobs;
 -- +goose StatementEnd

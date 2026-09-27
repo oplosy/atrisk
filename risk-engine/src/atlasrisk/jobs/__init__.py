@@ -9,11 +9,13 @@ from .contracts import (
     RetryableJobError,
     validate_job,
 )
+from .postgres import PostgresQueueClient
 from .worker import JobWorker, execute_job
 
 __all__ = [
     "JobEnvelope",
     "JobWorker",
+    "PostgresQueueClient",
     "PermanentJobError",
     "ResultEnvelope",
     "RetryableJobError",

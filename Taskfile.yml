@@ -58,6 +58,7 @@ tasks:
     cmds:
       - task: generate
       - node --test test/contract/contract.test.mjs
+      - node --test contracts/jobs/contract.test.mjs
 
   generate:
     desc: Generate Go, TypeScript, and Python contract models
@@ -66,11 +67,11 @@ tasks:
       - node scripts/generate/contract-models.mjs
 
   test-integration:
-    desc: Run integration tests when integration sources exist
+    desc: Run the selected integration test against an isolated database
     env:
       ATLASRISK_REQUIRE_TEST_DATABASE: "1"
     cmds:
-      - go test ./test/integration -run "TestCoreDatabase" -count=1
+      - go test ./test/integration -run "Test{{.TEST}}" -count=1
 
   migrate-test:
     desc: Apply migrations to an explicitly isolated test database and verify schema

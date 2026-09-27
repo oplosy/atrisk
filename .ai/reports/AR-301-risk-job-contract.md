@@ -6,7 +6,7 @@
 - Packet status at start: `active` (activation commit supplied by orchestrator)
 - Referenced ADRs: ADR-008, ADR-009, ADR-010, ADR-013 (accepted summaries in `docs/decisions/README.md`)
 - Owned paths: `internal/jobs/`, `risk-engine/src/atlasrisk/jobs/`, `contracts/jobs/`, `test/fixtures/risk/`
-- Shared paths changed and justification: `db/migrations/00008_risk_jobs.sql` adds the PostgreSQL durable queue required by ADR-008
+- Shared paths changed and justification: `db/migrations/00008_risk_jobs.sql` adds the PostgreSQL durable queue; `test/integration/risk_job_test.go` provides lifecycle evidence; `test/integration/core_database_test.go` advances migration expectations to 8; `Taskfile.yml` routes `TEST=...` to the selected lifecycle test.
 
 ## Result
 
@@ -16,16 +16,17 @@
 
 | Criterion | Evidence |
 |---|---|
-| AC-1 | `internal/jobs/queue.go` claims with `FOR UPDATE SKIP LOCKED`, lease owner, and expiry; live concurrency evidence requires PostgreSQL integration execution. |
-| AC-2 | `Complete` is owner/lease guarded and idempotent; `RecoverExpired` requeues or permanently fails expired attempts and records `LEASE_EXPIRED`. |
+| AC-1 | `internal/jobs/queue.go` claims with `FOR UPDATE SKIP LOCKED`, lease owner, and expiry; `test/integration/risk_job_test.go` exercises two concurrent workers (compile-only locally because no isolated DB). |
+| AC-2 | `Complete`/`Fail` require an unexpired lease and run job transition plus attempt evidence in one transaction; `RecoverExpired` requeues or permanently fails expired attempts and records `LEASE_EXPIRED`; cancellation closes active attempt evidence. |
 | AC-3 | Python `validate_job` returns permanent `ATLAS_UNKNOWN_SCHEMA_VERSION` and `ATLAS_UNKNOWN_JOB_KIND` errors; `risk-engine/tests/test_jobs.py` covers both. |
-| AC-4 | Go `Failure` distinguishes retryable from permanent states and stores error evidence; migration stores immutable attempt records. |
-| AC-5 | Go/Python tests hash the same sorted compact golden JSON (`200a097d...bec1bb` job hash); result fixture hash is `bb078d...aee3`. |
+| AC-4 | Go `Failure` distinguishes retryable from permanent states and stores error evidence; attempt identity is immutable while a single unfinished evidence row may be closed exactly once. |
+| AC-5 | Go/Python tests agree on sorted compact UTF-8 JSON, normalize integral floats (`1.0 -> 1`) and negative zero, and hash adversarial `<é>` payloads (`c1e614c0...5dc098c`), plus job (`200a097d...bec1bb`) and result (`bb078d...aee3`) fixtures. |
+| AC-6 | Python `PostgresQueueClient` provides a concrete DB-API bridge for claim, execute, complete, and fail; `run_claimed_once` tests prove both completion and permanent-failure forwarding. |
 
 ## Stop-condition check
 
 - Decision or scope conflict: none.
-- Missing dependency, unsafe migration, or unavailable verification: local `task` executable and isolated PostgreSQL DSN are unavailable; Docker was not started or changed.
+- Missing dependency, unsafe migration, or unavailable verification: local `task` executable and isolated PostgreSQL DSN are unavailable; Docker was not started or changed. Live PostgreSQL lifecycle evidence remains for CI/orchestrator.
 
 ## Verification
 
@@ -33,19 +34,21 @@
 |---|---|
 | `go test ./internal/jobs` | pass |
 | `go test ./...` | pass |
-| `uv run ruff format --check src tests` (from `risk-engine`) | pass; 7 files already formatted |
+| `uv run ruff format --check src tests` (from `risk-engine`) | pass; 8 files already formatted |
 | `uv run ruff check src tests` (from `risk-engine`) | pass |
-| `uv run pytest -q` (from `risk-engine`) | pass; 5 tests |
+| `uv run pytest -q` (from `risk-engine`) | pass; 8 tests |
 | `node --test test/contract/contract.test.mjs` | pass; 11 tests |
+| `node --test contracts/jobs/contract.test.mjs` | pass; 2 tests |
+| `go vet ./apps/... ./internal/...` | pass |
 | `task test-go TEST=Jobs` | unavailable: `task` executable not installed |
 | `task test-python TEST=jobs` | unavailable: `task` executable not installed |
-| `task test-integration TEST=RiskJobLifecycle` | unavailable: `task` executable not installed; no `ATLASRISK_TEST_DATABASE_URL` |
-| `task test-contract` | unavailable: `task` executable not installed; direct contract test passed |
+| `task test-integration TEST=RiskJobLifecycle` | unavailable: `task` executable not installed; direct test fails closed because `ATLASRISK_TEST_DATABASE_URL` is missing |
+| `task test-contract` | unavailable: `task` executable not installed; both direct contract suites passed |
 | `git diff --check` | pass |
 
 ## Change inventory
 
-- Files changed: durable queue migration; Go queue and unit tests; Python canonical/contract/worker modules and tests; risk job/result schemas; golden fixtures; this report.
+- Files changed: durable queue migration; Go queue, unit, and PostgreSQL lifecycle tests; Python canonical/contract/worker/PostgreSQL bridge and tests; risk job/result schemas and schema tests; golden fixtures; migration expectations/task routing; this report.
 - Schema/API changes: `risk_jobs` and immutable `risk_job_attempts`; no HTTP API change.
 - Generated artifacts: none.
 
@@ -58,4 +61,4 @@
 
 ## Assumptions and risks
 
-- PostgreSQL integration must be run by the orchestrator/CI against an isolated database. Existing `test/integration/core_database_test.go` currently asserts latest migration version 7 and may need the orchestrator's serialized migration update for migration 8.
+- PostgreSQL integration must be run by the orchestrator/CI against an isolated database. The local direct lifecycle invocation correctly failed closed because `ATLASRISK_TEST_DATABASE_URL` was absent. The canonicalization rule is UTF-8 JSON with sorted keys, compact separators, integral-float normalization, and no non-finite values.

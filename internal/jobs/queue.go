@@ -2,12 +2,14 @@
 package jobs
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -74,7 +76,42 @@ type Failure struct {
 
 type Queue struct{ Pool *pgxpool.Pool }
 
-func CanonicalJSON(value any) ([]byte, error) { return json.Marshal(value) }
+func CanonicalJSON(value any) ([]byte, error) {
+	var encoded bytes.Buffer
+	encoder := json.NewEncoder(&encoded)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(normalizeCanonical(value)); err != nil {
+		return nil, err
+	}
+	return bytes.TrimSuffix(encoded.Bytes(), []byte{'\n'}), nil
+}
+
+func normalizeCanonical(value any) any {
+	switch typed := value.(type) {
+	case float64:
+		if typed == 0 {
+			return 0
+		}
+		if typed >= math.MinInt64 && typed <= math.MaxInt64 && math.Trunc(typed) == typed {
+			return int64(typed)
+		}
+		return typed
+	case map[string]any:
+		result := make(map[string]any, len(typed))
+		for key, item := range typed {
+			result[key] = normalizeCanonical(item)
+		}
+		return result
+	case []any:
+		result := make([]any, len(typed))
+		for index, item := range typed {
+			result[index] = normalizeCanonical(item)
+		}
+		return result
+	default:
+		return value
+	}
+}
 
 func HashCanonicalJSON(value any) (string, error) {
 	data, err := CanonicalJSON(value)
@@ -148,15 +185,23 @@ func (q Queue) Claim(ctx context.Context, workerID string, lease time.Duration) 
 		return nil, errors.New("lease must be positive")
 	}
 	const statement = `WITH candidate AS (SELECT id FROM risk_jobs WHERE state IN ('queued','retryable_failed') AND available_at <= clock_timestamp() ORDER BY available_at,created_at,id FOR UPDATE SKIP LOCKED LIMIT 1) UPDATE risk_jobs AS j SET state='running',attempt_count=j.attempt_count+1,lease_owner=$1,lease_expires_at=clock_timestamp()+$2::interval,updated_at=clock_timestamp() FROM candidate WHERE j.id=candidate.id RETURNING j.id::text,j.kind,j.schema_version,j.idempotency_key,j.input_snapshot_ids,j.payload,j.state,j.attempt_count,j.max_attempts,j.available_at,j.lease_owner,j.lease_expires_at,j.result,j.result_hash,j.error_code,j.error_message,j.error_details,j.completed_at`
-	job, err := scanJob(q.Pool.QueryRow(ctx, statement, workerID, lease.String()))
+	tx, err := q.Pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin claim transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	job, err := scanJob(tx.QueryRow(ctx, statement, workerID, lease.String()))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("claim job: %w", err)
 	}
-	if _, err := q.Pool.Exec(ctx, `INSERT INTO risk_job_attempts (job_id,attempt,worker_id,lease_expires_at) VALUES ($1::uuid,$2,$3,$4)`, job.ID, job.AttemptCount, workerID, job.LeaseExpiresAt); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO risk_job_attempts (job_id,attempt,worker_id,lease_expires_at) VALUES ($1::uuid,$2,$3,$4)`, job.ID, job.AttemptCount, workerID, job.LeaseExpiresAt); err != nil {
 		return nil, fmt.Errorf("record job attempt: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit claim transaction: %w", err)
 	}
 	return &Claim{Job: job, WorkerID: workerID}, nil
 }
@@ -168,15 +213,25 @@ func (q Queue) Complete(ctx context.Context, claim Claim, result any) (bool, err
 	}
 	digest := sha256.Sum256(data)
 	hash := hex.EncodeToString(digest[:])
-	ct, err := q.Pool.Exec(ctx, `UPDATE risk_jobs SET state='succeeded',result=$1::jsonb,result_hash=$2,lease_owner=NULL,lease_expires_at=NULL,completed_at=clock_timestamp() WHERE id=$3::uuid AND state='running' AND lease_owner=$4`, data, hash, claim.ID, claim.WorkerID)
+	tx, err := q.Pool.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	ct, err := tx.Exec(ctx, `UPDATE risk_jobs SET state='succeeded',result=$1::jsonb,result_hash=$2,lease_owner=NULL,lease_expires_at=NULL,completed_at=clock_timestamp() WHERE id=$3::uuid AND state='running' AND lease_owner=$4 AND lease_expires_at > clock_timestamp()`, data, hash, claim.ID, claim.WorkerID)
 	if err != nil {
 		return false, fmt.Errorf("complete job: %w", err)
 	}
 	if ct.RowsAffected() == 0 {
 		return false, nil
 	}
-	_, err = q.Pool.Exec(ctx, `UPDATE risk_job_attempts SET finished_at=clock_timestamp(),outcome='succeeded' WHERE job_id=$1::uuid AND attempt=$2`, claim.ID, claim.AttemptCount)
-	return err == nil, err
+	if _, err = tx.Exec(ctx, `UPDATE risk_job_attempts SET finished_at=clock_timestamp(),outcome='succeeded' WHERE job_id=$1::uuid AND attempt=$2 AND finished_at IS NULL`, claim.ID, claim.AttemptCount); err != nil {
+		return false, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (q Queue) Fail(ctx context.Context, claim Claim, failure Failure) (bool, error) {
@@ -188,15 +243,25 @@ func (q Queue) Fail(ctx context.Context, claim Claim, failure Failure) (bool, er
 	if err != nil {
 		return false, err
 	}
-	ct, err := q.Pool.Exec(ctx, `UPDATE risk_jobs SET state=$1,available_at=clock_timestamp()+$2::interval,error_code=$3,error_message=$4,error_details=$5::jsonb,lease_owner=NULL,lease_expires_at=NULL,completed_at=CASE WHEN $1 IN ('failed','cancelled') THEN clock_timestamp() ELSE NULL END WHERE id=$6::uuid AND state='running' AND lease_owner=$7`, state, failure.Delay.String(), failure.Code, failure.Message, details, claim.ID, claim.WorkerID)
+	tx, err := q.Pool.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	ct, err := tx.Exec(ctx, `UPDATE risk_jobs SET state=$1,available_at=clock_timestamp()+$2::interval,error_code=$3,error_message=$4,error_details=$5::jsonb,lease_owner=NULL,lease_expires_at=NULL,completed_at=CASE WHEN $1 IN ('failed','cancelled') THEN clock_timestamp() ELSE NULL END WHERE id=$6::uuid AND state='running' AND lease_owner=$7 AND lease_expires_at > clock_timestamp()`, state, failure.Delay.String(), failure.Code, failure.Message, details, claim.ID, claim.WorkerID)
 	if err != nil {
 		return false, err
 	}
 	if ct.RowsAffected() == 0 {
 		return false, nil
 	}
-	_, err = q.Pool.Exec(ctx, `UPDATE risk_job_attempts SET finished_at=clock_timestamp(),outcome=$1,error_code=$2,error_message=$3,error_details=$4::jsonb WHERE job_id=$5::uuid AND attempt=$6`, string(state), failure.Code, failure.Message, details, claim.ID, claim.AttemptCount)
-	return true, err
+	if _, err = tx.Exec(ctx, `UPDATE risk_job_attempts SET finished_at=clock_timestamp(),outcome=$1,error_code=$2,error_message=$3,error_details=$4::jsonb WHERE job_id=$5::uuid AND attempt=$6 AND finished_at IS NULL`, string(state), failure.Code, failure.Message, details, claim.ID, claim.AttemptCount); err != nil {
+		return false, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (f Failure) DetailsOrEmpty() any {
@@ -207,8 +272,22 @@ func (f Failure) DetailsOrEmpty() any {
 }
 
 func (q Queue) Cancel(ctx context.Context, id, reason string) (bool, error) {
-	ct, err := q.Pool.Exec(ctx, `UPDATE risk_jobs SET state='cancelled',error_code='JOB_CANCELLED',error_message=$1,lease_owner=NULL,lease_expires_at=NULL,completed_at=clock_timestamp() WHERE id=$2::uuid AND state IN ('queued','retryable_failed','running')`, reason, id)
-	return ct.RowsAffected() == 1, err
+	tx, err := q.Pool.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	ct, err := tx.Exec(ctx, `UPDATE risk_jobs SET state='cancelled',error_code='JOB_CANCELLED',error_message=$1,lease_owner=NULL,lease_expires_at=NULL,completed_at=clock_timestamp() WHERE id=$2::uuid AND state IN ('queued','retryable_failed','running')`, reason, id)
+	if err != nil || ct.RowsAffected() != 1 {
+		return ct.RowsAffected() == 1, err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE risk_job_attempts SET finished_at=clock_timestamp(),outcome='cancelled',error_code='JOB_CANCELLED',error_message=$1 WHERE job_id=$2::uuid AND finished_at IS NULL`, reason, id); err != nil {
+		return false, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (q Queue) RecoverExpired(ctx context.Context) (int64, error) {
