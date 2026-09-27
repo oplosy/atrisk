@@ -7,7 +7,7 @@ depends_on: [AR-107, AR-203]
 branch: task/AR-301-risk-job-contract
 base_sha: 1d59e283d8aa3b77e55825327a2e504837d6be3f
 owned_paths: [internal/jobs/, risk-engine/src/atlasrisk/jobs/, contracts/jobs/, test/fixtures/risk/]
-shared_paths: [db/migrations/, db/queries/jobs/, apps/api/, Taskfile.yml]
+shared_paths: [db/migrations/, db/queries/jobs/, apps/api/, Taskfile.yml, test/integration/]
 adrs: [ADR-008, ADR-009, ADR-010, ADR-013]
 ---
 
