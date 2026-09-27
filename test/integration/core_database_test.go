@@ -325,6 +325,7 @@ func verifyScenarioServicePersistence(t *testing.T, pool *pgxpool.Pool) {
 		t.Fatal("scenario result accepted a snapshot line from another account and snapshot")
 	}
 	wrongSnapshot := input
+	wrongSnapshot.ScenarioID = first.ScenarioID
 	wrongSnapshot.IdempotencyKey += "-foreign"
 	wrongSnapshot.SnapshotID = foreignSnapshotID
 	if _, err := service.CreateVersionAndRun(ctx, wrongSnapshot); !errors.Is(err, applicationscenarios.ErrInvalidRequest) {
