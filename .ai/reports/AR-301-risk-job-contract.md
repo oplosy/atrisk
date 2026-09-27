@@ -10,7 +10,7 @@
 
 ## Result
 
-`needs-review`
+`merged`
 
 ## Acceptance evidence
 
@@ -45,7 +45,7 @@
 | `task test-integration TEST=RiskJobLifecycle` | unavailable: `task` executable not installed; direct test fails closed because `ATLASRISK_TEST_DATABASE_URL` is missing |
 | `go test ./test/integration -run 'TestCoreDatabase' -count=1` | pass locally with database fixtures skipped because no test DSN; `verify` now supplies `TEST: CoreDatabase` explicitly |
 | `task test-contract` | unavailable: `task` executable not installed; both direct contract suites passed |
-| Hosted CI #37 | failed because `verify` omitted `TEST`, causing selector `Test` to run all database fixtures concurrently; fixed by sequentially passing `TEST: CoreDatabase` and `TEST: RiskJobLifecycle` from `verify` |
+| Hosted CI #37 | PASS: [run 36340518342](https://github.com/oplosy/atrisk/actions/runs/36340518342) at `9272fa207b9a78321fd0882b5eb4ddf58118066`; ephemeral service setup, database migrations, the `CoreDatabase` and `RiskJobLifecycle` integration selectors through the verification gate all succeeded; sequential selectors eliminated the fixture collision in the earlier failed run |
 | `git diff --check` | pass |
 
 ## Change inventory
@@ -57,9 +57,10 @@
 ## Git state
 
 - Branch: `task/AR-301-risk-job-contract`
-- Commit SHA: final commit is the output of `git rev-parse HEAD` after this report amendment; subject `feat(jobs): add durable risk job contract and worker [AR-301]`
-- Remote branch: push attempted, rejected by egress policy; no remote update
-- Worktree: clean after final commit
+- Implementation commit: `9272fa207b9a78321fd0882b5eb4ddf58118066` (`fix(jobs): verify lifecycle integration sequentially [AR-301]`)
+- Implementation PR: [#37](https://github.com/oplosy/atrisk/pull/37), merged to `main` as `d92fd8becbc8f58a86a0afc313ef00f5e6c7878b`; task branch was pushed and merged
+- Metadata-only status finalization is recorded in its own follow-up PR.
+- Implementation worktree: clean at merge; Docker Desktop and local Docker settings were not changed.
 
 ## Assumptions and risks
 
