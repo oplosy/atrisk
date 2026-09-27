@@ -1,7 +1,7 @@
 ---
 id: AR-303
 title: Implement versioned scenario revaluation
-status: draft
+status: ready
 phase: 3
 depends_on: [AR-301]
 branch: task/AR-303-scenario-revaluation
@@ -38,8 +38,8 @@ positions under the three V1 templates with explicit coverage and post-shock ris
 ## Required verification
 
 ```text
-task test-python TEST=scenarios
+uv run --project risk-engine --locked pytest risk-engine/tests/scenarios -q
 task test-go TEST=Scenarios
-task test-golden TEST=scenarios
+uv run --project risk-engine --locked pytest risk-engine/tests/scenarios/test_golden.py -q
 task test-contract
 ```
