@@ -1,7 +1,7 @@
 ---
 id: AR-303
 title: Implement versioned scenario revaluation
-status: review
+status: merged
 phase: 3
 depends_on: [AR-301]
 branch: task/AR-303-scenario-revaluation
@@ -30,11 +30,11 @@ positions under the three V1 templates with explicit coverage and post-shock ris
 
 ## Acceptance criteria
 
-- [ ] A scenario edit creates a new version and old runs keep the old version.
-- [ ] Position P&L sums to portfolio P&L within recorded tolerance.
-- [ ] Missing required factor mappings are listed and block according to policy.
-- [ ] Rates use explicit basis-point units and stored duration/convexity assumptions.
-- [ ] Vol/correlation shocks alter risk metrics without inventing spot P&L.
+- [x] A scenario edit creates a new version and old runs keep the old version.
+- [x] Position P&L sums to portfolio P&L within recorded tolerance.
+- [x] Missing required factor mappings are listed and block according to policy.
+- [x] Rates use explicit basis-point units and stored duration/convexity assumptions.
+- [x] Vol/correlation shocks alter risk metrics without inventing spot P&L.
 
 ## Required verification
 

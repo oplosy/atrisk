@@ -10,13 +10,13 @@
 
 ## Result
 
-`needs-review`
+`merged`
 
 ## Acceptance evidence
 
 | Criterion | Evidence |
 |---|---|
-| AC-1 | Go service tests cover new immutable versions, idempotent replay, concurrent version allocation; DB integration assertions cover persisted prior version and identity guard, but DB execution awaits hosted CI. |
+| AC-1 | Go service and PostgreSQL integration tests cover immutable versions, idempotent replay, concurrent version allocation, and prior-run version binding. |
 | AC-2 | Python scenario tests and golden fixture reconcile position P&L to portfolio totals. |
 | AC-3 | Scenario tests cover unmapped-factor behavior, coverage policy, and blocked/degraded states. |
 | AC-4 | Versioned scenario contract and core tests cover explicit basis-point yield shifts with duration/convexity. |
@@ -25,9 +25,8 @@
 ## Stop-condition check
 
 - Decision or scope conflict: none.
-- Missing dependency, unsafe migration, or unavailable verification: live PostgreSQL migration/integration execution is unavailable locally because `ATLASRISK_TEST_DATABASE_URL` is unset. Docker was intentionally left untouched. Hosted CI must execute the DB checks before merge.
-- Hosted CI run 36346467014 exposed a test-fixture setup issue: the foreign-snapshot case did not reuse the existing scenario ID and hit the account/name uniqueness constraint before reaching snapshot validation. The test now reuses the scenario ID; rerun CI is required.
-- Hosted CI run 36346675493 passed database migration verification but the full gate found that AR-303 persistence fixtures left queued scenario jobs visible to `TestRiskJobLifecycle`. The AR-303 integration helper now cancels only its own created jobs using the queue lifecycle API; another hosted run is required.
+- Missing dependency, unsafe migration, or unavailable verification: local PostgreSQL execution was skipped because `ATLASRISK_TEST_DATABASE_URL` is unset; hosted PostgreSQL CI passed. Docker Desktop was not changed.
+- CI runs 36346467014 and 36346675493 exposed two test-fixture issues; both were corrected. Final hosted run 36346926647 passed all checks.
 
 ## Verification
 
@@ -42,8 +41,7 @@
 | `node --test --test-concurrency=1 test/contract/contract.test.mjs contracts/jobs/contract.test.mjs` | pass: 14 tests |
 | `node scripts/verify/check-generated.mjs` | pass: no generated-file drift |
 | `git diff --check` | pass |
-| GitHub Actions run 36346467014 | fail at DB migration test due to test-fixture scenario uniqueness; corrected locally, rerun pending |
-| GitHub Actions run 36346675493 | DB migration verification passed; full gate failed because persistence fixtures leaked queued jobs into a later lifecycle test; cleanup added, rerun pending |
+| GitHub Actions run 36346926647 | pass: DB migration verification and full `verify` gate |
 
 ## Change inventory
 
@@ -54,13 +52,13 @@
 ## Git state
 
 - Branch: `task/AR-303-scenario-revaluation`
-- Commit SHA: `e8d223a` (local commit; final SHA may change if the handoff record is amended)
-- Remote branch: not pushed; external push was blocked by the approval gate for this branch payload/destination
-- Worktree: clean after commit
+- Implementation commit SHA: `8ea64f26d949710627e25c4db67902e9da2e80fd`
+- Merge commit SHA: `5ba3f3d3c7d7f82d959dd5498efc1ee20d0ca9fa`
+- Remote branch: `task/AR-303-scenario-revaluation`, pushed and merged through [PR #43](https://github.com/oplosy/atrisk/pull/43)
+- Implementation worktree: clean at merge
 
 ## Assumptions and risks
 
-- Database trigger behavior is covered by integration assertions but remains unexecuted locally; merge is contingent on hosted PostgreSQL CI.
+- Database trigger behavior passed hosted PostgreSQL migration/integration validation.
 - Docker Desktop was not restarted or reconfigured.
 - Independent reviewer verdict: ready for merge; no blocking findings remain.
-- PR: [#43](https://github.com/oplosy/atrisk/pull/43); follow-up fixture-isolation fix awaits hosted CI.
