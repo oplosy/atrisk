@@ -1,7 +1,7 @@
 ---
 id: AR-302
 title: Implement core portfolio risk metrics
-status: active
+status: merged
 phase: 3
 depends_on: [AR-301]
 branch: task/AR-302-core-risk-metrics
@@ -32,11 +32,11 @@ correlation/coverage, drawdown, leverage, and concentration from a sealed bundle
 
 ## Acceptance criteria
 
-- [ ] Constant, sparse, all-missing, negative/zero NAV, and misaligned calendars are tested.
-- [ ] No tradable price is forward-filled to manufacture returns.
-- [ ] Every correlation coefficient includes overlap count and state.
-- [ ] Annualization/calendar choice is present in the result.
-- [ ] Golden results declare numerical tolerances and are stable across reruns.
+- [x] Constant, sparse, all-missing, negative/zero NAV, and misaligned calendars are tested.
+- [x] No tradable price is forward-filled to manufacture returns.
+- [x] Every correlation coefficient includes overlap count and state.
+- [x] Annualization/calendar choice is present in the result.
+- [x] Golden results declare numerical tolerances and are stable across reruns.
 
 ## Required verification
 
