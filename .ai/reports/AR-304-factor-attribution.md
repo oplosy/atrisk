@@ -10,7 +10,7 @@
 
 ## Result
 
-`complete`
+`needs-review`
 
 ## Acceptance evidence
 
@@ -25,7 +25,7 @@
 ## Stop-condition check
 
 - Decision or scope conflict: `none`.
-- Missing dependency, unsafe migration, or unavailable verification: `task` executable is not installed locally; its contract-test commands were run directly. Docker was not started or modified.
+- Missing dependency, unsafe migration, or unavailable verification: `task` executable and local `ATLASRISK_TEST_DATABASE_URL` are unavailable; hosted CI must run the full aggregate gate. Docker was not started or modified.
 
 ## Verification
 
@@ -34,10 +34,13 @@
 | `uv run --project risk-engine --locked pytest risk-engine/tests/attribution -q` | pass: 7 tests |
 | `uv run --project risk-engine --locked pytest risk-engine/tests/attribution/test_golden.py -q` | pass: 1 test |
 | `uv run --project risk-engine --locked pytest risk-engine/tests -q` | pass: 44 tests |
+| `go test ./apps/... ./internal/...` | pass |
+| `go vet ./apps/... ./internal/...` | pass |
 | `uv run --project risk-engine --locked ruff check risk-engine/src/atlasrisk/attribution risk-engine/tests/attribution` | pass |
 | `uv run --project risk-engine --locked ruff format --check risk-engine/src/atlasrisk/attribution risk-engine/tests/attribution` | pass |
 | `node --test test/contract/contract.test.mjs contracts/jobs/contract.test.mjs` | pass: 14 tests |
 | `task test-contract` | unavailable: `task` is not installed; direct equivalent passed |
+| `task verify` / PostgreSQL integration | not run locally: `task` executable and isolated DB are unavailable; hosted CI pending |
 
 ## Change inventory
 
@@ -48,11 +51,13 @@
 ## Git state
 
 - Branch: `task/AR-304-factor-attribution`
-- Commit SHA: `3e057eb` (implementation commit)
-- Remote branch: pending push
-- Worktree: clean after commit
+- Implementation commit SHA: `3e057eb`
+- Report commit SHA: `a14affb`
+- Remote branch: not pushed yet
+- Worktree: clean after commits
 
 ## Assumptions and risks
 
 - V1 attribution includes declared asset-return, yield-shift, FX, volatility, and correlation shocks; metric-only factors are represented as deterministic dummy contributions when they do not change P&L.
 - The bounded V1 maximum is eight factors; larger sets are rejected before any scenario evaluation.
+- Independent reviewer verdict: ready for merge; no blocking findings.
