@@ -1,10 +1,11 @@
 ---
 id: AR-302
 title: Implement core portfolio risk metrics
-status: ready
+status: active
 phase: 3
 depends_on: [AR-301]
 branch: task/AR-302-core-risk-metrics
+base_sha: 2d941bf92912f3e3e684356ed6a592a14ca5890e
 owned_paths: [risk-engine/src/atlasrisk/returns/, risk-engine/src/atlasrisk/metrics/, risk-engine/tests/metrics/]
 shared_paths: [contracts/jobs/, test/fixtures/risk/]
 adrs: [ADR-010, ADR-011, ADR-013]
@@ -40,7 +41,7 @@ correlation/coverage, drawdown, leverage, and concentration from a sealed bundle
 ## Required verification
 
 ```text
-task test-python TEST=metrics
+uv run --project risk-engine --locked pytest risk-engine/tests/metrics -q
 task test-contract
-task test-golden TEST=risk_metrics
+uv run --project risk-engine --locked pytest risk-engine/tests/metrics/test_golden.py -q
 ```
