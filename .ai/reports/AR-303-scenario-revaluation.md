@@ -27,6 +27,7 @@
 - Decision or scope conflict: none.
 - Missing dependency, unsafe migration, or unavailable verification: live PostgreSQL migration/integration execution is unavailable locally because `ATLASRISK_TEST_DATABASE_URL` is unset. Docker was intentionally left untouched. Hosted CI must execute the DB checks before merge.
 - Hosted CI run 36346467014 exposed a test-fixture setup issue: the foreign-snapshot case did not reuse the existing scenario ID and hit the account/name uniqueness constraint before reaching snapshot validation. The test now reuses the scenario ID; rerun CI is required.
+- Hosted CI run 36346675493 passed database migration verification but the full gate found that AR-303 persistence fixtures left queued scenario jobs visible to `TestRiskJobLifecycle`. The AR-303 integration helper now cancels only its own created jobs using the queue lifecycle API; another hosted run is required.
 
 ## Verification
 
@@ -42,6 +43,7 @@
 | `node scripts/verify/check-generated.mjs` | pass: no generated-file drift |
 | `git diff --check` | pass |
 | GitHub Actions run 36346467014 | fail at DB migration test due to test-fixture scenario uniqueness; corrected locally, rerun pending |
+| GitHub Actions run 36346675493 | DB migration verification passed; full gate failed because persistence fixtures leaked queued jobs into a later lifecycle test; cleanup added, rerun pending |
 
 ## Change inventory
 
@@ -61,4 +63,4 @@
 - Database trigger behavior is covered by integration assertions but remains unexecuted locally; merge is contingent on hosted PostgreSQL CI.
 - Docker Desktop was not restarted or reconfigured.
 - Independent reviewer verdict: ready for merge; no blocking findings remain.
-- PR: [#43](https://github.com/oplosy/atrisk/pull/43); follow-up fix awaits hosted CI.
+- PR: [#43](https://github.com/oplosy/atrisk/pull/43); follow-up fixture-isolation fix awaits hosted CI.

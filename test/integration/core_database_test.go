@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	applicationscenarios "github.com/oplosy/atrisk/internal/application/scenarios"
+	"github.com/oplosy/atrisk/internal/jobs"
 	"github.com/oplosy/atrisk/internal/platform/database"
 	"github.com/pressly/goose/v3"
 )
@@ -267,6 +268,15 @@ func verifyScenarioServicePersistence(t *testing.T, pool *pgxpool.Pool) {
 	if err != nil || first.ScenarioVer != 1 {
 		t.Fatalf("create first immutable scenario run: run=%+v err=%v", first, err)
 	}
+	createdJobIDs := []string{first.JobID}
+	queue := jobs.Queue{Pool: pool}
+	defer func() {
+		for _, jobID := range createdJobIDs {
+			if _, cancelErr := queue.Cancel(context.Background(), jobID, "scenario persistence test cleanup"); cancelErr != nil {
+				t.Errorf("cancel scenario test job %s: %v", jobID, cancelErr)
+			}
+		}
+	}()
 	replay, err := service.CreateVersionAndRun(ctx, input)
 	if err != nil || replay.ID != first.ID || replay.JobID != first.JobID || replay.ScenarioVer != first.ScenarioVer {
 		t.Fatalf("idempotent replay changed scenario run: first=%+v replay=%+v err=%v", first, replay, err)
@@ -311,6 +321,7 @@ func verifyScenarioServicePersistence(t *testing.T, pool *pgxpool.Pool) {
 	if err != nil || second.ScenarioVer != 2 {
 		t.Fatalf("create second immutable scenario version: run=%+v err=%v", second, err)
 	}
+	createdJobIDs = append(createdJobIDs, second.JobID)
 	var boundVersion int
 	if err := pool.QueryRow(ctx, `SELECT scenario_version FROM scenario_runs WHERE id=$1::uuid`, first.ID).Scan(&boundVersion); err != nil || boundVersion != 1 {
 		t.Fatalf("prior run lost its original version: version=%d err=%v", boundVersion, err)
@@ -335,6 +346,7 @@ func verifyScenarioServicePersistence(t *testing.T, pool *pgxpool.Pool) {
 	const concurrentWriters = 4
 	var wait sync.WaitGroup
 	versions := make(chan int, concurrentWriters)
+	concurrentJobIDs := make(chan string, concurrentWriters)
 	errorsOut := make(chan error, concurrentWriters)
 	for index := 0; index < concurrentWriters; index++ {
 		wait.Add(1)
@@ -349,10 +361,12 @@ func verifyScenarioServicePersistence(t *testing.T, pool *pgxpool.Pool) {
 				return
 			}
 			versions <- run.ScenarioVer
+			concurrentJobIDs <- run.JobID
 		}(index)
 	}
 	wait.Wait()
 	close(versions)
+	close(concurrentJobIDs)
 	close(errorsOut)
 	for err := range errorsOut {
 		t.Errorf("concurrent scenario version creation failed: %v", err)
@@ -360,6 +374,9 @@ func verifyScenarioServicePersistence(t *testing.T, pool *pgxpool.Pool) {
 	seenVersions := map[int]bool{}
 	for version := range versions {
 		seenVersions[version] = true
+	}
+	for jobID := range concurrentJobIDs {
+		createdJobIDs = append(createdJobIDs, jobID)
 	}
 	if len(seenVersions) != concurrentWriters {
 		t.Fatalf("concurrent writers did not receive distinct versions: %v", seenVersions)
