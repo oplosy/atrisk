@@ -110,6 +110,8 @@ tasks:
       - task: unit
       - task: test-contract
       - task: test-integration
+        vars:
+          TEST: CoreDatabase
       - task: build
       - task: check-generated
 

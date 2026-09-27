@@ -43,7 +43,9 @@
 | `task test-go TEST=Jobs` | unavailable: `task` executable not installed |
 | `task test-python TEST=jobs` | unavailable: `task` executable not installed |
 | `task test-integration TEST=RiskJobLifecycle` | unavailable: `task` executable not installed; direct test fails closed because `ATLASRISK_TEST_DATABASE_URL` is missing |
+| `go test ./test/integration -run 'TestCoreDatabase' -count=1` | pass locally with database fixtures skipped because no test DSN; `verify` now supplies `TEST: CoreDatabase` explicitly |
 | `task test-contract` | unavailable: `task` executable not installed; both direct contract suites passed |
+| Hosted CI #37 | failed because `verify` omitted `TEST`, causing selector `Test` to run all database fixtures concurrently; fixed by passing `TEST: CoreDatabase` only from `verify`, while preserving `TEST=RiskJobLifecycle` for the dedicated lifecycle test |
 | `git diff --check` | pass |
 
 ## Change inventory
