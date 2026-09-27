@@ -48,7 +48,7 @@
 ## Git state
 
 - Branch: `task/AR-304-factor-attribution`
-- Commit SHA: `2a7ee15`
+- Commit SHA: `3e057eb` (implementation commit)
 - Remote branch: pending push
 - Worktree: clean after commit
 
