@@ -10,7 +10,7 @@
 
 ## Result
 
-`needs-review`
+`merged`
 
 ## Acceptance evidence
 
@@ -40,7 +40,7 @@
 | `uv run --project risk-engine --locked ruff format --check risk-engine/src/atlasrisk/attribution risk-engine/tests/attribution` | pass |
 | `node --test test/contract/contract.test.mjs contracts/jobs/contract.test.mjs` | pass: 14 tests |
 | `task test-contract` | unavailable: `task` is not installed; direct equivalent passed |
-| `task verify` / PostgreSQL integration | not run locally: `task` executable and isolated DB are unavailable; hosted CI pending |
+| `task verify` / PostgreSQL integration | local executable/DB unavailable; hosted CI run 36348238391 passed the full `Verify` gate including DB migration verification |
 
 ## Change inventory
 
@@ -51,10 +51,10 @@
 ## Git state
 
 - Branch: `task/AR-304-factor-attribution`
-- Implementation commit SHA: `3e057eb`
-- Report commit SHA: `a14affb`
-- Remote branch: not pushed yet
-- Worktree: clean after commits
+- Implementation branch head: `89fd7b7ea38c477e2ab33b1f4f3bfbf9edab1b16`
+- Merge commit SHA: `cfc1d57876ba58073c11e605d0d3790a49153a98`
+- Remote branch: `task/AR-304-factor-attribution`, pushed and merged through [PR #45](https://github.com/oplosy/atrisk/pull/45)
+- Implementation worktree: clean at merge
 
 ## Assumptions and risks
 
