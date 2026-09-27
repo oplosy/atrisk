@@ -1,10 +1,11 @@
 ---
 id: AR-305
 title: Expose risk and stress results
-status: draft
+status: ready
 phase: 3
 depends_on: [AR-302, AR-304]
 branch: task/AR-305-risk-result-api
+base_sha: cfc1d57876ba58073c11e605d0d3790a49153a98
 owned_paths: [internal/application/risk/, apps/api/handlers/risk/, db/queries/risk/]
 shared_paths: [contracts/openapi/, contracts/jobs/, apps/web/src/generated/]
 adrs: [ADR-009, ADR-011, ADR-013, ADR-014, ADR-015]

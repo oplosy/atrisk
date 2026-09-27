@@ -1,7 +1,7 @@
 ---
 id: AR-304
 title: Implement explainable stress attribution
-status: review
+status: merged
 phase: 3
 depends_on: [AR-303]
 branch: task/AR-304-factor-attribution
