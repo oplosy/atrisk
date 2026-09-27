@@ -50,6 +50,10 @@ func TestReconciliationAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	emptyAccount, err := portfolioService.CreateAccount(ctx, portfolio.ID, applicationportfolio.CreateAccountRequest{Name: "reconciliation-empty-account"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	cutoff := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
 	snapshot, err := portfolioService.CreateSnapshot(ctx, portfolio.ID, applicationportfolio.CreateSnapshotRequest{CapturedAt: cutoff, Lines: []applicationportfolio.SnapshotLineInput{
 		{AccountID: account.ID, InstrumentID: firstInstrument.ID, Quantity: "1"},
@@ -74,6 +78,25 @@ func TestReconciliationAPI(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	foreignPortfolio, err := portfolioService.CreatePortfolio(ctx, applicationportfolio.CreatePortfolioRequest{Name: "reconciliation-foreign-portfolio", ReportingCurrency: "TRY"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignAccount, err := portfolioService.CreateAccount(ctx, foreignPortfolio.ID, applicationportfolio.CreateAccountRequest{Name: "reconciliation-foreign-account"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherSnapshot, err := portfolioService.CreateSnapshot(ctx, portfolio.ID, applicationportfolio.CreateSnapshotRequest{CapturedAt: cutoff.Add(time.Hour), Lines: []applicationportfolio.SnapshotLineInput{{AccountID: account.ID, InstrumentID: firstInstrument.ID, Quantity: "1"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var incompleteValuationID string
+	if err := pool.QueryRow(ctx, `INSERT INTO valuation_runs (snapshot_id,cutoff,knowledge_mode,known_at,price_max_age_seconds,fx_max_age_seconds,request,state,result_hash) VALUES ($1::uuid,$2,'system_as_of',$2,0,0,'{}','valid',repeat('1',64)) RETURNING id::text`, mustUUID(t, snapshot.ID), cutoff).Scan(&incompleteValuationID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO valuation_lines (run_id,snapshot_line_id,native_currency,native_amount,try_amount,usd_amount,state,reason_codes,price_method) VALUES ($1::uuid,$2::uuid,'USD','1','80','2','valid','[]','identity')`, incompleteValuationID, mustUUID(t, lineIDs[firstInstrument.ID])); err != nil {
+		t.Fatal(err)
+	}
 	h := apireconciliation.New(applicationreconciliation.Service{Pool: pool})
 	postJSON := func(method, path string, body any) *httptest.ResponseRecorder {
 		t.Helper()
@@ -85,6 +108,10 @@ func TestReconciliationAPI(t *testing.T) {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
 		return rec
+	}
+	emptyAccountResponse := postJSON(http.MethodPost, "/api/v1/valuations/"+valuationID+"/reconciliations", domainreconciliation.Request{AccountID: emptyAccount.ID, SourceLabel: "broker-nav", Currency: "TRY", Cutoff: cutoff, ExternalNAV: "0"})
+	if emptyAccountResponse.Code != http.StatusConflict || !bytes.Contains(emptyAccountResponse.Body.Bytes(), []byte(`"code":"ACCOUNT_HAS_NO_LINES"`)) {
+		t.Fatalf("empty account status=%d body=%s", emptyAccountResponse.Code, emptyAccountResponse.Body.String())
 	}
 	var versions sync.WaitGroup
 	versionErrors := make(chan error, 2)
@@ -119,6 +146,21 @@ func TestReconciliationAPI(t *testing.T) {
 	rows.Close()
 	if !sort.IntsAreSorted(toleranceVersions) || len(toleranceVersions) != 2 || toleranceVersions[0] != 1 || toleranceVersions[1] != 2 {
 		t.Fatalf("tolerance versions=%v", toleranceVersions)
+	}
+	var incompleteBefore int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM reconciliation_checkpoints`).Scan(&incompleteBefore); err != nil {
+		t.Fatal(err)
+	}
+	incompleteValuationResponse := postJSON(http.MethodPost, "/api/v1/valuations/"+incompleteValuationID+"/reconciliations", domainreconciliation.Request{AccountID: account.ID, SourceLabel: "broker-nav", Currency: "TRY", Cutoff: cutoff, ExternalNAV: "80"})
+	if incompleteValuationResponse.Code != http.StatusConflict || !bytes.Contains(incompleteValuationResponse.Body.Bytes(), []byte(`"code":"VALUATION_ACCOUNT_LINES_INCOMPLETE"`)) {
+		t.Fatalf("incomplete valuation status=%d body=%s", incompleteValuationResponse.Code, incompleteValuationResponse.Body.String())
+	}
+	var incompleteAfter int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM reconciliation_checkpoints`).Scan(&incompleteAfter); err != nil {
+		t.Fatal(err)
+	}
+	if incompleteAfter != incompleteBefore {
+		t.Fatalf("incomplete valuation created a checkpoint: before=%d after=%d", incompleteBefore, incompleteAfter)
 	}
 	baseRequest := domainreconciliation.Request{AccountID: account.ID, SourceLabel: "broker-nav", Currency: "TRY", Cutoff: cutoff, ExternalNAV: "100"}
 	partial := postJSON(http.MethodPost, "/api/v1/valuations/"+valuationID+"/reconciliations", baseRequest)
@@ -182,5 +224,23 @@ func TestReconciliationAPI(t *testing.T) {
 	var persistedLines int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM reconciliation_line_checks WHERE reconciliation_id=$1::uuid`, mustUUID(t, completeCheckpoint.ID)).Scan(&persistedLines); err != nil || persistedLines != 2 {
 		t.Fatalf("persisted line checks=%d err=%v", persistedLines, err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO reconciliation_checkpoints (valuation_id,account_id,source_label,currency,cutoff,external_nav,valuation_nav,absolute_difference,effective_tolerance,tolerance_version,state,line_check_state) VALUES ($1::uuid,$2::uuid,'direct','TRY',$3,100,100,0,0,1,'reconciled','none')`, valuationID, mustUUID(t, foreignAccount.ID), cutoff); err == nil {
+		t.Fatal("cross-portfolio checkpoint insert unexpectedly succeeded")
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO reconciliation_line_checks (reconciliation_id,snapshot_line_id,external_amount,valuation_amount,difference,absolute_difference) VALUES ($1::uuid,$2::uuid,10,10,0,0)`, mustUUID(t, completeCheckpoint.ID), mustUUID(t, lineIDs[thirdInstrument.ID])); err == nil {
+		t.Fatal("cross-account line check insert unexpectedly succeeded")
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO reconciliation_tolerance_versions (account_id,version,tolerance_amount) VALUES ($1::uuid,99,0.01)`, mustUUID(t, otherAccount.ID)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO reconciliation_checkpoints (valuation_id,account_id,source_label,currency,cutoff,external_nav,valuation_nav,absolute_difference,effective_tolerance,tolerance_version,state,line_check_state) VALUES ($1::uuid,$2::uuid,'direct','TRY',$3,100,100,0,0.01,99,'reconciled','none')`, valuationID, mustUUID(t, account.ID), cutoff); err == nil {
+		t.Fatal("cross-account tolerance policy insert unexpectedly succeeded")
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO valuation_lines (run_id,snapshot_line_id,native_currency,native_amount,try_amount,usd_amount,state,reason_codes,price_method) VALUES ($1::uuid,$2::uuid,'USD','1','80','2','valid','[]','identity')`, valuationID, mustUUID(t, otherSnapshot.Lines[0].ID)); err == nil {
+		t.Fatal("cross-snapshot valuation line insert unexpectedly succeeded")
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO valuation_lines (run_id,snapshot_line_id,native_currency,native_amount,try_amount,usd_amount,state,reason_codes,price_method) VALUES ($1::uuid,$2::uuid,'USD','1','80','2','valid','[]','identity')`, valuationID, mustUUID(t, lineIDs[firstInstrument.ID])); err == nil {
+		t.Fatal("duplicate valuation line insert unexpectedly succeeded")
 	}
 }

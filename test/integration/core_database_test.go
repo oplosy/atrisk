@@ -336,8 +336,8 @@ func TestCoreDatabasePreviousVersionUpgrade(t *testing.T) {
 	if err := upgradedDB.QueryRowContext(ctx, "SELECT max(version_id) FROM "+schemaName+"."+goose.DefaultTablename).Scan(&version); err != nil {
 		t.Fatalf("inspect upgraded schema migration version: %v", err)
 	}
-	if version != 6 {
-		t.Fatalf("expected isolated schema at migration version 6, got %d", version)
+	if version != 7 {
+		t.Fatalf("expected isolated schema at migration version 7, got %d", version)
 	}
 	if err := upgradedDB.QueryRowContext(ctx, `
 		SELECT count(*)::int

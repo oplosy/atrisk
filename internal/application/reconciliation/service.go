@@ -35,8 +35,8 @@ type Service struct{ Pool *pgxpool.Pool }
 var decimalPattern = regexp.MustCompile(`^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$`)
 
 type valuationInfo struct {
-	id, snapshotID, state, reportingCurrency string
-	cutoff                                   time.Time
+	id, snapshotID, portfolioID, state, reportingCurrency string
+	cutoff                                                time.Time
 }
 
 type valueLine struct {
@@ -116,15 +116,15 @@ func (s Service) Create(ctx context.Context, valuationID string, request domain.
 		return domain.Checkpoint{}, fmt.Errorf("begin reconciliation transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	var lockedAccount string
-	if err := tx.QueryRow(ctx, `SELECT id::text FROM accounts WHERE id=$1::uuid FOR UPDATE`, request.AccountID).Scan(&lockedAccount); err != nil {
+	var accountPortfolioID string
+	if err := tx.QueryRow(ctx, `SELECT portfolio_id::text FROM accounts WHERE id=$1::uuid FOR UPDATE`, request.AccountID).Scan(&accountPortfolioID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.Checkpoint{}, ErrNotFound
 		}
 		return domain.Checkpoint{}, fmt.Errorf("lock reconciliation account: %w", err)
 	}
 	var valuation valuationInfo
-	if err := tx.QueryRow(ctx, `SELECT vr.id::text,vr.snapshot_id::text,vr.state,vr.cutoff,p.reporting_currency FROM valuation_runs vr JOIN portfolio_snapshots ps ON ps.id=vr.snapshot_id JOIN portfolios p ON p.id=ps.portfolio_id WHERE vr.id=$1::uuid`, valuationID).Scan(&valuation.id, &valuation.snapshotID, &valuation.state, &valuation.cutoff, &valuation.reportingCurrency); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT vr.id::text,vr.snapshot_id::text,ps.portfolio_id::text,vr.state,vr.cutoff,p.reporting_currency FROM valuation_runs vr JOIN portfolio_snapshots ps ON ps.id=vr.snapshot_id JOIN portfolios p ON p.id=ps.portfolio_id WHERE vr.id=$1::uuid`, valuationID).Scan(&valuation.id, &valuation.snapshotID, &valuation.portfolioID, &valuation.state, &valuation.cutoff, &valuation.reportingCurrency); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.Checkpoint{}, ErrNotFound
 		}
@@ -141,7 +141,7 @@ func (s Service) Create(ctx context.Context, valuationID string, request domain.
 	}
 
 	rows, err := tx.Query(ctx, `
-		SELECT sl.id::text, sl.account_id::text,
+		SELECT sl.id::text, sl.account_id::text, vl.id::text,
 		       CASE WHEN $3='TRY' THEN vl.try_amount::text ELSE vl.usd_amount::text END,
 		       vl.state
 		FROM portfolio_snapshot_lines sl
@@ -154,18 +154,30 @@ func (s Service) Create(ctx context.Context, valuationID string, request domain.
 	defer rows.Close()
 	allLines := make(map[string]valueLine)
 	accountLines := make(map[string]valueLine)
+	expectedAccountLines := make(map[string]struct{})
+	invalidAccountLines := make(map[string]bool)
+	valuationLineCounts := make(map[string]int)
 	for rows.Next() {
 		var lineID, accountID string
-		var amountText, lineStateText pgtype.Text
-		if err := rows.Scan(&lineID, &accountID, &amountText, &lineStateText); err != nil {
+		var valuationLineID, amountText, lineStateText pgtype.Text
+		if err := rows.Scan(&lineID, &accountID, &valuationLineID, &amountText, &lineStateText); err != nil {
 			return domain.Checkpoint{}, fmt.Errorf("scan valuation line: %w", err)
 		}
-		if !amountText.Valid || !lineStateText.Valid || lineStateText.String != "valid" {
+		if accountID == request.AccountID {
+			expectedAccountLines[lineID] = struct{}{}
+		}
+		if valuationLineID.Valid {
+			valuationLineCounts[lineID]++
+		}
+		if !valuationLineID.Valid || !amountText.Valid || !lineStateText.Valid || lineStateText.String != "valid" {
 			continue
 		}
 		rat, parseErr := parseDecimal(amountText.String)
 		if parseErr != nil {
-			return domain.Checkpoint{}, fmt.Errorf("parse persisted valuation line: %w", parseErr)
+			if accountID == request.AccountID {
+				invalidAccountLines[lineID] = true
+			}
+			continue
 		}
 		line := valueLine{id: lineID, accountID: accountID, amount: rat}
 		allLines[lineID] = line
@@ -176,15 +188,23 @@ func (s Service) Create(ctx context.Context, valuationID string, request domain.
 	if err := rows.Err(); err != nil {
 		return domain.Checkpoint{}, fmt.Errorf("read valuation lines: %w", err)
 	}
-	if len(accountLines) == 0 {
-		var snapshotHasAccount bool
-		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM portfolio_snapshot_lines WHERE snapshot_id=$1::uuid AND account_id=$2::uuid)`, valuation.snapshotID, request.AccountID).Scan(&snapshotHasAccount); err != nil {
-			return domain.Checkpoint{}, fmt.Errorf("check snapshot account: %w", err)
+	if len(expectedAccountLines) == 0 {
+		if accountPortfolioID == valuation.portfolioID {
+			return domain.Checkpoint{}, conflict("ACCOUNT_HAS_NO_LINES", "account has no lines in the valuation snapshot")
 		}
-		if !snapshotHasAccount {
-			return domain.Checkpoint{}, conflict("ACCOUNT_NOT_IN_SNAPSHOT", "account is not part of the valuation snapshot")
+		return domain.Checkpoint{}, conflict("ACCOUNT_NOT_IN_SNAPSHOT", "account is not part of the valuation snapshot")
+	}
+	for lineID := range expectedAccountLines {
+		switch {
+		case valuationLineCounts[lineID] > 1:
+			return domain.Checkpoint{}, conflict("VALUATION_LINE_DUPLICATE", "valuation has more than one line for a snapshot line")
+		case valuationLineCounts[lineID] == 0:
+			return domain.Checkpoint{}, conflict("VALUATION_ACCOUNT_LINES_INCOMPLETE", "valuation is missing an account snapshot line")
+		case invalidAccountLines[lineID]:
+			return domain.Checkpoint{}, conflict("VALUATION_ACCOUNT_LINES_INCOMPLETE", "valuation account line has an invalid amount")
+		case accountLines[lineID].amount == nil:
+			return domain.Checkpoint{}, conflict("VALUATION_ACCOUNT_LINES_INCOMPLETE", "valuation account line is not valid with a non-null amount")
 		}
-		return domain.Checkpoint{}, conflict("ACCOUNT_HAS_NO_LINES", "account has no valid valuation lines")
 	}
 	var valuationNAV = new(big.Rat)
 	for _, line := range accountLines {
