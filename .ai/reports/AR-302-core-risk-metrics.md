@@ -51,9 +51,9 @@
 
 - Branch: `task/AR-302-core-risk-metrics`
 - Base SHA: `2d941bf92912f3e3e684356ed6a592a14ca5890e`
-- Commit SHA: recorded after implementation commit.
+- Implementation commit SHA: `08d7eb2b89dad1326b5dd9489be05cd83e07dc5b` (`feat(risk): add deterministic portfolio metrics [AR-302]`)
 - Remote branch: pending review and push.
-- Worktree: dirty while review/commit is in progress.
+- Worktree: clean after this report update is committed.
 
 ## Assumptions and risks
 
