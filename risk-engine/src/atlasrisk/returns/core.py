@@ -40,8 +40,8 @@ def compute_log_returns(
     """Compute returns between observed positive finite prices, without filling gaps.
 
     Weekend observations are excluded for the cross-asset business-day calendar.
-    A missing or invalid quote is never synthesized; each result is tied to the
-    later observation date and may therefore span a multi-day gap.
+    A missing or invalid quote is never synthesized, and no return is emitted
+    across a missing expected calendar interval.
     """
     if calendar not in ("business_daily", "crypto_daily"):
         raise ValueError(f"unsupported return calendar: {calendar}")
