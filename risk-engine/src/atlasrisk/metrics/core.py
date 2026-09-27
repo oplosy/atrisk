@@ -8,7 +8,12 @@ import statistics
 from collections.abc import Mapping
 from datetime import date
 
-from atlasrisk.returns import Calendar, compute_log_returns
+from atlasrisk.returns import (
+    Calendar,
+    compute_aligned_log_returns,
+    compute_log_returns,
+    count_missing_intervals,
+)
 
 _VOLATILITY_WINDOW = 63
 _CORRELATION_WINDOW = 252
@@ -71,7 +76,8 @@ def calculate_metrics(
     for instrument, values in returns.items():
         window = list(values.values())[-_VOLATILITY_WINDOW:]
         invalid_prices = _invalid_price_count(price_history[instrument], calendar)
-        if len(window) >= _VOLATILITY_WINDOW and invalid_prices == 0:
+        missing_intervals = count_missing_intervals(price_history[instrument], calendar=calendar)
+        if len(window) >= _VOLATILITY_WINDOW and invalid_prices == 0 and missing_intervals == 0:
             state = "valid"
             value = statistics.stdev(window) * annualization_factor
         elif window:
@@ -87,6 +93,7 @@ def calculate_metrics(
             "observations": len(window),
             "required_observations": _VOLATILITY_WINDOW,
             "invalid_price_observations": invalid_prices,
+            "missing_intervals": missing_intervals,
             "state": state,
         }
 
@@ -95,22 +102,23 @@ def calculate_metrics(
 
     correlations: dict[str, dict] = {}
     for left_id, right_id in itertools.combinations(sorted(returns), 2):
-        overlap = sorted(set(returns[left_id]).intersection(returns[right_id]))[
-            -_CORRELATION_WINDOW:
-        ]
-        left_values = [returns[left_id][observed_at] for observed_at in overlap]
-        right_values = [returns[right_id][observed_at] for observed_at in overlap]
+        left_pair, right_pair = compute_aligned_log_returns(
+            price_history[left_id], price_history[right_id], calendar=calendar
+        )
+        overlap = sorted(set(left_pair).intersection(right_pair))[-_CORRELATION_WINDOW:]
+        left_values = [left_pair[observed_at] for observed_at in overlap]
+        right_values = [right_pair[observed_at] for observed_at in overlap]
         if len(overlap) < _MIN_CORRELATION_OVERLAP:
-            value, state = None, "insufficient_coverage"
+            value, state, reason = None, "blocked", "INSUFFICIENT_OVERLAP"
         else:
             value = _correlation(left_values, right_values)
-            state = "valid" if value is not None else "undefined"
-        if state != "valid":
-            quality_states.append("degraded" if state != "insufficient_data" else "blocked")
+            state, reason = ("valid", None) if value is not None else ("degraded", "ZERO_VARIANCE")
+        quality_states.append(state)
         correlations[f"{left_id}|{right_id}"] = {
             "coefficient": value,
             "overlap_count": len(overlap),
             "required_overlap": _MIN_CORRELATION_OVERLAP,
+            "reason": reason,
             "state": state,
         }
 

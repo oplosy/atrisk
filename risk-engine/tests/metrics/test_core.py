@@ -18,9 +18,8 @@ def test_business_calendar_excludes_weekends_without_filling_prices() -> None:
 
     returns = compute_log_returns(prices)
 
-    assert list(returns) == [date(2026, 1, 5), date(2026, 1, 7)]
+    assert list(returns) == [date(2026, 1, 5)]
     assert returns[date(2026, 1, 5)] > 0
-    assert returns[date(2026, 1, 7)] > 0
 
 
 def test_crypto_calendar_keeps_weekend_observations() -> None:
@@ -34,7 +33,7 @@ def test_crypto_calendar_keeps_weekend_observations() -> None:
     assert result["calendar"] == "crypto_daily"
 
 
-def test_constant_series_has_zero_volatility_and_undefined_self_correlation() -> None:
+def test_constant_series_has_zero_volatility_and_degraded_self_correlation() -> None:
     prices = {date(2026, 1, 1) + timedelta(days=i): 100.0 for i in range(70)}
     result = calculate_metrics(
         {"a": prices, "b": prices},
@@ -46,7 +45,8 @@ def test_constant_series_has_zero_volatility_and_undefined_self_correlation() ->
     assert result["volatility"]["a"]["annualized"] == 0
     assert result["correlations"]["a|b"]["overlap_count"] == 69
     assert result["correlations"]["a|b"]["coefficient"] is None
-    assert result["correlations"]["a|b"]["state"] == "undefined"
+    assert result["correlations"]["a|b"]["state"] == "degraded"
+    assert result["correlations"]["a|b"]["reason"] == "ZERO_VARIANCE"
     assert result["data_quality"] == "degraded"
 
 
@@ -84,6 +84,24 @@ def test_no_price_series_is_blocked() -> None:
     assert result["data_quality"] == "blocked"
 
 
+def test_correlation_does_not_match_returns_from_different_intervals() -> None:
+    dates = [date(2026, 1, 5) + timedelta(days=i) for i in range(3)]
+    left = dict(zip(dates, [100.0, 110.0, 120.0]))
+    right = {dates[0]: 200.0, dates[1]: None, dates[2]: 220.0}
+    result = calculate_metrics(
+        {"a": left, "b": right},
+        {dates[0]: 1000.0},
+        {"a": 100.0},
+        calendar="crypto_daily",
+    )
+
+    pair = result["correlations"]["a|b"]
+    assert pair["overlap_count"] == 0
+    assert pair["coefficient"] is None
+    assert pair["state"] == "blocked"
+    assert pair["reason"] == "INSUFFICIENT_OVERLAP"
+
+
 def test_sparse_and_all_missing_series_are_not_healthy() -> None:
     result = calculate_metrics(
         {
@@ -94,7 +112,8 @@ def test_sparse_and_all_missing_series_are_not_healthy() -> None:
         {"sparse": 1.0},
     )
 
-    assert result["volatility"]["sparse"]["state"] == "degraded"
+    assert result["volatility"]["sparse"]["state"] == "blocked"
+    assert result["volatility"]["sparse"]["missing_intervals"] == 1
     assert result["volatility"]["missing"]["state"] == "blocked"
     assert result["volatility"]["missing"]["invalid_price_observations"] == 2
     assert result["data_quality"] == "blocked"
@@ -116,7 +135,8 @@ def test_correlations_expose_overlap_and_state_for_misaligned_series() -> None:
         "coefficient": None,
         "overlap_count": 1,
         "required_overlap": 60,
-        "state": "insufficient_coverage",
+        "reason": "INSUFFICIENT_OVERLAP",
+        "state": "blocked",
     }
 
 

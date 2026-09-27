@@ -50,4 +50,5 @@ def test_risk_metrics_golden_with_declared_tolerance() -> None:
         actual["leverage"]["net"], expected["net_leverage"], rel_tol=0, abs_tol=tolerance
     )
     assert actual["correlations"]["a|b"]["overlap_count"] == expected["correlation_overlap"]
-    assert actual["correlations"]["a|b"]["state"] == "insufficient_coverage"
+    assert actual["correlations"]["a|b"]["state"] == "blocked"
+    assert actual["correlations"]["a|b"]["reason"] == "INSUFFICIENT_OVERLAP"
