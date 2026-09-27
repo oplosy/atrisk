@@ -7,6 +7,7 @@ from typing import Any, Protocol
 
 from .canonical import sha256_json
 from .contracts import JobEnvelope, PermanentJobError, ResultEnvelope, validate_job
+from .scenario import handle_scenario_revaluation
 
 Handler = Callable[[JobEnvelope], Mapping[str, Any]]
 
@@ -30,19 +31,25 @@ def execute_job(
     *,
     engine_version: str,
 ) -> tuple[ResultEnvelope, str]:
-    job = validate_job(value, allowed_kinds=set(handlers))
-    handler = handlers.get(job.kind)
+    available_handlers: dict[str, Handler] = {"scenario.revalue": handle_scenario_revaluation}
+    available_handlers.update(handlers)
+    job = validate_job(value, allowed_kinds=set(available_handlers))
+    handler = available_handlers.get(job.kind)
     if handler is None:
         raise PermanentJobError(
             "ATLAS_UNKNOWN_JOB_KIND", "unsupported job kind", {"kind": job.kind}
         )
     output = dict(handler(job))
+    scenario_state = output.get("state")
+    quality_by_state = {"valid": "healthy", "degraded": "degraded", "blocked": "blocked"}
+    data_quality = quality_by_state.get(scenario_state, "healthy")
+    result_status = scenario_state if scenario_state in {"degraded", "blocked"} else "succeeded"
     result = ResultEnvelope(
         job_id=job_id,
         schema_version=job.schema_version,
-        status="succeeded",
+        status=result_status,
         input_snapshot_ids=job.input_snapshot_ids,
-        data_quality="healthy",
+        data_quality=data_quality,
         engine_version=engine_version,
         output=output,
     )

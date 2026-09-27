@@ -56,6 +56,14 @@ class PostgresQueueClient:
                 """,
                 (row[0], row[6], worker_id, row[7]),
             )
+            if row[1] == "scenario.revalue":
+                cursor.execute(
+                    """
+                    UPDATE scenario_runs SET state='running'
+                    WHERE job_id=%s::uuid AND state='queued'
+                    """,
+                    (row[0],),
+                )
             self._connection.commit()
             return {
                 "id": row[0],
@@ -85,7 +93,7 @@ class PostgresQueueClient:
                     lease_owner=NULL, lease_expires_at=NULL, completed_at=clock_timestamp()
                 WHERE id=%s::uuid AND state='running' AND lease_owner=%s
                   AND lease_expires_at > clock_timestamp()
-                RETURNING id
+                RETURNING id, kind
                 """,
                 (self._json(result), digest, job_id, worker_id),
             )
@@ -93,6 +101,8 @@ class PostgresQueueClient:
             if row is None:
                 self._connection.commit()
                 return False
+            if row[1] == "scenario.revalue":
+                self._persist_scenario_result(cursor, job_id, result, digest)
             cursor.execute(
                 """
                 UPDATE risk_job_attempts
@@ -132,6 +142,22 @@ class PostgresQueueClient:
                 self._connection.commit()
                 return False
             final_state = row[0]
+            if final_state == "failed":
+                cursor.execute(
+                    """
+                    UPDATE scenario_runs SET state='failed', completed_at=clock_timestamp()
+                    WHERE job_id=%s::uuid AND state IN ('queued','running')
+                    """,
+                    (job_id,),
+                )
+            elif final_state == "retryable_failed":
+                cursor.execute(
+                    """
+                    UPDATE scenario_runs SET state='queued'
+                    WHERE job_id=%s::uuid AND state='running'
+                    """,
+                    (job_id,),
+                )
             cursor.execute(
                 """
                 UPDATE risk_job_attempts
@@ -155,3 +181,86 @@ class PostgresQueueClient:
         from .canonical import canonical_json
 
         return canonical_json(value).decode("utf-8")
+
+    def _persist_scenario_result(
+        self, cursor: Any, job_id: str, result: Mapping[str, Any], digest: str
+    ) -> None:
+        output = result.get("output")
+        if not isinstance(output, Mapping):
+            raise ValueError("scenario result output must be an object")
+        state = output.get("state")
+        if state not in {"valid", "degraded", "blocked"}:
+            raise ValueError("scenario result state is invalid")
+        cursor.execute(
+            """
+            UPDATE scenario_runs
+            SET state=%s, result=%s::jsonb, result_hash=%s, completed_at=clock_timestamp()
+            WHERE job_id=%s::uuid AND state IN ('queued','running')
+            RETURNING id::text
+            """,
+            (state, self._json(result), digest, job_id),
+        )
+        if cursor.fetchone() is None:
+            raise ValueError("scenario run for completed job was not found")
+
+        for position in output.get("positions", []):
+            if not isinstance(position, Mapping):
+                raise ValueError("scenario position result must be an object")
+            cursor.execute(
+                """
+                INSERT INTO scenario_run_positions (
+                    run_id,snapshot_line_id,instrument_id,state,reason_codes,
+                    pre_value_try,post_value_try,pnl_try,pre_value_usd,post_value_usd,pnl_usd,
+                    price_return,yield_return,fx_multiplier_try,fx_multiplier_usd
+                )
+                SELECT id,%s::uuid,%s::uuid,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
+                FROM scenario_runs WHERE job_id=%s::uuid
+                """,
+                (
+                    position.get("snapshot_line_id"),
+                    position.get("instrument_id"),
+                    position.get("state"),
+                    position.get("reason_codes", []),
+                    position.get("pre_value_try"),
+                    position.get("post_value_try"),
+                    position.get("pnl_try"),
+                    position.get("pre_value_usd"),
+                    position.get("post_value_usd"),
+                    position.get("pnl_usd"),
+                    position.get("price_return"),
+                    position.get("yield_return"),
+                    position.get("fx_multiplier_try"),
+                    position.get("fx_multiplier_usd"),
+                    job_id,
+                ),
+            )
+
+        pre_metrics = output.get("pre_metrics", {})
+        post_metrics = output.get("post_metrics", {})
+        for category, value_key in (("volatility", "annualized"), ("correlations", "coefficient")):
+            before = pre_metrics.get(category, {}) if isinstance(pre_metrics, Mapping) else {}
+            after = post_metrics.get(category, {}) if isinstance(post_metrics, Mapping) else {}
+            for metric_key, pre_value in before.items():
+                metric_state = (
+                    pre_value.get("state", "valid") if isinstance(pre_value, Mapping) else "valid"
+                )
+                before_value = (
+                    pre_value.get(value_key) if isinstance(pre_value, Mapping) else pre_value
+                )
+                reason = pre_value.get("reason") if isinstance(pre_value, Mapping) else None
+                cursor.execute(
+                    """
+                    INSERT INTO scenario_run_metrics (
+                        run_id,metric_key,pre_value,post_value,state,reason_code
+                    )
+                    SELECT id,%s,%s,%s,%s,%s FROM scenario_runs WHERE job_id=%s::uuid
+                    """,
+                    (
+                        f"{category}:{metric_key}",
+                        before_value,
+                        after.get(metric_key),
+                        metric_state,
+                        reason,
+                        job_id,
+                    ),
+                )

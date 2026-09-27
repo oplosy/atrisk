@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	applicationscenarios "github.com/oplosy/atrisk/internal/application/scenarios"
 	"github.com/oplosy/atrisk/internal/platform/database"
 	"github.com/pressly/goose/v3"
 )
@@ -166,8 +168,26 @@ func TestCoreDatabaseMigrations(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&currentVersion); err != nil {
 		t.Fatalf("inspect migration version: %v", err)
 	}
-	if currentVersion != 8 {
-		t.Fatalf("expected latest migration version 8, got %d", currentVersion)
+	if currentVersion != 9 {
+		t.Fatalf("expected latest migration version 9, got %d", currentVersion)
+	}
+	var scenarioObjects int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*)::int FROM information_schema.tables
+		WHERE table_schema='public' AND table_name IN ('scenarios','scenario_versions','scenario_runs','scenario_run_positions','scenario_run_metrics')`).Scan(&scenarioObjects); err != nil {
+		t.Fatalf("inspect scenario persistence tables: %v", err)
+	}
+	if scenarioObjects != 5 {
+		t.Fatalf("expected five scenario persistence tables, got %d", scenarioObjects)
+	}
+	var appendOnlyTriggers int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*)::int FROM pg_trigger
+		WHERE NOT tgisinternal AND tgname IN ('scenario_versions_immutable','scenario_run_positions_immutable','scenario_run_metrics_immutable')`).Scan(&appendOnlyTriggers); err != nil {
+		t.Fatalf("inspect immutable scenario evidence triggers: %v", err)
+	}
+	if appendOnlyTriggers != 3 {
+		t.Fatalf("expected three append-only scenario triggers, got %d", appendOnlyTriggers)
 	}
 	var assetUnitTypes int
 	if err := pool.QueryRow(ctx, `
@@ -200,9 +220,153 @@ func TestCoreDatabaseMigrations(t *testing.T) {
 	if compositeForeignKeys != 1 {
 		t.Fatalf("expected source/dataset composite foreign key, got %d", compositeForeignKeys)
 	}
+	verifyScenarioServicePersistence(t, pool)
 	// A second forward migration must be a no-op, proving the version table and
 	// migration are safe to run from a previously migrated test database.
 	migrateTestDatabase(t)
+}
+
+func verifyScenarioServicePersistence(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	ctx := context.Background()
+	var portfolioID, accountID, snapshotID, foreignPortfolioID, foreignAccountID, foreignSnapshotID, instrumentID, foreignLineID string
+	if err := pool.QueryRow(ctx, `INSERT INTO portfolios (name,reporting_currency) VALUES ('scenario-'||gen_random_uuid()::text,'TRY') RETURNING id::text`).Scan(&portfolioID); err != nil {
+		t.Fatalf("create scenario test portfolio: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `INSERT INTO accounts (portfolio_id,name) VALUES ($1::uuid,'scenario-account') RETURNING id::text`, portfolioID).Scan(&accountID); err != nil {
+		t.Fatalf("create scenario test account: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `INSERT INTO portfolio_snapshots (portfolio_id,captured_at) VALUES ($1::uuid,clock_timestamp()) RETURNING id::text`, portfolioID).Scan(&snapshotID); err != nil {
+		t.Fatalf("create scenario test snapshot: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `INSERT INTO portfolios (name,reporting_currency) VALUES ('scenario-foreign-'||gen_random_uuid()::text,'USD') RETURNING id::text`).Scan(&foreignPortfolioID); err != nil {
+		t.Fatalf("create foreign scenario portfolio: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `INSERT INTO accounts (portfolio_id,name) VALUES ($1::uuid,'scenario-foreign-account') RETURNING id::text`, foreignPortfolioID).Scan(&foreignAccountID); err != nil {
+		t.Fatalf("create foreign scenario account: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `INSERT INTO portfolio_snapshots (portfolio_id,captured_at) VALUES ($1::uuid,clock_timestamp()) RETURNING id::text`, foreignPortfolioID).Scan(&foreignSnapshotID); err != nil {
+		t.Fatalf("create foreign portfolio snapshot: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `INSERT INTO instruments (canonical_symbol,instrument_type,native_currency) VALUES ('SCENARIO-'||gen_random_uuid()::text,'equity_spot','USD') RETURNING id::text`).Scan(&instrumentID); err != nil {
+		t.Fatalf("create scenario test instrument: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `INSERT INTO portfolio_snapshot_lines (portfolio_id,snapshot_id,account_id,instrument_id,quantity) VALUES ($1::uuid,$2::uuid,$3::uuid,$4::uuid,1) RETURNING id::text`, foreignPortfolioID, foreignSnapshotID, foreignAccountID, instrumentID).Scan(&foreignLineID); err != nil {
+		t.Fatalf("create foreign scenario snapshot line: %v", err)
+	}
+	service := applicationscenarios.Service{Pool: pool}
+	input := applicationscenarios.VersionInput{
+		AccountID: accountID, SnapshotID: snapshotID, Name: "TRY depreciation", TemplateKey: "try_depreciation",
+		IdempotencyKey: "scenario-replay-" + portfolioID,
+		Units:          map[string]any{"fx_pair_changes": "relative", "yield_shifts_bps": "basis_points"},
+		Shocks:         map[string]any{"fx_pair_changes": map[string]any{"USD/TRY": "0.25"}},
+		Mappings:       map[string]any{}, Assumptions: map[string]any{"coverage_policy": "block"},
+		Positions: []map[string]any{}, PreMetrics: map[string]any{},
+	}
+	first, err := service.CreateVersionAndRun(ctx, input)
+	if err != nil || first.ScenarioVer != 1 {
+		t.Fatalf("create first immutable scenario run: run=%+v err=%v", first, err)
+	}
+	replay, err := service.CreateVersionAndRun(ctx, input)
+	if err != nil || replay.ID != first.ID || replay.JobID != first.JobID || replay.ScenarioVer != first.ScenarioVer {
+		t.Fatalf("idempotent replay changed scenario run: first=%+v replay=%+v err=%v", first, replay, err)
+	}
+	const concurrentReplays = 4
+	var replayWait sync.WaitGroup
+	replayRuns := make(chan applicationscenarios.Run, concurrentReplays)
+	replayErrors := make(chan error, concurrentReplays)
+	for index := 0; index < concurrentReplays; index++ {
+		replayWait.Add(1)
+		go func() {
+			defer replayWait.Done()
+			result, replayErr := service.CreateVersionAndRun(ctx, input)
+			if replayErr != nil {
+				replayErrors <- replayErr
+				return
+			}
+			replayRuns <- result
+		}()
+	}
+	replayWait.Wait()
+	close(replayRuns)
+	close(replayErrors)
+	for replayErr := range replayErrors {
+		t.Errorf("concurrent idempotent replay failed: %v", replayErr)
+	}
+	for concurrentReplay := range replayRuns {
+		if concurrentReplay.ID != first.ID || concurrentReplay.JobID != first.JobID || concurrentReplay.ScenarioVer != first.ScenarioVer {
+			t.Errorf("concurrent replay returned a different scenario run: %+v", concurrentReplay)
+		}
+	}
+	changed := input
+	changed.Positions = []map[string]any{{"instrument_id": "different-input"}}
+	if _, err := service.CreateVersionAndRun(ctx, changed); !errors.Is(err, applicationscenarios.ErrInvalidRequest) {
+		t.Fatalf("idempotency key accepted a different payload: %v", err)
+	}
+	secondVersion := input
+	secondVersion.ScenarioID = first.ScenarioID
+	secondVersion.IdempotencyKey += "-v2"
+	secondVersion.Shocks = map[string]any{"fx_pair_changes": map[string]any{"USD/TRY": "0.30"}}
+	second, err := service.CreateVersionAndRun(ctx, secondVersion)
+	if err != nil || second.ScenarioVer != 2 {
+		t.Fatalf("create second immutable scenario version: run=%+v err=%v", second, err)
+	}
+	var boundVersion int
+	if err := pool.QueryRow(ctx, `SELECT scenario_version FROM scenario_runs WHERE id=$1::uuid`, first.ID).Scan(&boundVersion); err != nil || boundVersion != 1 {
+		t.Fatalf("prior run lost its original version: version=%d err=%v", boundVersion, err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE scenario_versions SET assumptions='{}' WHERE scenario_id=$1::uuid AND version=1`, first.ScenarioID); err == nil {
+		t.Fatal("scenario version update was not rejected by append-only trigger")
+	}
+	if _, err := pool.Exec(ctx, `UPDATE scenario_runs SET scenario_version=2 WHERE id=$1::uuid`, first.ID); err == nil {
+		t.Fatal("scenario run version retarget was not rejected")
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO scenario_run_positions (run_id,snapshot_line_id,instrument_id,state) VALUES ($1::uuid,$2::uuid,$3::uuid,'valid')`, first.ID, foreignLineID, instrumentID); err == nil {
+		t.Fatal("scenario result accepted a snapshot line from another account and snapshot")
+	}
+	wrongSnapshot := input
+	wrongSnapshot.IdempotencyKey += "-foreign"
+	wrongSnapshot.SnapshotID = foreignSnapshotID
+	if _, err := service.CreateVersionAndRun(ctx, wrongSnapshot); !errors.Is(err, applicationscenarios.ErrInvalidRequest) {
+		t.Fatalf("scenario service accepted a snapshot from another portfolio: %v", err)
+	}
+
+	const concurrentWriters = 4
+	var wait sync.WaitGroup
+	versions := make(chan int, concurrentWriters)
+	errorsOut := make(chan error, concurrentWriters)
+	for index := 0; index < concurrentWriters; index++ {
+		wait.Add(1)
+		go func(index int) {
+			defer wait.Done()
+			request := input
+			request.ScenarioID = first.ScenarioID
+			request.IdempotencyKey = fmt.Sprintf("scenario-concurrent-%s-%d", portfolioID, index)
+			run, runErr := service.CreateVersionAndRun(ctx, request)
+			if runErr != nil {
+				errorsOut <- runErr
+				return
+			}
+			versions <- run.ScenarioVer
+		}(index)
+	}
+	wait.Wait()
+	close(versions)
+	close(errorsOut)
+	for err := range errorsOut {
+		t.Errorf("concurrent scenario version creation failed: %v", err)
+	}
+	seenVersions := map[int]bool{}
+	for version := range versions {
+		seenVersions[version] = true
+	}
+	if len(seenVersions) != concurrentWriters {
+		t.Fatalf("concurrent writers did not receive distinct versions: %v", seenVersions)
+	}
+	var currentVersion int
+	if err := pool.QueryRow(ctx, `SELECT current_version FROM scenarios WHERE id=$1::uuid`, first.ScenarioID).Scan(&currentVersion); err != nil || currentVersion != concurrentWriters+2 {
+		t.Fatalf("concurrent version counter=%d err=%v", currentVersion, err)
+	}
 }
 
 func TestCoreDatabasePreviousVersionUpgrade(t *testing.T) {
@@ -336,8 +500,8 @@ func TestCoreDatabasePreviousVersionUpgrade(t *testing.T) {
 	if err := upgradedDB.QueryRowContext(ctx, "SELECT max(version_id) FROM "+schemaName+"."+goose.DefaultTablename).Scan(&version); err != nil {
 		t.Fatalf("inspect upgraded schema migration version: %v", err)
 	}
-	if version != 8 {
-		t.Fatalf("expected isolated schema at migration version 8, got %d", version)
+	if version != 9 {
+		t.Fatalf("expected isolated schema at migration version 9, got %d", version)
 	}
 	if err := upgradedDB.QueryRowContext(ctx, `
 		SELECT count(*)::int
