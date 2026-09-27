@@ -1,13 +1,13 @@
 ---
 id: AR-204
 title: Add valuation reconciliation checkpoints
-status: ready
+status: active
 phase: 2
 depends_on: [AR-203]
 branch: task/AR-204-reconciliation-checkpoints
-base_sha: 964384c28d224420d8dcf62965967425bc53fc39
+base_sha: 947b4e01debe5339bda8718aaf5cadee9f0c9e30
 owned_paths: [internal/domain/reconciliation/, internal/application/reconciliation/, db/queries/reconciliation/, apps/api/handlers/reconciliation/]
-shared_paths: [db/migrations/, contracts/openapi/, apps/api/cmd/api/]
+shared_paths: [db/migrations/, contracts/openapi/, apps/api/cmd/api/, test/integration/]
 adrs: [ADR-010, ADR-011, ADR-012, ADR-025]
 ---
 
@@ -34,7 +34,9 @@ differences, and receive a deterministic reconciled/unreconciled result.
 - [ ] A checkpoint references one immutable valuation and account from its
   snapshot, preserves source label, reporting currency, exact UTC cutoff,
   external NAV, and supplied line checks; only `valid` valuations with at least
-  one line for that account can be reconciled.
+  one line for that account can be reconciled. Every account snapshot line must
+  have exactly one valid valuation line with a non-null selected-currency
+  amount; missing/invalid or duplicate lines are rejected.
 - [ ] The account NAV is the exact sum of its persisted valuation-line TRY or
   USD amounts. No valuation rerun, other currency, or implicit FX conversion is
   used.
@@ -70,12 +72,14 @@ differences, and receive a deterministic reconciled/unreconciled result.
   valuation/account IDs, NAV currency/cutoff, exact differences, effective
   tolerance/version, state (`reconciled` or `unreconciled`), and line-check
   evidence. Stable conflict codes are `VALUATION_NOT_VALID`,
+  `VALUATION_ACCOUNT_LINES_INCOMPLETE`, `VALUATION_LINE_DUPLICATE`,
   `ACCOUNT_NOT_IN_SNAPSHOT`, `ACCOUNT_HAS_NO_LINES`, `CURRENCY_MISMATCH`,
   `CUTOFF_MISMATCH`, `LINE_CHECK_UNKNOWN`, `LINE_CHECK_DUPLICATE`,
   `LINE_CHECK_CROSS_ACCOUNT`, `LINE_CHECK_INCOMPLETE`, and
   `LINE_CHECK_TOTAL_MISMATCH`; zero external NAV returns null relative
   difference, not an error. Generated types stay synchronized; PostgreSQL
-  integration exercises these routes and proves persisted provenance.
+  integration exercises these routes and proves persisted provenance and DB
+  constraints reject invalid cross-record relationships.
 
 ## Required verification
 
