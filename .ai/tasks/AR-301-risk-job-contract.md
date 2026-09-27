@@ -1,10 +1,11 @@
 ---
 id: AR-301
 title: Implement risk jobs and golden fixtures
-status: draft
+status: ready
 phase: 3
 depends_on: [AR-107, AR-203]
 branch: task/AR-301-risk-job-contract
+base_sha: 116be3bf653a530e426e180f76b1a6dbd262ccb6
 owned_paths: [internal/jobs/, risk-engine/src/atlasrisk/jobs/, contracts/jobs/, test/fixtures/risk/]
 shared_paths: [db/migrations/, db/queries/jobs/, apps/api/, Taskfile.yml]
 adrs: [ADR-008, ADR-009, ADR-010, ADR-013]
