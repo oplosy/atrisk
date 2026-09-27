@@ -5,7 +5,7 @@ status: ready
 phase: 3
 depends_on: [AR-303]
 branch: task/AR-304-factor-attribution
-base_sha: 5ba3f3d3c7d7f82d959dd5498efc1ee20d0ca9fa
+base_sha: c3a67cfd98cca007e4afca648828659dd4ed2f97
 owned_paths: [risk-engine/src/atlasrisk/attribution/, risk-engine/tests/attribution/]
 shared_paths: [contracts/jobs/, test/fixtures/risk/]
 adrs: [ADR-013, ADR-014]
