@@ -39,7 +39,7 @@
 | `node --test test/contract/contract.test.mjs contracts/jobs/contract.test.mjs` | pass; 13 tests |
 | `task test-contract` | unavailable; `task` executable is not installed locally |
 | `git diff --check` | pass |
-| Hosted CI | pending on implementation PR |
+| Hosted CI | pending on PR #40 latest head after reviewer corrections |
 
 The independent reviewer identified misaligned correlation intervals, sparse-return annualization, and noncanonical correlation states. All three were corrected before merge; paired returns now share both endpoints and missing expected observations degrade or block coverage.
 
@@ -53,8 +53,8 @@ The independent reviewer identified misaligned correlation intervals, sparse-ret
 
 - Branch: `task/AR-302-core-risk-metrics`
 - Base SHA: `2d941bf92912f3e3e684356ed6a592a14ca5890e`
-- Latest implementation commit SHA: `b8eb9e57b02ae9b15661df5419457c78260aee09` (`fix(risk): align risk metric observation windows [AR-302]`)
-- Remote branch: `task/AR-302-core-risk-metrics`, PR #40 open; corrected commit is queued for push and hosted CI rerun.
+- Implementation code SHA: `b8eb9e57b02ae9b15661df5419457c78260aee09` (`fix(risk): align risk metric observation windows [AR-302]`); latest doc-only branch commit `2bab06d7038d5bdaefd7b8123e428e4ca2a65bda` corrects the return-calendar docstring.
+- Remote branch: `task/AR-302-core-risk-metrics` pushed; [PR #40](https://github.com/oplosy/atrisk/pull/40) is open and hosted CI is rerunning on the latest head.
 - Worktree: clean after this report update is committed.
 
 ## Assumptions and risks
