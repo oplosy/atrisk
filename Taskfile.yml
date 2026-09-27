@@ -112,6 +112,9 @@ tasks:
       - task: test-integration
         vars:
           TEST: CoreDatabase
+      - task: test-integration
+        vars:
+          TEST: RiskJobLifecycle
       - task: build
       - task: check-generated
 
