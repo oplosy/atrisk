@@ -1,7 +1,7 @@
 ---
 id: AR-204
 title: Add valuation reconciliation checkpoints
-status: active
+status: merged
 phase: 2
 depends_on: [AR-203]
 branch: task/AR-204-reconciliation-checkpoints

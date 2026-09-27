@@ -54,11 +54,12 @@
 ## Git state
 
 - Branch: `task/AR-204-reconciliation-checkpoints`
-- Commit SHA: pending final repair commit
-- Remote branch: pending push
-- Worktree: pending final clean check
+- Implementation commit: `6ae2a7ecfb314ed1d0a0a10e28aa572fd8aea85d`
+- PR: [#34](https://github.com/oplosy/atrisk/pull/34), merged 2026-09-27; merge commit `3847816a71bfbbad3b5fffbe31ab929fc0dfcf72`.
+- Remote branch: implementation branch pushed and merged; GitHub PR CI `Verify` passed, including container setup, database migration verification, and `task verify`.
+- Worktree: implementation worktree clean at handoff; status-finalization PR is metadata-only.
 
 ## Assumptions and risks
 
 - Currency comparison assumes the checkpoint currency must equal the portfolio reporting currency, while the selected valuation amount is the matching persisted TRY/USD column.
-- Live PostgreSQL integration and full verification remain pending an explicitly configured isolated test database and the repository's missing `task` executable.
+- Local PostgreSQL-backed integration execution was skipped because `ATLASRISK_TEST_DATABASE_URL` was absent and local `task` was not installed. Hosted CI ran the complete verification gate successfully, including ephemeral containers, migration verification, and `task verify`. No local Docker settings or runtime state were changed.
