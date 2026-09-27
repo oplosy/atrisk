@@ -1,0 +1,9 @@
+{
+  "job_id": "job-golden-001",
+  "schema_version": "1.0",
+  "status": "succeeded",
+  "input_snapshot_ids": ["snapshot-001", "snapshot-002"],
+  "data_quality": "healthy",
+  "engine_version": "risk-engine-0.1.0",
+  "output": {"metrics": {"volatility": 0.1234}, "status": "ok"}
+}

@@ -1,0 +1,5 @@
+{
+  "text": "<é>",
+  "number": 1.0,
+  "nested": {"negative_zero": -0.0}
+}
