@@ -13,6 +13,14 @@ test("risk job and result schemas are versioned contract sources", async () => {
   }
 });
 
+test("scenario revaluation jobs bind one immutable version to a snapshot", async () => {
+  const schema = await readJson("contracts/jobs/scenario-revalue.schema.json");
+  assert.equal(schema.$schema, "https://json-schema.org/draft/2020-12/schema");
+  assert.deepEqual(schema.required, ["scenario_id", "scenario_version", "snapshot_id", "positions", "pre_metrics"]);
+  assert.equal(schema.properties.scenario_version.properties.version.minimum, 1);
+  assert.equal(schema.additionalProperties, false);
+});
+
 test("golden job and result fixtures match their envelope contracts", async () => {
   const job = await readJson("test/fixtures/risk/golden-job.json");
   const result = await readJson("test/fixtures/risk/golden-result.json");

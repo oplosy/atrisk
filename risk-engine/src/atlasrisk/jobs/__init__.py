@@ -10,6 +10,7 @@ from .contracts import (
     validate_job,
 )
 from .postgres import PostgresQueueClient
+from .scenario import handle_scenario_revaluation
 from .worker import JobWorker, execute_job
 
 __all__ = [
@@ -22,6 +23,7 @@ __all__ = [
     "SUPPORTED_SCHEMA_VERSION",
     "canonical_json",
     "execute_job",
+    "handle_scenario_revaluation",
     "sha256_json",
     "validate_job",
 ]

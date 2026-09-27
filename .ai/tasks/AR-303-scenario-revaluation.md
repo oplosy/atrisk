@@ -1,12 +1,13 @@
 ---
 id: AR-303
 title: Implement versioned scenario revaluation
-status: ready
+status: review
 phase: 3
 depends_on: [AR-301]
 branch: task/AR-303-scenario-revaluation
-owned_paths: [risk-engine/src/atlasrisk/scenarios/, risk-engine/tests/scenarios/, internal/application/scenarios/]
-shared_paths: [contracts/jobs/, db/migrations/, db/queries/scenarios/, test/fixtures/risk/]
+base_sha: bf1f2215c9f3ea38cb197f8e279199d8ab9797fb
+owned_paths: [risk-engine/src/atlasrisk/scenarios/, risk-engine/tests/scenarios/, risk-engine/src/atlasrisk/jobs/, risk-engine/tests/jobs/, internal/application/scenarios/]
+shared_paths: [contracts/jobs/, db/migrations/, db/queries/scenarios/, test/fixtures/risk/, test/integration/]
 adrs: [ADR-011, ADR-013, ADR-015]
 ---
 

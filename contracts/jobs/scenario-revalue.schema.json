@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://atlasrisk.local/contracts/jobs/scenario-revalue.schema.json",
+  "title": "AtlasRisk versioned scenario revaluation job payload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["scenario_id", "scenario_version", "snapshot_id", "positions", "pre_metrics"],
+  "properties": {
+    "scenario_id": { "type": "string", "format": "uuid" },
+    "scenario_version": {
+      "type": "object",
+      "required": ["scenario_id", "version", "template_key", "units", "shocks", "mappings", "assumptions"],
+      "properties": {
+        "scenario_id": { "type": "string", "format": "uuid" },
+        "version": { "type": "integer", "minimum": 1 },
+        "template_key": { "enum": ["try_depreciation", "rates_up", "risk_off"] },
+        "units": { "type": "object" },
+        "shocks": { "type": "object" },
+        "mappings": { "type": "object" },
+        "assumptions": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "snapshot_id": { "type": "string", "format": "uuid" },
+    "positions": { "type": "array", "items": { "type": "object" } },
+    "pre_metrics": { "type": "object" }
+  }
+}
