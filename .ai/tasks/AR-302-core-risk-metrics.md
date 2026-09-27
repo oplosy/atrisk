@@ -1,7 +1,7 @@
 ---
 id: AR-302
 title: Implement core portfolio risk metrics
-status: draft
+status: ready
 phase: 3
 depends_on: [AR-301]
 branch: task/AR-302-core-risk-metrics
