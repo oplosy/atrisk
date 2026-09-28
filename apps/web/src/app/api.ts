@@ -33,18 +33,20 @@ async function readError(response: Response): Promise<string> {
 export async function requestJson<T>(
   path: string,
   signal?: AbortSignal,
-  init?: RequestInit,
+): Promise<T> {
+  return requestJsonWithInit<T>(path, { signal });
+}
+
+export async function requestJsonWithInit<T>(
+  path: string,
+  init: RequestInit,
 ): Promise<T> {
   let response: Response;
 
   try {
-    const headers = new Headers(init?.headers);
+    const headers = new Headers(init.headers);
     headers.set("Accept", "application/json");
-    response = await fetch(path, {
-      ...init,
-      headers,
-      signal,
-    });
+    response = await fetch(path, { ...init, headers });
   } catch {
     throw new ApiRequestError(
       "offline",

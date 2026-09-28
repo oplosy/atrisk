@@ -11,6 +11,7 @@ function routeFromLocation(): ShellRoute {
     "/portfolio",
     "/risk",
     "/journal",
+    "/decisions",
     "/settings",
   ].includes(path)
     ? path

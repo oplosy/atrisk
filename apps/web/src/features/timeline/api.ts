@@ -1,4 +1,8 @@
-import { ApiRequestError, requestJson } from "../../app/api";
+import {
+  ApiRequestError,
+  requestJson,
+  requestJsonWithInit,
+} from "../../app/api";
 
 export type Mode = "latest" | "source-as-of" | "system-as-of";
 export type QualityLabel =
@@ -175,10 +179,10 @@ export async function evaluateQuality(
 ): Promise<QualityResult> {
   const asOf = cutoff ? new Date(cutoff) : new Date();
   const from = new Date(asOf.getTime() - 90 * 24 * 60 * 60 * 1000);
-  const payload = await requestJson<unknown>(
+  const payload = await requestJsonWithInit<unknown>(
     "/api/v1/quality/evaluate",
-    signal,
     {
+      signal,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
