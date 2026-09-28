@@ -34,13 +34,19 @@ export async function requestJson<T>(
   path: string,
   signal?: AbortSignal,
 ): Promise<T> {
+  return requestJsonWithInit<T>(path, { signal });
+}
+
+export async function requestJsonWithInit<T>(
+  path: string,
+  init: RequestInit,
+): Promise<T> {
   let response: Response;
 
   try {
-    response = await fetch(path, {
-      headers: { Accept: "application/json" },
-      signal,
-    });
+    const headers = new Headers(init.headers);
+    headers.set("Accept", "application/json");
+    response = await fetch(path, { ...init, headers });
   } catch {
     throw new ApiRequestError(
       "offline",
