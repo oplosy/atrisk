@@ -26,7 +26,7 @@
 ## Stop-condition check
 
 - Decision or scope conflict: none.
-- Missing dependency, unsafe migration, or unavailable verification: no local API/database fixture is connected to the Vite preview, so real API-backed form submissions remain unverified and show HTTP 404. Hosted `task verify` remains pending; the `task` CLI is unavailable locally.
+- Missing dependency, unsafe migration, or unavailable verification: no local API/database fixture is connected to the Vite preview, so real API-backed form submissions remain unverified and show HTTP 404. Hosted PR CI run 137 succeeded; the `task` CLI is unavailable locally.
 
 ## Verification
 

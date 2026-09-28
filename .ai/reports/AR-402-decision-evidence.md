@@ -32,9 +32,9 @@
 | Command | Result |
 |---|---|
 | `task test-go TEST=DecisionEvidence` | `task` unavailable; `go test ./internal/application/evidence ./internal/application/journal ./apps/api/handlers/journal -count=1` passed. |
-| `task test-integration TEST=HistoricalDecisionReconstruction` | `task` unavailable; direct test compiled and skipped without isolated DB URL. Hosted execution pending. |
+| `task test-integration TEST=HistoricalDecisionReconstruction` | `task` unavailable; direct test compiled and skipped without isolated DB URL. Hosted PR CI run 132 succeeded. |
 | `task test-contract` | `task` unavailable; `node scripts/generate/contract-models.mjs` and both Node contract suites passed (11 + 4 tests). |
-| `task migrate-test` | unavailable locally without isolated PostgreSQL URL; hosted execution pending. |
+| `task migrate-test` | unavailable locally without isolated PostgreSQL URL; hosted PR CI run 132 succeeded. |
 | `node scripts/verify/check-generated.mjs` | passed after committing generated outputs. |
 | `git diff --check` | passed. |
 | `go test ./internal/application/evidence ./internal/application/journal ./apps/api/handlers/journal -count=1` | passed with workspace-local `GOCACHE`; default cache path was denied by the sandbox. |
