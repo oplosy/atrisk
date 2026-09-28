@@ -53,9 +53,9 @@
 ## Git state
 
 - Branch: `task/AR-305-risk-result-api`
-- Commit SHA: `622c8d360179e7700d509252fea604cfbdbd5b23` (`docs(api): finalize AR-305 report state [AR-305]`)
-- Remote branch: `task/AR-305-risk-result-api` at the same SHA
-- Worktree: clean before this metadata-only correction
+- Implementation commits: `45842a1`, `42b63bf`; report metadata commit before final alignment: `622c8d3`
+- Remote branch: `task/AR-305-risk-result-api` includes all implementation and report updates
+- Worktree: clean at handoff
 
 ## Assumptions and risks
 
