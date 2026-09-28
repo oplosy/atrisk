@@ -20,7 +20,7 @@
 | AC-2 | `QualityBadge` renders icon plus explicit `Valid`, `Degraded`, or `Blocked` text; quality state is not conveyed by color alone. |
 | AC-3 | `StatusPanel` covers loading, empty, stale, offline, unauthorized-proxy, server-error, and generic error states with visible copy and retry behavior. `useApiResource` preserves the last good payload and exposes `stale` after a failed retry. `ErrorBoundary` provides a refresh state. |
 | AC-4 | `api.ts` imports `PortfolioPage` and `ErrorEnvelope` from `contracts/generated/typescript/contracts`; runtime guards reject malformed 200 responses and portfolio items missing or blank `id`/`name`, invalid `reporting_currency`, non-object `metadata`, or missing/blank `created_at`/`updated_at`. No client-side financial calculation or duplicate API model was added. Empty/missing portfolio data is blocked, not healthy. |
-| AC-5 | Vitest covers shell navigation, evidence controls, quality language, malformed API payloads, stale retry behavior, and all API state variants (5 files, 21 tests). CSS includes desktop/mobile layouts, overflow-safe navigation, audited small-text contrast tokens, and reduced-motion behavior. Verified HTTP 200/title `AtlasRisk` in configured Vite preview, then actual installed headless Chrome captured `C:\tmp\atrisk-ar501\desktop-final.png` at 1440x900, `C:\tmp\atrisk-ar501\mobile-final-390.png` at 390x844, and `C:\tmp\atrisk-ar501\mobile-final-320.png` at 320x844. Chrome DevTools measurements showed document/body widths 1425/1425 at 1440 (15px scrollbar), 375/375 at 390, and 320/320 at 320; mobile nav bounds were x16..359 (390) and x16..304 (320), every mobile nav item had `scrollWidth === clientWidth`, and controls ended at x342 (390) / x287 (320), with no page-level horizontal overflow. |
+| AC-5 | Vitest covers shell navigation, evidence controls, quality language, malformed API payloads, stale retry behavior, and all API state variants (5 files, 21 tests). CSS includes desktop/mobile layouts, overflow-safe navigation, audited small-text contrast tokens, and reduced-motion behavior. Verified HTTP 200/title `AtlasRisk` in configured Vite preview, then actual installed headless Chrome captured `C:\tmp\atrisk-ar501\desktop-final.png` at 1440x900, `C:\tmp\atrisk-ar501\mobile-final-390.png` at 390x844, and `C:\tmp\atrisk-ar501\mobile-final-320.png` at 320x844 on 2026-09-28 10:41 TRT, after implementation commit `e3ec4e4`. Chrome DevTools measurements showed document/body widths 1425/1425 at 1440 (15px scrollbar), 375/375 at 390, and 320/320 at 320; mobile nav bounds were x16..359 (390) and x16..304 (320), every mobile nav item had `scrollWidth === clientWidth`, and controls ended at x342 (390) / x287 (320), with no page-level horizontal overflow. |
 
 ## Stop-condition check
 
@@ -31,7 +31,7 @@
 
 | Command | Result |
 |---|---|
-| `npm test -- --run` | pass; 5 test files, 15 tests |
+| `npm test -- --run` | pass; 5 test files, 21 tests |
 | `npm run typecheck` | pass |
 | `npm run build` | pass; Vite production bundle built |
 | `npm run lint` | pass |
@@ -46,8 +46,8 @@
 ## Git state
 
 - Branch: `task/AR-501-web-shell-quality`
-- Implementation SHA: `40b164a` (final viewport fix)
-- Report-only commits follow the implementation commit; they do not change runtime code.
+- Implementation SHA: `e3ec4e4` (complete portfolio response guard and tests)
+- Report-only commits `9f72154` and `f2ddb22` preceded this implementation commit; they did not change runtime code.
 - Remote branch: not pushed; awaiting orchestrator push authorization
 - Worktree: clean after commit
 
