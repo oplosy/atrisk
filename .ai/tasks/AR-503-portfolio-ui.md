@@ -1,12 +1,12 @@
 ---
 id: AR-503
 title: Build portfolio valuation and reconciliation UI
-status: draft
+status: ready
 phase: 5
 depends_on: [AR-204, AR-501]
 branch: task/AR-503-portfolio-ui
 owned_paths: [apps/web/src/features/portfolio/, apps/web/src/routes/portfolio/]
-shared_paths: [apps/web/src/components/, apps/web/src/generated/]
+shared_paths: [apps/web/src/components/, apps/web/src/routes/root/, apps/web/src/app/, apps/web/src/styles.css, apps/web/src/App.test.tsx]
 adrs: [ADR-010, ADR-011, ADR-012, ADR-016]
 ---
 
@@ -37,7 +37,13 @@ lineage, and record reconciliation checkpoints with explicit completeness state.
 ## Required verification
 
 ```text
-task test-web TEST=portfolio
-task test-web-a11y ROUTE=/portfolio
-task test-e2e TEST=portfolio_reconciliation
+npm test -- --run
+npm run typecheck
+npm run build
+npm run lint
+npm run format:check
 ```
+
+Record browser evidence for `/portfolio` at desktop and 320px, including keyboard
+navigation, CSV preview/commit gating, and recoverable form errors. Hosted PR CI
+must pass `task verify`.
