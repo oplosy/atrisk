@@ -168,9 +168,7 @@ export function RootRoute({ route, onNavigate }: RootRouteProps) {
           <div className="content__intro">
             <div>
               <p className="eyebrow">{page?.eyebrow ?? "Decision workspace"}</p>
-              <h1>
-                {page?.title ?? "See what was knowable before you decide."}
-              </h1>
+              <h1>{page?.title ?? "Know what was knowable."}</h1>
               <p className="lede">
                 {page?.body ??
                   "AtlasRisk keeps portfolio state, market evidence, and risk quality in one inspectable timeline."}
