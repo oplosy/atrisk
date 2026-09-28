@@ -35,6 +35,48 @@ type Dataset struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
+type Decision struct {
+	ID                     pgtype.UUID        `json:"id"`
+	AccountID              pgtype.UUID        `json:"account_id"`
+	Thesis                 string             `json:"thesis"`
+	Alternatives           []byte             `json:"alternatives"`
+	EvidenceReferences     []byte             `json:"evidence_references"`
+	InvalidationConditions []byte             `json:"invalidation_conditions"`
+	HorizonStart           pgtype.Timestamptz `json:"horizon_start"`
+	HorizonEnd             pgtype.Timestamptz `json:"horizon_end"`
+	RiskBudgetAmount       pgtype.Numeric     `json:"risk_budget_amount"`
+	RiskBudgetCurrency     string             `json:"risk_budget_currency"`
+	RiskBudgetMeasure      string             `json:"risk_budget_measure"`
+	RiskBudgetHorizon      string             `json:"risk_budget_horizon"`
+	IntendedAction         string             `json:"intended_action"`
+	Tags                   []string           `json:"tags"`
+	Status                 string             `json:"status"`
+	Author                 string             `json:"author"`
+	SourceMetadata         []byte             `json:"source_metadata"`
+	CreatedAt              pgtype.Timestamptz `json:"created_at"`
+	FinalizedAt            pgtype.Timestamptz `json:"finalized_at"`
+}
+
+type DecisionAmendment struct {
+	ID             pgtype.UUID        `json:"id"`
+	DecisionID     pgtype.UUID        `json:"decision_id"`
+	Summary        string             `json:"summary"`
+	Changes        []byte             `json:"changes"`
+	Author         string             `json:"author"`
+	SourceMetadata []byte             `json:"source_metadata"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type DecisionReview struct {
+	ID             pgtype.UUID        `json:"id"`
+	DecisionID     pgtype.UUID        `json:"decision_id"`
+	Review         string             `json:"review"`
+	Outcome        string             `json:"outcome"`
+	Author         string             `json:"author"`
+	SourceMetadata []byte             `json:"source_metadata"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type FxQuoteRevision struct {
 	ID                 pgtype.UUID        `json:"id"`
 	BaseCurrency       string             `json:"base_currency"`
@@ -46,6 +88,35 @@ type FxQuoteRevision struct {
 	KnowledgeTimeBasis string             `json:"knowledge_time_basis"`
 	RawObjectID        pgtype.UUID        `json:"raw_object_id"`
 	QualityFlags       []byte             `json:"quality_flags"`
+}
+
+type ImportPreviewToken struct {
+	TokenDigest          string             `json:"token_digest"`
+	ImportKind           string             `json:"import_kind"`
+	TargetID             pgtype.UUID        `json:"target_id"`
+	CapturedAt           pgtype.Timestamptz `json:"captured_at"`
+	SchemaVersion        string             `json:"schema_version"`
+	ContentSha256        string             `json:"content_sha256"`
+	RowCount             int32              `json:"row_count"`
+	Diagnostics          []byte             `json:"diagnostics"`
+	DiagnosticsTruncated bool               `json:"diagnostics_truncated"`
+	ExpiresAt            pgtype.Timestamptz `json:"expires_at"`
+	ConsumedAt           pgtype.Timestamptz `json:"consumed_at"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+}
+
+type ImportResult struct {
+	ID             pgtype.UUID        `json:"id"`
+	ImportKind     string             `json:"import_kind"`
+	IdempotencyKey string             `json:"idempotency_key"`
+	TargetID       pgtype.UUID        `json:"target_id"`
+	CapturedAt     pgtype.Timestamptz `json:"captured_at"`
+	SchemaVersion  string             `json:"schema_version"`
+	ContentSha256  string             `json:"content_sha256"`
+	RowCount       int32              `json:"row_count"`
+	RawObjectID    pgtype.UUID        `json:"raw_object_id"`
+	Response       []byte             `json:"response"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type IngestionRun struct {
@@ -188,6 +259,146 @@ type RawObject struct {
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }
 
+type ReconciliationCheckpoint struct {
+	ID                 pgtype.UUID        `json:"id"`
+	ValuationID        pgtype.UUID        `json:"valuation_id"`
+	AccountID          pgtype.UUID        `json:"account_id"`
+	SourceLabel        string             `json:"source_label"`
+	Currency           string             `json:"currency"`
+	Cutoff             pgtype.Timestamptz `json:"cutoff"`
+	ExternalNav        pgtype.Numeric     `json:"external_nav"`
+	ValuationNav       pgtype.Numeric     `json:"valuation_nav"`
+	AbsoluteDifference pgtype.Numeric     `json:"absolute_difference"`
+	RelativeDifference pgtype.Numeric     `json:"relative_difference"`
+	EffectiveTolerance pgtype.Numeric     `json:"effective_tolerance"`
+	ToleranceVersion   int32              `json:"tolerance_version"`
+	State              string             `json:"state"`
+	ReasonCode         *string            `json:"reason_code"`
+	LineCheckState     string             `json:"line_check_state"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+}
+
+type ReconciliationLineCheck struct {
+	ID                 pgtype.UUID        `json:"id"`
+	ReconciliationID   pgtype.UUID        `json:"reconciliation_id"`
+	SnapshotLineID     pgtype.UUID        `json:"snapshot_line_id"`
+	ExternalAmount     pgtype.Numeric     `json:"external_amount"`
+	ValuationAmount    pgtype.Numeric     `json:"valuation_amount"`
+	Difference         pgtype.Numeric     `json:"difference"`
+	AbsoluteDifference pgtype.Numeric     `json:"absolute_difference"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+}
+
+type ReconciliationToleranceVersion struct {
+	ID              pgtype.UUID        `json:"id"`
+	AccountID       pgtype.UUID        `json:"account_id"`
+	Version         int32              `json:"version"`
+	ToleranceAmount pgtype.Numeric     `json:"tolerance_amount"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+type RiskJob struct {
+	ID               pgtype.UUID        `json:"id"`
+	Kind             string             `json:"kind"`
+	SchemaVersion    string             `json:"schema_version"`
+	IdempotencyKey   string             `json:"idempotency_key"`
+	InputSnapshotIds []string           `json:"input_snapshot_ids"`
+	Payload          []byte             `json:"payload"`
+	State            string             `json:"state"`
+	AttemptCount     int32              `json:"attempt_count"`
+	MaxAttempts      int32              `json:"max_attempts"`
+	AvailableAt      pgtype.Timestamptz `json:"available_at"`
+	LeaseOwner       *string            `json:"lease_owner"`
+	LeaseExpiresAt   pgtype.Timestamptz `json:"lease_expires_at"`
+	Result           []byte             `json:"result"`
+	ResultHash       *string            `json:"result_hash"`
+	ErrorCode        *string            `json:"error_code"`
+	ErrorMessage     *string            `json:"error_message"`
+	ErrorDetails     []byte             `json:"error_details"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	CompletedAt      pgtype.Timestamptz `json:"completed_at"`
+}
+
+type RiskJobAttempt struct {
+	ID             int64              `json:"id"`
+	JobID          pgtype.UUID        `json:"job_id"`
+	Attempt        int32              `json:"attempt"`
+	WorkerID       string             `json:"worker_id"`
+	LeaseExpiresAt pgtype.Timestamptz `json:"lease_expires_at"`
+	StartedAt      pgtype.Timestamptz `json:"started_at"`
+	FinishedAt     pgtype.Timestamptz `json:"finished_at"`
+	Outcome        *string            `json:"outcome"`
+	ErrorCode      *string            `json:"error_code"`
+	ErrorMessage   *string            `json:"error_message"`
+	ErrorDetails   []byte             `json:"error_details"`
+}
+
+type Scenario struct {
+	ID             pgtype.UUID        `json:"id"`
+	AccountID      pgtype.UUID        `json:"account_id"`
+	Name           string             `json:"name"`
+	TemplateKey    string             `json:"template_key"`
+	CurrentVersion int32              `json:"current_version"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type ScenarioRun struct {
+	ID              pgtype.UUID        `json:"id"`
+	ScenarioID      pgtype.UUID        `json:"scenario_id"`
+	ScenarioVersion int32              `json:"scenario_version"`
+	AccountID       pgtype.UUID        `json:"account_id"`
+	SnapshotID      pgtype.UUID        `json:"snapshot_id"`
+	JobID           pgtype.UUID        `json:"job_id"`
+	State           string             `json:"state"`
+	Result          []byte             `json:"result"`
+	ResultHash      *string            `json:"result_hash"`
+	RequestHash     string             `json:"request_hash"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	CompletedAt     pgtype.Timestamptz `json:"completed_at"`
+}
+
+type ScenarioRunMetric struct {
+	RunID      pgtype.UUID        `json:"run_id"`
+	MetricKey  string             `json:"metric_key"`
+	PreValue   pgtype.Numeric     `json:"pre_value"`
+	PostValue  pgtype.Numeric     `json:"post_value"`
+	State      string             `json:"state"`
+	ReasonCode *string            `json:"reason_code"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
+type ScenarioRunPosition struct {
+	RunID           pgtype.UUID        `json:"run_id"`
+	SnapshotLineID  pgtype.UUID        `json:"snapshot_line_id"`
+	InstrumentID    pgtype.UUID        `json:"instrument_id"`
+	State           string             `json:"state"`
+	ReasonCodes     []string           `json:"reason_codes"`
+	PreValueTry     pgtype.Numeric     `json:"pre_value_try"`
+	PostValueTry    pgtype.Numeric     `json:"post_value_try"`
+	PnlTry          pgtype.Numeric     `json:"pnl_try"`
+	PreValueUsd     pgtype.Numeric     `json:"pre_value_usd"`
+	PostValueUsd    pgtype.Numeric     `json:"post_value_usd"`
+	PnlUsd          pgtype.Numeric     `json:"pnl_usd"`
+	PriceReturn     pgtype.Numeric     `json:"price_return"`
+	YieldReturn     pgtype.Numeric     `json:"yield_return"`
+	FxMultiplierTry pgtype.Numeric     `json:"fx_multiplier_try"`
+	FxMultiplierUsd pgtype.Numeric     `json:"fx_multiplier_usd"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+type ScenarioVersion struct {
+	ScenarioID  pgtype.UUID        `json:"scenario_id"`
+	Version     int32              `json:"version"`
+	TemplateKey string             `json:"template_key"`
+	Units       []byte             `json:"units"`
+	Shocks      []byte             `json:"shocks"`
+	Mappings    []byte             `json:"mappings"`
+	Assumptions []byte             `json:"assumptions"`
+	ContentHash string             `json:"content_hash"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type Series struct {
 	ID                 pgtype.UUID        `json:"id"`
 	DatasetID          pgtype.UUID        `json:"dataset_id"`
@@ -198,5 +409,39 @@ type Series struct {
 	SeasonalAdjustment *string            `json:"seasonal_adjustment"`
 	SourceTimezone     *string            `json:"source_timezone"`
 	FreshnessPolicy    []byte             `json:"freshness_policy"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+}
+
+type ValuationLine struct {
+	ID                    pgtype.UUID        `json:"id"`
+	RunID                 pgtype.UUID        `json:"run_id"`
+	SnapshotLineID        pgtype.UUID        `json:"snapshot_line_id"`
+	NativeCurrency        string             `json:"native_currency"`
+	NativeAmount          pgtype.Numeric     `json:"native_amount"`
+	TryAmount             pgtype.Numeric     `json:"try_amount"`
+	UsdAmount             pgtype.Numeric     `json:"usd_amount"`
+	State                 string             `json:"state"`
+	ReasonCodes           []byte             `json:"reason_codes"`
+	PriceMethod           string             `json:"price_method"`
+	PriceRevisionID       pgtype.UUID        `json:"price_revision_id"`
+	PriceQuoteUnit        *string            `json:"price_quote_unit"`
+	TryFxQuoteRevisionIds []pgtype.UUID      `json:"try_fx_quote_revision_ids"`
+	TryFxDirections       []string           `json:"try_fx_directions"`
+	UsdFxQuoteRevisionIds []pgtype.UUID      `json:"usd_fx_quote_revision_ids"`
+	UsdFxDirections       []string           `json:"usd_fx_directions"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+}
+
+type ValuationRun struct {
+	ID                 pgtype.UUID        `json:"id"`
+	SnapshotID         pgtype.UUID        `json:"snapshot_id"`
+	Cutoff             pgtype.Timestamptz `json:"cutoff"`
+	KnowledgeMode      string             `json:"knowledge_mode"`
+	KnownAt            pgtype.Timestamptz `json:"known_at"`
+	PriceMaxAgeSeconds int64              `json:"price_max_age_seconds"`
+	FxMaxAgeSeconds    int64              `json:"fx_max_age_seconds"`
+	Request            []byte             `json:"request"`
+	State              string             `json:"state"`
+	ResultHash         string             `json:"result_hash"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 }
