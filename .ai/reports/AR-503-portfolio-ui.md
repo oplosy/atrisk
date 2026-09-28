@@ -25,7 +25,7 @@
 ## Stop-condition check
 
 - Decision or scope conflict: none.
-- Missing dependency, unsafe migration, or unavailable verification: no local API/database fixture was connected to the Vite preview; the 320px browser check and hosted CI remain unverified. `task` CLI is unavailable locally, so `task verify` could not run.
+- Missing dependency, unsafe migration, or unavailable verification: no local API/database fixture is connected to the Vite preview, so real API-backed form submissions remain unverified and show HTTP 404. Hosted `task verify` remains pending; the `task` CLI is unavailable locally.
 
 ## Verification
 
@@ -38,13 +38,14 @@
 | `npm run format:check` | pass |
 | `node C:\Users\mesut\.agents\skills\impeccable\scripts\detect.mjs --json` | pass, `[]` |
 | `/portfolio` in local in-app browser | route and controls render; localhost API returns HTTP 404 because no API proxy/backend is attached |
-| `/portfolio` in local browser at `http://127.0.0.1:4175/portfolio` | Desktop accessibility tree exposed the primary navigation, portfolio snapshot, CSV import, valuation, and reconciliation controls; API returned HTTP 404 because no backend was attached. This confirms route/control presence, not visual screenshot evidence. |
-| 320px browser viewport and screenshot | Not verified. The available browser control surface in this session did not expose a viewport-size override. |
+| `/portfolio` in local browser at `http://127.0.0.1:4175/portfolio` | Desktop accessibility tree exposed the primary navigation, snapshot, CSV import, valuation, and reconciliation controls. CSV Preview and Commit previewed CSV were disabled while the API returned HTTP 404 and no portfolio was available. |
+| Desktop browser screenshot | [1280×900 Chrome capture](evidence/AR-503-portfolio-1280.png). The visual content viewport is 1265px because the desktop vertical scrollbar occupies 15px; horizontal scroll position is 0. |
+| 320px browser viewport and screenshot | [320×844 Chrome capture](evidence/AR-503-portfolio-320.png), captured with device metrics override. `visualViewport.width`, document client width, and body width were 320px; horizontal scroll position was 0. The portfolio heading and controls wrap without clipping. |
 | `task verify` | unavailable: `task` executable not found |
 
 ## Change inventory
 
-- Files changed: portfolio API helper, route component, route stylesheet, component tests, shared root route, this report.
+- Files changed: portfolio API helper, route component, route stylesheet, component tests, shared root route, this report, and desktop/320px browser screenshots under `.ai/reports/evidence/`.
 - Schema/API changes: none.
 - Generated artifacts: none.
 
@@ -53,11 +54,12 @@
 - Branch: `task/AR-503-portfolio-ui`
 - Implementation commit SHA: `61eab655c0c1e7a262a2bd05a0a32c9c11104460`
 - Base SHA: `0277e082843b6caa8f16e95e96bac06ba4d4a1a4`
-- Remote branch: not pushed; no branch-specific authorization yet.
-- Worktree: clean at implementation handoff; this report update is a separate local commit.
+- Evidence/status commit SHA: recorded in the final handoff message.
+- Remote branch: not pushed; branch-specific authorization is pending. The task branch is ahead of `origin/main` by three commits after this evidence/status commit.
+- Worktree: clean at final handoff.
 
 ## Assumptions and risks
 
 - CSV preview and commit use the same file hash, portfolio ID, captured-at timestamp, and server token. The server remains the final validator of preview token expiry and import schema.
-- Browser evidence at 320px and real API-backed import, valuation, and reconciliation flows are still required before merge.
+- Browser visual evidence now covers desktop and 320px; real API-backed import, valuation, and reconciliation flows still require an attached backend and hosted CI before merge.
 - This branch was developed in the primary checkout rather than a sibling task worktree; later task work should return the primary checkout to clean `main` and use an isolated worktree as prescribed by the execution protocol.
