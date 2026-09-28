@@ -18,9 +18,9 @@
 |---|---|
 | AC-1 | Semantic navigation has visible labels, `aria-current`, labelled as-of controls, keyboard focus outlines, responsive navigation, and browser back/forward handling in `App.tsx` and `RootRoute.tsx`. |
 | AC-2 | `QualityBadge` renders icon plus explicit `Valid`, `Degraded`, or `Blocked` text; quality state is not conveyed by color alone. |
-| AC-3 | `StatusPanel` covers loading, empty, stale, offline, unauthorized-proxy, server-error, and generic error states with visible copy and retry behavior. `ErrorBoundary` provides a refresh state. |
-| AC-4 | `api.ts` imports `PortfolioPage` and `ErrorEnvelope` from `contracts/generated/typescript/contracts`; no client-side financial calculation or duplicate API model was added. Empty/missing portfolio data is blocked, not healthy. |
-| AC-5 | Vitest covers shell navigation, evidence controls, quality language, and all API state variants. CSS includes desktop/mobile layouts, overflow-safe navigation, contrast-oriented tokens, and reduced-motion behavior. |
+| AC-3 | `StatusPanel` covers loading, empty, stale, offline, unauthorized-proxy, server-error, and generic error states with visible copy and retry behavior. `useApiResource` preserves the last good payload and exposes `stale` after a failed retry. `ErrorBoundary` provides a refresh state. |
+| AC-4 | `api.ts` imports `PortfolioPage` and `ErrorEnvelope` from `contracts/generated/typescript/contracts`; runtime guards reject malformed 200 responses and portfolio items missing `id`, `name`, or `reporting_currency`. No client-side financial calculation or duplicate API model was added. Empty/missing portfolio data is blocked, not healthy. |
+| AC-5 | Vitest covers shell navigation, evidence controls, quality language, malformed API payloads, stale retry behavior, and all API state variants (5 files, 15 tests). CSS includes desktop/mobile layouts, overflow-safe navigation, audited small-text contrast tokens, and reduced-motion behavior. Headless Chrome captured `C:\tmp\atrisk-ar501\desktop.png` at 1440x900 and `C:\tmp\atrisk-ar501\mobile.png` at 390x844; both rendered without a page-level horizontal scrollbar. |
 
 ## Stop-condition check
 
@@ -31,7 +31,7 @@
 
 | Command | Result |
 |---|---|
-| `npm test -- --run` | pass; 3 test files, 10 tests |
+| `npm test -- --run` | pass; 5 test files, 15 tests |
 | `npm run typecheck` | pass |
 | `npm run build` | pass; Vite production bundle built |
 | `npm run lint` | pass |
@@ -39,18 +39,19 @@
 
 ## Change inventory
 
-- Files changed: web shell entry/test/styles plus `app/api.ts`, `app/useApiResource.ts`, `components/ErrorBoundary.tsx`, `components/QualityBadge.tsx`, `components/StatusPanel.tsx`, `components/StatusPanel.test.tsx`, and `routes/root/RootRoute.tsx`.
+- Files changed: web shell entry/test/styles plus `app/api.ts`, `app/api.test.ts`, `app/useApiResource.ts`, `app/useApiResource.test.tsx`, `components/ErrorBoundary.tsx`, `components/QualityBadge.tsx`, `components/StatusPanel.tsx`, `components/StatusPanel.test.tsx`, and `routes/root/RootRoute.tsx`.
 - Schema/API changes: none; read-only portfolio query uses the existing generated contract types.
 - Generated artifacts: none.
 
 ## Git state
 
 - Branch: `task/AR-501-web-shell-quality`
-- Commit SHA: pending worker commit
+- Commit SHA: `7b82a88` (final review-fix commit; base shell commit `5d75425`)
 - Remote branch: not pushed; awaiting orchestrator push authorization
 - Worktree: clean after commit
 
 ## Assumptions and risks
 
 - Domain screens remain placeholders by design; AR-502 through AR-505 own domain UI work.
+- The viewport screenshots are local verification artifacts under `C:\tmp`; they are not committed to the repository.
 - The local API may be unavailable during development; that condition is surfaced as an explicit offline state and does not present healthy risk data.
