@@ -17,10 +17,10 @@
 | Criterion | Evidence |
 |---|---|
 | AC-1 | `internal/application/risk.Service.Submit` delegates to the account-scoped scenario service and preserves idempotent job semantics; handler requires the `Idempotency-Key` header and rejects a body idempotency field. |
-| AC-2 | `mapStatus` distinguishes queued, running, retryable, permanent, cancelled, and completed; lifecycle tests cover status/cancel/positions routes and malformed UUIDs return 400. |
+| AC-2 | `mapStatus` distinguishes queued, running, retryable, permanent, cancelled, and completed; lifecycle tests cover status/cancel/positions routes, and malformed path or submit UUIDs return 400. |
 | AC-3 | `Run` exposes account/snapshot/job IDs, scenario version/content hash, request/result hashes, schema/engine versions, input snapshots, and stored result payload. |
 | AC-4 | `mapQuality` preserves degraded/blocked states and never maps them to healthy; reason codes include persisted worker errors and position causes. |
-| AC-5 | `contracts/openapi/openapi.json`, generated contract models, `contracts/jobs/risk-request.golden.json`, and `contracts/generated/go/contract_roundtrip_test.go` perform an actual generated Go model round-trip with object positions. |
+| AC-5 | `contracts/openapi/openapi.json`, generated contract models, `contracts/jobs/risk-request.golden.json`, and `contracts/jobs/contract_roundtrip_test.go` perform an actual generated Go model round-trip with object positions. |
 
 ## Stop-condition check
 
@@ -32,7 +32,7 @@
 | Command | Result |
 |---|---|
 | `task test-go TEST=RiskAPI` | unavailable: `task` executable is not installed |
-| `go test ./apps/... ./internal/... -run TestRiskAPI -count=1` | pass; RiskAPI test executed |
+| `go test ./apps/api/handlers/risk ./internal/application/risk -count=1` | pass; lifecycle and malformed submit UUID tests executed |
 | `task test-integration TEST=RiskEndToEnd` | unavailable: `task` executable is not installed |
 | `go test ./test/integration -run TestRiskEndToEnd -count=1 -v` | test compiled; skipped with `isolated database unavailable: test database URL is required` |
 | `task test-contract` | unavailable: `task` executable is not installed |
@@ -46,16 +46,16 @@
 
 ## Change inventory
 
-- Files changed: risk application service/tests, risk HTTP handler/tests, real-DB `TestRiskEndToEnd`, API route wiring, OpenAPI source, contract generator object-array support and allow-list, generated contract models, risk request/result golden contracts, generated Go round-trip test, this report.
+- Files changed: risk application service/tests, risk HTTP handler/tests including submit UUID validation, real-DB `TestRiskEndToEnd`, API route wiring, OpenAPI source, contract generator object-array support and allow-list, generated contract models, risk request/result golden contracts, generated Go round-trip test, this report.
 - Schema/API changes: submit, get/status, paginated positions, and cancel risk-run endpoints under `/api/v1/risk/runs`.
 - Generated artifacts: `contracts/generated/go/contracts.go`, `contracts/generated/typescript/contracts.ts`, `contracts/generated/python/contracts.py`, and Python package export.
 
 ## Git state
 
 - Branch: `task/AR-305-risk-result-api`
-- Commit SHA: pending commit after final staging
-- Remote branch: pending push
-- Worktree: dirty before final commit
+- Commit SHA: pending follow-up commit after UUID validation fixes
+- Remote branch: `task/AR-305-risk-result-api` (follow-up push pending)
+- Worktree: dirty before follow-up commit
 
 ## Assumptions and risks
 

@@ -48,6 +48,10 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "Idempotency-Key is required")
 			return
 		}
+		if !validUUID(request.AccountID) || !validUUID(request.SnapshotID) || (request.ScenarioID != "" && !validUUID(request.ScenarioID)) {
+			writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "account_id, snapshot_id, and scenario_id must be UUIDs")
+			return
+		}
 		result, err := h.Service.Submit(r.Context(), request)
 		if err != nil {
 			h.writeServiceError(w, err)

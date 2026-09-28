@@ -33,7 +33,7 @@ func (f *fakeService) Cancel(context.Context, string, string) (application.Run, 
 
 func TestHandlerRequiresAndForwardsIdempotencyKey(t *testing.T) {
 	fake := &fakeService{}
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/risk/runs", strings.NewReader(`{"account_id":"a","snapshot_id":"s","name":"risk","template_key":"risk_off","units":{},"shocks":{},"mappings":{},"assumptions":{},"positions":[]}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/risk/runs", strings.NewReader(`{"account_id":"00000000-0000-0000-0000-000000000001","snapshot_id":"00000000-0000-0000-0000-000000000002","name":"risk","template_key":"risk_off","units":{},"shocks":{},"mappings":{},"assumptions":{},"positions":[]}`))
 	req.Header.Set("Idempotency-Key", "risk-1")
 	rec := httptest.NewRecorder()
 	New(fake).ServeHTTP(rec, req)
@@ -42,6 +42,31 @@ func TestHandlerRequiresAndForwardsIdempotencyKey(t *testing.T) {
 	}
 	if fake.submitted.IdempotencyKey != "risk-1" {
 		t.Fatalf("idempotency key=%q", fake.submitted.IdempotencyKey)
+	}
+}
+
+func TestHandlerRejectsMalformedSubmitUUIDs(t *testing.T) {
+	const validAccount = "00000000-0000-0000-0000-000000000001"
+	const validSnapshot = "00000000-0000-0000-0000-000000000002"
+	base := `{"account_id":"` + validAccount + `","snapshot_id":"` + validSnapshot + `","name":"risk","template_key":"risk_off","units":{},"shocks":{},"mappings":{},"assumptions":{},"positions":[]}`
+	cases := []struct {
+		name string
+		body string
+	}{
+		{name: "account_id", body: strings.Replace(base, validAccount, "not-a-uuid", 1)},
+		{name: "snapshot_id", body: strings.Replace(base, validSnapshot, "not-a-uuid", 1)},
+		{name: "scenario_id", body: strings.Replace(base, `"name":"risk"`, `"scenario_id":"not-a-uuid","name":"risk"`, 1)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/risk/runs", strings.NewReader(tc.body))
+			req.Header.Set("Idempotency-Key", "risk-uuid-"+tc.name)
+			rec := httptest.NewRecorder()
+			New(&fakeService{}).ServeHTTP(rec, req)
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+			}
+		})
 	}
 }
 

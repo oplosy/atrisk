@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	applicationscenarios "github.com/oplosy/atrisk/internal/application/scenarios"
 )
@@ -72,7 +73,7 @@ type Page struct {
 type Service struct{ Pool *pgxpool.Pool }
 
 func (s Service) Submit(ctx context.Context, request SubmitRequest) (Run, error) {
-	if s.Pool == nil || strings.TrimSpace(request.IdempotencyKey) == "" {
+	if s.Pool == nil || strings.TrimSpace(request.IdempotencyKey) == "" || !validUUID(request.AccountID) || !validUUID(request.SnapshotID) || (request.ScenarioID != "" && !validUUID(request.ScenarioID)) {
 		return Run{}, ErrInvalidRequest
 	}
 	created, err := (applicationscenarios.Service{Pool: s.Pool}).CreateVersionAndRun(ctx, applicationscenarios.VersionInput{
@@ -88,6 +89,11 @@ func (s Service) Submit(ctx context.Context, request SubmitRequest) (Run, error)
 		return Run{}, fmt.Errorf("submit risk run: %w", err)
 	}
 	return s.Get(ctx, created.ID)
+}
+
+func validUUID(value string) bool {
+	var id pgtype.UUID
+	return id.Scan(strings.TrimSpace(value)) == nil && id.Valid
 }
 
 func (s Service) Get(ctx context.Context, id string) (Run, error) {
