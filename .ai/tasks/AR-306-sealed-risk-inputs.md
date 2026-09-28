@@ -5,7 +5,7 @@ status: ready
 phase: 3
 depends_on: [AR-203, AR-302, AR-303, AR-304, AR-305]
 branch: task/AR-306-sealed-risk-inputs
-base_sha: 0277e082843b6caa8f16e95e96bac06ba4d4a1a4
+base_sha: bfd36bd5e49a433dbd3657548019b18a4e2a0b58
 owned_paths: [internal/application/scenarios/, internal/application/risk/, apps/api/handlers/risk/, risk-engine/src/atlasrisk/jobs/, risk-engine/src/atlasrisk/scenarios/, risk-engine/src/atlasrisk/attribution/, risk-engine/src/atlasrisk/metrics/, risk-engine/tests/jobs/, risk-engine/tests/scenarios/, risk-engine/tests/attribution/, risk-engine/tests/metrics/]
 shared_paths: [db/migrations/, db/queries/risk/, contracts/openapi/, contracts/jobs/, contracts/generated/, scripts/generate/, test/integration/, Taskfile.yml, docs/plans/MASTER_PLAN.md, .ai/tasks/AR-504-risk-stress-ui.md]
 adrs: [ADR-009, ADR-010, ADR-011, ADR-012, ADR-013, ADR-014, ADR-015]
