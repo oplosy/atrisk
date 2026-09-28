@@ -20,7 +20,7 @@
 | AC-2 | `QualityBadge` renders icon plus explicit `Valid`, `Degraded`, or `Blocked` text; quality state is not conveyed by color alone. |
 | AC-3 | `StatusPanel` covers loading, empty, stale, offline, unauthorized-proxy, server-error, and generic error states with visible copy and retry behavior. `useApiResource` preserves the last good payload and exposes `stale` after a failed retry. `ErrorBoundary` provides a refresh state. |
 | AC-4 | `api.ts` imports `PortfolioPage` and `ErrorEnvelope` from `contracts/generated/typescript/contracts`; runtime guards reject malformed 200 responses and portfolio items missing `id`, `name`, or `reporting_currency`. No client-side financial calculation or duplicate API model was added. Empty/missing portfolio data is blocked, not healthy. |
-| AC-5 | Vitest covers shell navigation, evidence controls, quality language, malformed API payloads, stale retry behavior, and all API state variants (5 files, 15 tests). CSS includes desktop/mobile layouts, overflow-safe navigation, audited small-text contrast tokens, and reduced-motion behavior. Actual headless Chrome browser execution captured `C:\tmp\atrisk-ar501\desktop.png` at 1440x900 and `C:\tmp\atrisk-ar501\mobile.png` at 390x844; both rendered without a page-level horizontal scrollbar. |
+| AC-5 | Vitest covers shell navigation, evidence controls, quality language, malformed API payloads, stale retry behavior, and all API state variants (5 files, 15 tests). CSS includes desktop/mobile layouts, overflow-safe navigation, audited small-text contrast tokens, and reduced-motion behavior. Actual headless Chrome browser execution captured `C:\tmp\atrisk-ar501\desktop-final.png` at 1440x900, `C:\tmp\atrisk-ar501\mobile-final-390.png` at 390x844, and `C:\tmp\atrisk-ar501\mobile-final-320.png` at 320x844. Chrome DevTools measurements showed document width equal to the viewport/content width, every mobile nav item `scrollWidth === clientWidth`, and controls ending at x304 (320px) / x342 (390px), with no page-level horizontal overflow. |
 
 ## Stop-condition check
 
@@ -46,7 +46,7 @@
 ## Git state
 
 - Branch: `task/AR-501-web-shell-quality`
-- Commit SHA: `5435a8b` (final task branch commit; review-fix commit `7b82a88`, base shell commit `5d75425`)
+- Commit SHA: `40b164a` (final viewport-fix commit; prior test/report commits remain in branch history)
 - Remote branch: not pushed; awaiting orchestrator push authorization
 - Worktree: clean after commit
 
