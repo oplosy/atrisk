@@ -1,7 +1,7 @@
 ---
 id: AR-601
 title: Prove the complete AtlasRisk journeys
-status: draft
+status: ready
 phase: 6
 depends_on: [AR-502, AR-503, AR-504, AR-505]
 branch: task/AR-601-end-to-end-proof
