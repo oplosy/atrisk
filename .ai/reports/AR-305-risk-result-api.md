@@ -53,9 +53,9 @@
 ## Git state
 
 - Branch: `task/AR-305-risk-result-api`
-- Commit SHA: pending follow-up commit after UUID validation fixes
+- Commit SHA: `42b63bf` (`fix(api): validate risk submission UUIDs [AR-305]`)
 - Remote branch: `task/AR-305-risk-result-api` (follow-up push pending)
-- Worktree: dirty before follow-up commit
+- Worktree: clean after the implementation commit; this report update is metadata-only
 
 ## Assumptions and risks
 
