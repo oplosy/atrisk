@@ -38,6 +38,8 @@
 | `npm run format:check` | pass |
 | `node C:\Users\mesut\.agents\skills\impeccable\scripts\detect.mjs --json` | pass, `[]` |
 | `/portfolio` in local in-app browser | route and controls render; localhost API returns HTTP 404 because no API proxy/backend is attached |
+| `/portfolio` in local browser at `http://127.0.0.1:4175/portfolio` | Desktop accessibility tree exposed the primary navigation, portfolio snapshot, CSV import, valuation, and reconciliation controls; API returned HTTP 404 because no backend was attached. This confirms route/control presence, not visual screenshot evidence. |
+| 320px browser viewport and screenshot | Not verified. The available browser control surface in this session did not expose a viewport-size override. |
 | `task verify` | unavailable: `task` executable not found |
 
 ## Change inventory
@@ -49,9 +51,10 @@
 ## Git state
 
 - Branch: `task/AR-503-portfolio-ui`
-- Commit SHA: task branch HEAD; exact SHA is reported in the handoff.
+- Implementation commit SHA: `61eab655c0c1e7a262a2bd05a0a32c9c11104460`
+- Base SHA: `0277e082843b6caa8f16e95e96bac06ba4d4a1a4`
 - Remote branch: not pushed; no branch-specific authorization yet.
-- Worktree: clean after commit expected.
+- Worktree: clean at implementation handoff; this report update is a separate local commit.
 
 ## Assumptions and risks
 
