@@ -48,9 +48,9 @@
 
 - Branch: `task/AR-402-decision-evidence`
 - Implementation commit SHA: `a43c6f9` (`fix(evidence): complete decision evidence contract models [AR-402]`)
-- Report update commit SHA: recorded in the final handoff after this report commit.
-- Remote branch: pending
-- Worktree: dirty until commit
+- Report update commit SHA: `6a3a2d6` (this final state correction is committed separately).
+- Remote branch: not pushed; branch is ahead of `origin/main` by four commits.
+- Worktree: clean at final handoff.
 
 ## Assumptions and risks
 
