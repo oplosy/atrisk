@@ -6,6 +6,7 @@ import { QualityBadge, type QualityState } from "../../components/QualityBadge";
 import { StatusPanel } from "../../components/StatusPanel";
 import { PortfolioRoute } from "../portfolio/PortfolioRoute";
 import { RiskRoute } from "../risk/RiskRoute";
+import { DecisionJournalRoute } from "../decisions/DecisionsRoute";
 
 export type ShellRoute =
   | "/"
@@ -13,6 +14,7 @@ export type ShellRoute =
   | "/portfolio"
   | "/risk"
   | "/journal"
+  | "/decisions"
   | "/settings";
 
 const routes: Record<
@@ -38,6 +40,11 @@ const routes: Record<
     eyebrow: "Decision journal",
     title: "Keep decisions beside their evidence.",
     body: "Journal entries will link to immutable snapshots without turning AtlasRisk into an execution or recommendation system.",
+  },
+  "/decisions": {
+    eyebrow: "Decision journal",
+    title: "Keep decisions beside their evidence.",
+    body: "Draft, seal, reconstruct, and review decision records without turning AtlasRisk into an execution or recommendation system.",
   },
   "/settings": {
     eyebrow: "Workspace settings",
@@ -148,7 +155,7 @@ export function RootRoute({ route, onNavigate }: RootRouteProps) {
                         ? "▦"
                         : path === "/risk"
                           ? "⌁"
-                          : path === "/journal"
+                          : path === "/journal" || path === "/decisions"
                             ? "✎"
                             : "⚙"}
                   </span>
@@ -224,6 +231,8 @@ export function RootRoute({ route, onNavigate }: RootRouteProps) {
             <PortfolioRoute />
           ) : route === "/risk" ? (
             <RiskRoute />
+          ) : route === "/decisions" ? (
+            <DecisionJournalRoute />
           ) : route === "/" ? (
             <>
               <section className="signal-grid" aria-label="Workspace signals">
