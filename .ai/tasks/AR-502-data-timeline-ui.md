@@ -1,12 +1,12 @@
 ---
 id: AR-502
 title: Build the point-in-time data timeline
-status: draft
+status: ready
 phase: 5
 depends_on: [AR-106, AR-501]
 branch: task/AR-502-data-timeline-ui
-owned_paths: [apps/web/src/features/timeline/, apps/web/src/routes/data/]
-shared_paths: [apps/web/src/components/, apps/web/src/generated/]
+owned_paths: [apps/web/src/features/timeline/, apps/web/src/routes/timeline/]
+shared_paths: [apps/web/src/components/, apps/web/src/routes/root/, apps/web/src/app/, apps/web/src/styles.css, apps/web/src/App.test.tsx]
 adrs: [ADR-006, ADR-007, ADR-011]
 ---
 
@@ -33,11 +33,17 @@ quality, units, and raw provenance without confusing their semantics.
 - [ ] Unsupported source vintages have a direct explanatory state.
 - [ ] Missing/stale/partial/suspect status is visible without opening a tooltip.
 - [ ] Route works for empty, one-point, dense, error, and paginated fixtures.
+- [ ] `/timeline` route remains compatible with shell navigation and browser history.
 
 ## Required verification
 
 ```text
-task test-web TEST=timeline
-task test-web-a11y ROUTE=/data
-task test-e2e TEST=timeline
+npm test -- --run
+npm run typecheck
+npm run build
+npm run lint
+npm run format:check
 ```
+
+Record browser evidence for `/timeline` at desktop and 320px, including keyboard
+navigation and empty/error/paginated states. Hosted PR CI must pass `task verify`.

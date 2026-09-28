@@ -1,12 +1,12 @@
 ---
 id: AR-504
 title: Build risk and stress analysis UI
-status: draft
+status: ready
 phase: 5
 depends_on: [AR-305, AR-501]
 branch: task/AR-504-risk-stress-ui
 owned_paths: [apps/web/src/features/risk/, apps/web/src/routes/risk/]
-shared_paths: [apps/web/src/components/, apps/web/src/generated/]
+shared_paths: [apps/web/src/components/, apps/web/src/routes/root/, apps/web/src/app/, apps/web/src/styles.css, apps/web/src/App.test.tsx]
 adrs: [ADR-011, ADR-013, ADR-014, ADR-015]
 ---
 
@@ -38,7 +38,13 @@ loss reconciliation, factor attribution, and unmapped-input warnings.
 ## Required verification
 
 ```text
-task test-web TEST=risk
-task test-web-a11y ROUTE=/risk
-task test-e2e TEST=risk_stress
+npm test -- --run
+npm run typecheck
+npm run build
+npm run lint
+npm run format:check
 ```
+
+Record browser evidence for `/risk` at desktop and 320px, including keyboard
+navigation, job lifecycle states, and attribution reconciliation. Hosted PR CI
+must pass `task verify`.
