@@ -5,6 +5,7 @@ import { useApiResource, type ResourceState } from "../../app/useApiResource";
 import { QualityBadge, type QualityState } from "../../components/QualityBadge";
 import { StatusPanel } from "../../components/StatusPanel";
 import { PortfolioRoute } from "../portfolio/PortfolioRoute";
+import { RiskRoute } from "../risk/RiskRoute";
 
 export type ShellRoute =
   | "/"
@@ -182,7 +183,7 @@ export function RootRoute({ route, onNavigate }: RootRouteProps) {
             </div>
           </div>
 
-          {route !== "/portfolio" && (
+          {route !== "/portfolio" && route !== "/risk" && (
             <section className="control-strip" aria-labelledby="as-of-title">
               <div className="control-strip__title">
                 <span className="step-number">01</span>
@@ -221,6 +222,8 @@ export function RootRoute({ route, onNavigate }: RootRouteProps) {
 
           {route === "/portfolio" ? (
             <PortfolioRoute />
+          ) : route === "/risk" ? (
+            <RiskRoute />
           ) : route === "/" ? (
             <>
               <section className="signal-grid" aria-label="Workspace signals">
