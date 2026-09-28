@@ -34,6 +34,7 @@ from .contracts import (
     RiskPosition,
     RiskPositionPage,
     CancelRiskRunRequest,
+    DecisionEvidence,
 )
 
 __all__ = [
@@ -71,4 +72,5 @@ __all__ = [
     "RiskPosition",
     "RiskPositionPage",
     "CancelRiskRunRequest",
+    "DecisionEvidence",
 ]

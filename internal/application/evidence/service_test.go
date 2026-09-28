@@ -41,6 +41,9 @@ func TestDecisionEvidenceUUIDValidation(t *testing.T) {
 	if !validUUID("00000000-0000-0000-0000-000000000001") {
 		t.Fatal("valid id rejected")
 	}
+	if !validUUID("ABCDEFAB-CDEF-ABCD-EFAB-CDEFABCDEFAB") {
+		t.Fatal("uppercase hexadecimal id rejected")
+	}
 	for _, id := range []string{"", "fixture", "00000000X0000-0000-0000-000000000001", "00000000-0000-0000-0000-00000000000g"} {
 		if validUUID(id) {
 			t.Fatalf("invalid id accepted: %q", id)

@@ -168,6 +168,7 @@ const apiModelNames = [
   "RiskPosition",
   "RiskPositionPage",
   "CancelRiskRunRequest",
+  "DecisionEvidence",
 ];
 const apiSchema = (name, seen = new Set()) => {
   if (seen.has(name)) throw new Error(`cyclic API schema composition: ${name}`);

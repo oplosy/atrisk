@@ -289,3 +289,7 @@ class RiskPositionPage(ContractModel):
 
 class CancelRiskRunRequest(ContractModel):
     reason: str | None = None
+
+class DecisionEvidence(ContractModel):
+    manifest: dict[str, Any]
+    sha256: str
