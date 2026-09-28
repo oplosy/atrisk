@@ -30,4 +30,16 @@ describe("App", () => {
       screen.getByRole("heading", { name: "Inspect a risk run" }),
     ).toBeInTheDocument();
   });
+
+  it("opens the decision journal at its dedicated route", () => {
+    render(<App />);
+    const decisionLink = screen
+      .getAllByRole("link", { name: /decision journal/i })
+      .find((link) => link.getAttribute("href") === "/decisions");
+    expect(decisionLink).toBeDefined();
+    fireEvent.click(decisionLink!);
+    expect(
+      screen.getByRole("heading", { name: /write down what was knowable/i }),
+    ).toBeInTheDocument();
+  });
 });
