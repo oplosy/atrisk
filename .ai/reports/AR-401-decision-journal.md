@@ -52,9 +52,9 @@
 ## Git state
 
 - Branch: `task/AR-401-decision-journal`
-- Commit SHA: pending final local commit after orchestrator scope review
+- Commit SHA: `176fc50`, `ef9df82`
 - Remote branch: not pushed; external push authorization is pending
-- Worktree: clean required at handoff
+- Worktree: clean
 
 ## Assumptions and risks
 
