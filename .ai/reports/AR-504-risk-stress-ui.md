@@ -59,7 +59,7 @@
 - Base SHA: `ee9a61994c9b6aef5440f7b89bd6fbebdfce50f2` (`main` after AR-306 PR #53 and AR-503 PR #54 merged).
 - Implementation commit: `5b5099aee129f3e22cfabf192a163f0b2b7415c5` (`feat(risk): add sealed scenario and attribution UI [AR-504]`).
 - Contract-fixture fix: `8579863b88d3d29ac501a7690966f5052823ca13` adds the now-required `valuation_id` to risk-run test fixtures.
-- Remote branch: not pushed; hosted `task verify` and PR CI are pending.
+- Remote branch: `task/AR-504-risk-stress-ui` is published on `oplosy/atrisk`; [PR #57](https://github.com/oplosy/atrisk/pull/57) is open against `main`. Its content tree is sourced from reviewed local commit `adc012be3f9b1db1b8817f83c6e53cdc502021fa`, applied to remote `main` at `ac8a92d3b85bab739f612928657f3dea59083eaa`; the GitHub API produced thirteen per-file commits, so the remote commit graph differs from the local worktree history. The local worktree remains clean. Hosted PR verification and API-backed browser submission testing are pending.
 - Worktree: clean after the review-fix commit; no upstream tracking branch is configured.
 
 ## Assumptions and risks
