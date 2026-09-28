@@ -54,6 +54,33 @@ func valid(input VersionInput) bool {
 	return input.Units != nil && input.Shocks != nil && input.Mappings != nil && input.Assumptions != nil
 }
 
+func canonicalUUID(value string) (string, error) {
+	var id pgtype.UUID
+	if err := id.Scan(strings.TrimSpace(value)); err != nil || !id.Valid {
+		return "", ErrInvalidRequest
+	}
+	return id.String(), nil
+}
+
+func canonicalizeInputIDs(input VersionInput) (VersionInput, error) {
+	var err error
+	if input.AccountID, err = canonicalUUID(input.AccountID); err != nil {
+		return VersionInput{}, err
+	}
+	if input.SnapshotID, err = canonicalUUID(input.SnapshotID); err != nil {
+		return VersionInput{}, err
+	}
+	if input.ValuationID, err = canonicalUUID(input.ValuationID); err != nil {
+		return VersionInput{}, err
+	}
+	if input.ScenarioID != "" {
+		if input.ScenarioID, err = canonicalUUID(input.ScenarioID); err != nil {
+			return VersionInput{}, err
+		}
+	}
+	return input, nil
+}
+
 type sealedValuation struct {
 	Positions    []map[string]any
 	Provenance   map[string]any
@@ -64,6 +91,20 @@ type metricPriceRevision struct {
 	ID                 string
 	ObservationTime    time.Time
 	Price              string
+	QuoteCurrency      string
+	USDPrice           string
+	FXPath             []metricFXRevision
+	SourceKnownAt      *time.Time
+	SystemKnownAt      time.Time
+	KnowledgeTimeBasis string
+}
+
+type metricFXRevision struct {
+	ID                 string
+	Pair               string
+	Direction          string
+	ObservationTime    time.Time
+	Rate               string
 	SourceKnownAt      *time.Time
 	SystemKnownAt      time.Time
 	KnowledgeTimeBasis string
@@ -139,6 +180,7 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 	provenanceLines := make([]map[string]any, 0)
 	metricPrices := make(map[string]map[string]string)
 	metricPriceProvenance := make(map[string][]map[string]any)
+	metricFXHistories := make(map[string][]metricFXRevision)
 	metricQuantities := make(map[string]string)
 	metricExposures := make(map[string]string)
 	metricCalendar := "crypto_daily"
@@ -202,7 +244,7 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 		if instrumentType != "crypto_spot" {
 			metricCalendar = "business_daily"
 		}
-		if priceMethod != "revision" || quoteUnit == nil || strings.TrimSpace(*quoteUnit) != "USD" {
+		if priceMethod != "revision" || quoteUnit == nil {
 			metricInputsAvailable = false
 		} else {
 			history, historyErr := loadMetricPriceHistory(ctx, tx, instrumentID, *quoteUnit, cutoff, knowledgeMode, knownAt)
@@ -212,6 +254,33 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 			if len(history) == 0 {
 				metricInputsAvailable = false
 			} else {
+				for index := range history {
+					if strings.TrimSpace(*quoteUnit) != "USD" {
+						currency := strings.TrimSpace(*quoteUnit)
+						fxHistory, ok := metricFXHistories[currency]
+						if !ok {
+							var fxErr error
+							fxHistory, fxErr = loadMetricFXHistory(ctx, tx, currency, cutoff, knowledgeMode, knownAt)
+							if fxErr != nil {
+								return sealedValuation{}, fmt.Errorf("load pre-shock FX history: %w", fxErr)
+							}
+							metricFXHistories[currency] = fxHistory
+						}
+						fxRevision := selectMetricFXRevision(fxHistory, history[index].ObservationTime, fxMaxAge)
+						if fxRevision == nil {
+							metricInputsAvailable = false
+							continue
+						}
+						history[index].FXPath = []metricFXRevision{*fxRevision}
+						var fxErr error
+						history[index].USDPrice, fxErr = convertMetricPriceToUSD(history[index].Price, fxRevision.Rate, fxRevision.Direction)
+						if fxErr != nil {
+							return sealedValuation{}, fmt.Errorf("convert pre-shock FX history: %w", fxErr)
+						}
+					} else {
+						history[index].USDPrice = history[index].Price
+					}
+				}
 				metricPrices[instrumentID] = aggregateMetricPriceHistory(history)
 				metricPriceProvenance[instrumentID] = metricPriceRevisionMaps(history)
 				metricQuantities[instrumentID] = quantity
@@ -254,10 +323,10 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 
 func loadMetricPriceHistory(ctx context.Context, tx pgx.Tx, instrumentID, quoteUnit, cutoff, knowledgeMode, knownAt string) ([]metricPriceRevision, error) {
 	knownClause := "system_known_at <= $4"
-	orderClause := "observation_time, system_known_at DESC, id DESC"
+	orderClause := "observation_time, system_known_at DESC, id ASC"
 	if knowledgeMode == "source_as_of" {
 		knownClause = "source_known_at IS NOT NULL AND source_known_at <= $4"
-		orderClause = "observation_time, source_known_at DESC, system_known_at DESC, id DESC"
+		orderClause = "observation_time, source_known_at DESC, system_known_at DESC, id ASC"
 	}
 	query := fmt.Sprintf(`SELECT id::text, observation_time, price::text, source_known_at, system_known_at, knowledge_time_basis
 		FROM (SELECT DISTINCT ON (observation_time) id, observation_time, price, source_known_at, system_known_at, knowledge_time_basis
@@ -279,34 +348,118 @@ func loadMetricPriceHistory(ctx context.Context, tx pgx.Tx, instrumentID, quoteU
 		if err := rows.Scan(&revision.ID, &revision.ObservationTime, &revision.Price, &revision.SourceKnownAt, &revision.SystemKnownAt, &revision.KnowledgeTimeBasis); err != nil {
 			return nil, err
 		}
+		revision.QuoteCurrency = strings.TrimSpace(quoteUnit)
 		history = append(history, revision)
 	}
 	return history, rows.Err()
 }
 
-func aggregateMetricPriceHistory(revisions []metricPriceRevision) map[string]string {
-	ordered := append([]metricPriceRevision(nil), revisions...)
-	sort.SliceStable(ordered, func(i, j int) bool {
-		if ordered[i].ObservationTime.Equal(ordered[j].ObservationTime) {
-			return ordered[i].ID < ordered[j].ID
+func loadMetricFXHistory(ctx context.Context, tx pgx.Tx, currency, cutoff, knowledgeMode, knownAt string) ([]metricFXRevision, error) {
+	knownClause := "system_known_at <= $3"
+	orderClause := "observation_time, system_known_at DESC, id ASC"
+	if knowledgeMode == "source_as_of" {
+		knownClause = "source_known_at IS NOT NULL AND source_known_at <= $3"
+		orderClause = "observation_time, source_known_at DESC, system_known_at DESC, id ASC"
+	}
+	query := fmt.Sprintf(`SELECT id::text, base_currency, quote_currency, observation_time, rate::text,
+		source_known_at, system_known_at, knowledge_time_basis
+		FROM fx_quote_revisions
+		WHERE ((base_currency=$1 AND quote_currency='USD') OR (base_currency='USD' AND quote_currency=$1))
+		  AND observation_time <= $2::timestamptz
+		  AND observation_time >= $2::timestamptz - interval '730 days'
+		  AND %s
+		ORDER BY %s`, knownClause, orderClause)
+	rows, err := tx.Query(ctx, query, currency, cutoff, knownAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	history := make([]metricFXRevision, 0)
+	for rows.Next() {
+		var revision metricFXRevision
+		var baseCurrency, quoteCurrency string
+		if err := rows.Scan(&revision.ID, &baseCurrency, &quoteCurrency, &revision.ObservationTime, &revision.Rate, &revision.SourceKnownAt, &revision.SystemKnownAt, &revision.KnowledgeTimeBasis); err != nil {
+			return nil, err
 		}
-		return ordered[i].ObservationTime.Before(ordered[j].ObservationTime)
-	})
+		revision.Pair = strings.TrimSpace(baseCurrency) + "/" + strings.TrimSpace(quoteCurrency)
+		if strings.TrimSpace(baseCurrency) == currency && strings.TrimSpace(quoteCurrency) == "USD" {
+			revision.Direction = "direct"
+		} else {
+			revision.Direction = "inverse"
+		}
+		history = append(history, revision)
+	}
+	return history, rows.Err()
+}
+
+func selectMetricFXRevision(history []metricFXRevision, observationTime time.Time, maxAgeSeconds int64) *metricFXRevision {
+	selectOrientation := func(direction string) *metricFXRevision {
+		candidates := make([]metricFXRevision, 0)
+		for index := range history {
+			candidate := history[index]
+			if candidate.Direction != direction || candidate.ObservationTime.After(observationTime) ||
+				observationTime.Sub(candidate.ObservationTime) > time.Duration(maxAgeSeconds)*time.Second {
+				continue
+			}
+			candidates = append(candidates, candidate)
+		}
+		if len(candidates) == 0 {
+			return nil
+		}
+		sort.SliceStable(candidates, func(i, j int) bool {
+			if !candidates[i].ObservationTime.Equal(candidates[j].ObservationTime) {
+				return candidates[i].ObservationTime.After(candidates[j].ObservationTime)
+			}
+			if candidates[i].SourceKnownAt != nil && candidates[j].SourceKnownAt != nil && !candidates[i].SourceKnownAt.Equal(*candidates[j].SourceKnownAt) {
+				return candidates[i].SourceKnownAt.After(*candidates[j].SourceKnownAt)
+			}
+			if !candidates[i].SystemKnownAt.Equal(candidates[j].SystemKnownAt) {
+				return candidates[i].SystemKnownAt.After(candidates[j].SystemKnownAt)
+			}
+			return candidates[i].ID < candidates[j].ID
+		})
+		selected := candidates[0]
+		return &selected
+	}
+	if selected := selectOrientation("direct"); selected != nil {
+		return selected
+	}
+	return selectOrientation("inverse")
+}
+
+func convertMetricPriceToUSD(price, rate, direction string) (string, error) {
+	priceRat, ok := new(big.Rat).SetString(price)
+	if !ok || priceRat.Sign() <= 0 {
+		return "", ErrInvalidRequest
+	}
+	rateRat, ok := new(big.Rat).SetString(rate)
+	if !ok || rateRat.Sign() <= 0 {
+		return "", ErrInvalidRequest
+	}
+	if direction == "direct" {
+		return new(big.Rat).Mul(priceRat, rateRat).FloatString(18), nil
+	}
+	if direction == "inverse" {
+		return new(big.Rat).Quo(priceRat, rateRat).FloatString(18), nil
+	}
+	return "", ErrInvalidRequest
+}
+
+func aggregateMetricPriceHistory(revisions []metricPriceRevision) map[string]string {
+	ordered := selectMetricPriceRevisions(revisions)
 	history := make(map[string]string)
 	for _, revision := range ordered {
-		history[revision.ObservationTime.UTC().Format("2006-01-02")] = revision.Price
+		price := revision.USDPrice
+		if price == "" {
+			price = revision.Price
+		}
+		history[revision.ObservationTime.UTC().Format("2006-01-02")] = price
 	}
 	return history
 }
 
 func metricPriceRevisionMaps(revisions []metricPriceRevision) []map[string]any {
-	ordered := append([]metricPriceRevision(nil), revisions...)
-	sort.SliceStable(ordered, func(i, j int) bool {
-		if ordered[i].ObservationTime.Equal(ordered[j].ObservationTime) {
-			return ordered[i].ID < ordered[j].ID
-		}
-		return ordered[i].ObservationTime.Before(ordered[j].ObservationTime)
-	})
+	ordered := selectMetricPriceRevisions(revisions)
 	result := make([]map[string]any, 0, len(ordered))
 	for _, revision := range ordered {
 		var sourceKnownAt any
@@ -315,8 +468,45 @@ func metricPriceRevisionMaps(revisions []metricPriceRevision) []map[string]any {
 		}
 		result = append(result, map[string]any{
 			"id": revision.ID, "observation_time": revision.ObservationTime.UTC().Format(time.RFC3339Nano),
-			"price": revision.Price, "source_known_at": sourceKnownAt,
+			"price": revision.Price, "price_quote_currency": revision.QuoteCurrency,
+			"usd_price": revision.USDPrice, "source_known_at": sourceKnownAt,
 			"system_known_at":      revision.SystemKnownAt.UTC().Format(time.RFC3339Nano),
+			"knowledge_time_basis": revision.KnowledgeTimeBasis,
+			"fx_path":              metricFXRevisionMaps(revision.FXPath),
+		})
+	}
+	return result
+}
+
+func selectMetricPriceRevisions(revisions []metricPriceRevision) []metricPriceRevision {
+	ordered := append([]metricPriceRevision(nil), revisions...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		if ordered[i].ObservationTime.Equal(ordered[j].ObservationTime) {
+			return ordered[i].ID < ordered[j].ID
+		}
+		return ordered[i].ObservationTime.Before(ordered[j].ObservationTime)
+	})
+	selected := make([]metricPriceRevision, 0, len(ordered))
+	for _, revision := range ordered {
+		if len(selected) > 0 && selected[len(selected)-1].ObservationTime.Equal(revision.ObservationTime) {
+			continue
+		}
+		selected = append(selected, revision)
+	}
+	return selected
+}
+
+func metricFXRevisionMaps(revisions []metricFXRevision) []map[string]any {
+	result := make([]map[string]any, 0, len(revisions))
+	for _, revision := range revisions {
+		var sourceKnownAt any
+		if revision.SourceKnownAt != nil {
+			sourceKnownAt = revision.SourceKnownAt.UTC().Format(time.RFC3339Nano)
+		}
+		result = append(result, map[string]any{
+			"id": revision.ID, "pair": revision.Pair, "direction": revision.Direction,
+			"observation_time": revision.ObservationTime.UTC().Format(time.RFC3339Nano), "rate": revision.Rate,
+			"source_known_at": sourceKnownAt, "system_known_at": revision.SystemKnownAt.UTC().Format(time.RFC3339Nano),
 			"knowledge_time_basis": revision.KnowledgeTimeBasis,
 		})
 	}
@@ -462,6 +652,11 @@ func (s Service) CreateVersionAndRun(ctx context.Context, input VersionInput) (R
 	if s.Pool == nil || !valid(input) {
 		return Run{}, ErrInvalidRequest
 	}
+	canonicalInput, err := canonicalizeInputIDs(input)
+	if err != nil {
+		return Run{}, err
+	}
+	input = canonicalInput
 	canonical, err := json.Marshal(map[string]any{
 		"template_key": input.TemplateKey, "units": input.Units, "shocks": input.Shocks,
 		"mappings": input.Mappings, "assumptions": input.Assumptions,

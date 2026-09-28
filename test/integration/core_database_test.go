@@ -279,6 +279,14 @@ func verifyScenarioServicePersistence(t *testing.T, pool *pgxpool.Pool) {
 	if err != nil || first.ScenarioVer != 1 {
 		t.Fatalf("create first immutable scenario run: run=%+v err=%v", first, err)
 	}
+	uppercaseInput := input
+	uppercaseInput.AccountID = strings.ToUpper(input.AccountID)
+	uppercaseInput.SnapshotID = strings.ToUpper(input.SnapshotID)
+	uppercaseInput.ValuationID = strings.ToUpper(input.ValuationID)
+	uppercaseReplay, err := service.CreateVersionAndRun(ctx, uppercaseInput)
+	if err != nil || uppercaseReplay.ID != first.ID {
+		t.Fatalf("uppercase UUID replay did not canonicalize to the existing run: run=%+v err=%v", uppercaseReplay, err)
+	}
 	var jobPayload []byte
 	if err := pool.QueryRow(ctx, `SELECT payload FROM risk_jobs WHERE id=$1::uuid`, first.JobID).Scan(&jobPayload); err != nil {
 		t.Fatalf("load sealed scenario job payload: %v", err)
