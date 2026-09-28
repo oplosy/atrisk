@@ -1,12 +1,12 @@
 ---
 id: AR-402
 title: Seal decision evidence snapshots
-status: ready
+status: active
 phase: 4
 depends_on: [AR-305, AR-401]
 branch: task/AR-402-decision-evidence
 owned_paths: [internal/application/evidence/, db/queries/evidence/, apps/api/handlers/evidence/]
-shared_paths: [db/migrations/, db/queries/core/, db/queries/journal/, contracts/openapi/, internal/domain/journal/, internal/application/journal/, internal/platform/database/, apps/api/handlers/journal/, apps/api/cmd/api/, test/integration/, Taskfile.yml]
+shared_paths: [db/migrations/, db/queries/core/, db/queries/journal/, contracts/openapi/, contracts/generated/, scripts/generate/, internal/domain/journal/, internal/application/journal/, internal/platform/database/, apps/api/handlers/journal/, apps/api/cmd/api/, test/integration/, Taskfile.yml]
 adrs: [ADR-006, ADR-007, ADR-013, ADR-015]
 ---
 
@@ -33,6 +33,7 @@ scenario, engine, and contract versions that can be reconstructed later.
 - [ ] Manifest/hash covers every referenced identifier and version.
 - [ ] Missing archived evidence is an explicit integrity failure, not a latest fallback.
 - [ ] A golden historical-decision fixture reconstructs byte-identically after new revisions.
+- [ ] The public evidence response is represented in generated Go, TypeScript, and Python API models.
 
 ## Required verification
 
