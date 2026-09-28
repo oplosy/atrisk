@@ -54,7 +54,7 @@
 ## Git state
 
 - Branch: `task/AR-401-decision-journal`
-- Commit SHA: `176fc50`, `ef9df82`, `1678452`
+- Commit SHA: `176fc50`, `ef9df82`, `1678452`, `3c25391` (current final HEAD before this report-only update)
 - Remote branch: not pushed; external push authorization is pending
 - Worktree: clean
 
