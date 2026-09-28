@@ -21,7 +21,7 @@
 | Incomplete valuation is prominent and not full NAV | A non-valid run displays an alert and never renders the Complete NAV label; component test covers blocked state. |
 | Reconciliation displays tolerance and differences | Checkpoint comparison renders cutoff, absolute/relative difference, effective tolerance and version; checkpoint creation is limited to valid valuations. |
 | Forms preserve input on recoverable errors | Manual snapshot error test proves exact quantity remains after a rejected request. All forms keep controlled state after API errors. |
-| Stale mutation results cannot cross portfolio contexts | Three deferred-response tests prove delayed snapshot, valuation, and CSV snapshot-refresh results are ignored after switching portfolios. Implemented in `c18337f`; independent review finding addressed, awaiting re-review. |
+| Portfolio context is isolated after switching | Three deferred-response tests prove delayed snapshot, valuation, and CSV snapshot-refresh results are ignored. Two more assertions verify existing error and success notices clear on switch. Implemented in `83be50a` and `93c0dba`; awaiting final independent review. |
 
 ## Stop-condition check
 
@@ -32,7 +32,7 @@
 
 | Command | Result |
 |---|---|
-| `npm test -- --run` | pass, 29 tests in 7 files |
+| `npm test -- --run` | pass, 30 tests in 6 files |
 | `npm run typecheck` | pass |
 | `npm run build` | pass |
 | `npm run lint` | pass |
@@ -56,10 +56,10 @@
 ## Git state
 
 - Branch: `task/AR-503-portfolio-ui`
-- Implementation commits: `61eab655c0c1e7a262a2bd05a0a32c9c11104460` and stale-context repair `c18337f526692604ff87be6c2d856a9cb56a6377`.
-- Base SHA: `0277e082843b6caa8f16e95e96bac06ba4d4a1a4`
+- Implementation commits: `61eab655c0c1e7a262a2bd05a0a32c9c11104460`, stale-context guard `83be50a`, and portfolio-switch notice cleanup `93c0dba`.
+- Base SHA: `bfd36bd5e49a433dbd3657548019b18a4e2a0b58` (after AR-402 merge).
 - Evidence/status commit SHA: recorded in the final handoff message.
-- Remote branch: not pushed; branch-specific authorization is pending. The task branch is ahead of `origin/main` by six commits after this report/status update.
+- Remote branch: not pushed; branch-specific authorization is pending. The unpushed branch contains only AR-503 changes on top of the updated `origin/main`.
 - Worktree: clean at final handoff.
 
 ## Assumptions and risks
