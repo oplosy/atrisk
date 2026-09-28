@@ -18,7 +18,7 @@
 |---|---|
 | AC-1 | `Service.Finalize` locks a draft and seals evidence in the same transaction. `Seal` rejects absent/foreign snapshots, blocked valuations, unfinished risk runs, missing engine versions, and unavailable raw archive objects. Integration test checks a queued result and missing archive leave the decision draft. |
 | AC-2 | Manifest stores the exact snapshot, valuation/quote path, scenario version, risk job/result, and selected revision rows, not latest projections. Integration fixture inserts later snapshot and scenario version and compares bytes. |
-| AC-3 | Manifest includes contract version, every typed reference and its row data, scenario/engine/schema versions from the completed run, and a SHA-256 over canonical Go JSON bytes. The public `DecisionEvidence` response is now generated in Go, TypeScript, and Python; contract regression coverage verifies all three targets. |
+| AC-3 | Manifest includes contract version, every typed reference and its row data, scenario/engine/schema versions from the completed run, and a SHA-256 over canonical Go JSON bytes. UUID inputs are canonicalized to lowercase before manifest persistence/comparison, so case variants bind the same snapshot. The public `DecisionEvidence` response is generated in Go, TypeScript, and Python; contract regression coverage verifies all three targets. |
 | AC-4 | Reconstruction verifies the stored hash and every archived raw object by key and content hash; missing objects yield `EVIDENCE_INTEGRITY_FAILURE` rather than recomputation. |
 | AC-5 | `TestHistoricalDecisionReconstruction` compares exact manifest bytes and hash after later inserts; isolated PostgreSQL execution is pending hosted CI. |
 
@@ -37,6 +37,8 @@
 | `task migrate-test` | unavailable locally without isolated PostgreSQL URL; hosted execution pending. |
 | `node scripts/verify/check-generated.mjs` | passed after committing generated outputs. |
 | `git diff --check` | passed. |
+| `go test ./internal/application/evidence ./internal/application/journal ./apps/api/handlers/journal -count=1` | passed with workspace-local `GOCACHE`; default cache path was denied by the sandbox. |
+| `go test ./test/integration -run '^TestHistoricalDecisionReconstruction$' -count=1` | passed compilation and test process; database-backed test skipped because no isolated PostgreSQL URL was available. |
 
 ## Change inventory
 
@@ -47,13 +49,15 @@
 ## Git state
 
 - Branch: `task/AR-402-decision-evidence`
-- Implementation commit SHA: `a43c6f9` (`fix(evidence): complete decision evidence contract models [AR-402]`)
-- Report update commit SHA: `6a3a2d6` (this final state correction is committed separately).
-- Remote branch: not pushed; branch is ahead of `origin/main` by four commits.
+- Previous implementation commit SHA: `a43c6f9` (`fix(evidence): complete decision evidence contract models [AR-402]`)
+- Previous report update commit SHA: `6a3a2d6`.
+- Repair commit SHA: `0cde993` (`fix(evidence): canonicalize evidence UUIDs [AR-402]`).
+- Report commit SHA: recorded after this report update.
+- Remote branch: not pushed; branch is ahead of `origin/main` by six commits before this report update (seven after it).
 - Worktree: clean at final handoff.
 
 ## Assumptions and risks
 
 - Finalization requires exactly one account-linked portfolio snapshot, one completed valuation run, and one completed scenario/risk run on the same snapshot. Optional typed revision/raw-object references can bind additional market or macro evidence. This is stricter than AR-401 draft creation, which permits narrative references before finalization.
 - Without an archive adapter, a decision involving raw source evidence fails closed. Hosted CI must validate PostgreSQL queries, migration upgrade, and golden reconstruction; local compilation is not runtime proof.
-- Evidence UUID validation accepts both lowercase and uppercase hexadecimal digits; regression coverage is in `internal/application/evidence/service_test.go`.
+- Evidence UUID validation accepts both lowercase and uppercase hexadecimal digits; canonical lowercase output is used for decision, account, and reference IDs. Unit regression coverage is in `internal/application/evidence/service_test.go`; the historical integration fixture also submits uppercase IDs and verifies byte-identical reconstruction.
