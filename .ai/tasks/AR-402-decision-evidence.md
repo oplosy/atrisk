@@ -1,7 +1,7 @@
 ---
 id: AR-402
 title: Seal decision evidence snapshots
-status: active
+status: review
 phase: 4
 depends_on: [AR-305, AR-401]
 branch: task/AR-402-decision-evidence

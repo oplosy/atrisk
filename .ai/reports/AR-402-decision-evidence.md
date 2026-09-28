@@ -52,8 +52,8 @@
 - Previous implementation commit SHA: `a43c6f9` (`fix(evidence): complete decision evidence contract models [AR-402]`)
 - Previous report update commit SHA: `6a3a2d6`.
 - Repair commit SHA: `0cde993` (`fix(evidence): canonicalize evidence UUIDs [AR-402]`).
-- Report commit SHA: recorded after this report update.
-- Remote branch: not pushed; branch is ahead of `origin/main` by six commits before this report update (seven after it).
+- Report update commit SHA: recorded in the final handoff message.
+- Remote branch: `task/AR-402-decision-evidence` pushed to `origin`; [PR #52](https://github.com/oplosy/atrisk/pull/52) is open. Hosted `Verify` was pending when this report was prepared. The task branch contains eight commits not in `origin/main` after this status/report commit.
 - Worktree: clean at final handoff.
 
 ## Assumptions and risks
