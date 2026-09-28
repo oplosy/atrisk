@@ -30,6 +30,7 @@
       "additionalProperties": false,
       "properties": {
         "price_history": { "type": "object" },
+        "price_revision_history": { "type": "object" },
         "nav_history": { "type": "object" },
         "signed_exposures": { "type": "object" },
         "calendar": { "enum": ["business_daily", "crypto_daily"] }

@@ -294,6 +294,27 @@ func verifyScenarioServicePersistence(t *testing.T, pool *pgxpool.Pool) {
 	if _, ok := payload["metric_inputs"].(map[string]any); !ok {
 		t.Fatalf("scenario payload omitted server metric input bundle: %#v", payload["metric_inputs"])
 	}
+	sealedInput, ok := payload["sealed_input"].(map[string]any)
+	if !ok {
+		t.Fatalf("scenario payload omitted sealed input provenance: %#v", payload["sealed_input"])
+	}
+	if _, ok := sealedInput["metric_inputs"].(map[string]any); !ok {
+		t.Fatalf("persisted sealed provenance omitted metric input bundle: %#v", sealedInput["metric_inputs"])
+	}
+	if sealedInput["input_hash"] == nil || sealedInput["input_hash"] == "" {
+		t.Fatalf("sealed provenance omitted canonical input hash: %#v", sealedInput)
+	}
+	var persistedProvenance []byte
+	if err := pool.QueryRow(ctx, `SELECT input_provenance FROM scenario_runs WHERE id=$1::uuid`, first.ID).Scan(&persistedProvenance); err != nil {
+		t.Fatalf("load persisted scenario provenance: %v", err)
+	}
+	var persisted map[string]any
+	if err := json.Unmarshal(persistedProvenance, &persisted); err != nil {
+		t.Fatalf("decode persisted scenario provenance: %v", err)
+	}
+	if _, ok := persisted["metric_inputs"].(map[string]any); !ok {
+		t.Fatalf("persisted scenario provenance omitted metric bundle: %#v", persisted)
+	}
 	createdJobIDs := []string{first.JobID}
 	queue := jobs.Queue{Pool: pool}
 	defer func() {

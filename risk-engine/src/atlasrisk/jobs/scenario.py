@@ -54,7 +54,9 @@ def handle_scenario_revaluation(job: JobEnvelope) -> dict[str, Any]:
             and pre_metrics.get("reason") == "PRE_SHOCK_METRICS_INPUT_HISTORY_UNAVAILABLE"
         ):
             metric_inputs = payload.get("metric_inputs")
-            if metric_inputs:
+            if isinstance(metric_inputs, dict) and all(
+                key in metric_inputs for key in ("price_history", "nav_history", "signed_exposures")
+            ):
                 payload["pre_metrics"] = _derive_pre_metrics(metric_inputs)
         result = evaluate_scenario(payload)
         try:

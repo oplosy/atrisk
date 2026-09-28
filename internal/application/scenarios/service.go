@@ -9,7 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -53,9 +55,18 @@ func valid(input VersionInput) bool {
 }
 
 type sealedValuation struct {
-	Positions  []map[string]any
-	Provenance map[string]any
+	Positions    []map[string]any
+	Provenance   map[string]any
 	MetricInputs map[string]any
+}
+
+type metricPriceRevision struct {
+	ID                 string
+	ObservationTime    time.Time
+	Price              string
+	SourceKnownAt      *time.Time
+	SystemKnownAt      time.Time
+	KnowledgeTimeBasis string
 }
 
 // preShockMetricsUnavailable is the fail-closed marker used when the sealed
@@ -63,8 +74,8 @@ type sealedValuation struct {
 // only when metric_inputs contains complete point-in-time histories.
 func preShockMetricsUnavailable() map[string]any {
 	return map[string]any{
-		"data_quality": "blocked",
-		"reason":       "PRE_SHOCK_METRICS_INPUT_HISTORY_UNAVAILABLE",
+		"data_quality":  "blocked",
+		"reason":        "PRE_SHOCK_METRICS_INPUT_HISTORY_UNAVAILABLE",
 		"metric_engine": "AR-302",
 		"missing_inputs": []string{
 			"point_in_time_price_history",
@@ -127,6 +138,7 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 	positions := make([]map[string]any, 0)
 	provenanceLines := make([]map[string]any, 0)
 	metricPrices := make(map[string]map[string]string)
+	metricPriceProvenance := make(map[string][]map[string]any)
 	metricQuantities := make(map[string]string)
 	metricExposures := make(map[string]string)
 	metricCalendar := "crypto_daily"
@@ -157,8 +169,22 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 		if err != nil {
 			return sealedValuation{}, fmt.Errorf("load USD FX provenance: %w", err)
 		}
-		tryPath := fxPathMaps(tryIDs, tryDirections, tryPairs)
-		usdPath := fxPathMaps(usdIDs, usdDirections, usdPairs)
+		tryPath, err := fxPathMaps(tryIDs, tryDirections, tryPairs)
+		if err != nil {
+			return sealedValuation{}, fmt.Errorf("validate TRY FX provenance: %w", err)
+		}
+		usdPath, err := fxPathMaps(usdIDs, usdDirections, usdPairs)
+		if err != nil {
+			return sealedValuation{}, fmt.Errorf("validate USD FX provenance: %w", err)
+		}
+		tryEvidence, err := fxEvidence(tryIDs, tryDirections, tryPairs)
+		if err != nil {
+			return sealedValuation{}, fmt.Errorf("validate TRY FX evidence: %w", err)
+		}
+		usdEvidence, err := fxEvidence(usdIDs, usdDirections, usdPairs)
+		if err != nil {
+			return sealedValuation{}, fmt.Errorf("validate USD FX evidence: %w", err)
+		}
 		position := map[string]any{
 			"snapshot_line_id": lineID, "instrument_id": instrumentID,
 			"instrument_type": instrumentType, "asset_class": assetClass(instrumentType),
@@ -186,14 +212,15 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 			if len(history) == 0 {
 				metricInputsAvailable = false
 			} else {
-				metricPrices[instrumentID] = history
+				metricPrices[instrumentID] = aggregateMetricPriceHistory(history)
+				metricPriceProvenance[instrumentID] = metricPriceRevisionMaps(history)
 				metricQuantities[instrumentID] = quantity
 			}
 		}
 		provenanceLines = append(provenanceLines, map[string]any{
 			"snapshot_line_id": lineID, "price_method": priceMethod,
 			"price_revision_id": priceID, "price_quote_unit": quoteUnit,
-			"try_fx_path": fxEvidence(tryIDs, tryDirections, tryPairs), "usd_fx_path": fxEvidence(usdIDs, usdDirections, usdPairs),
+			"try_fx_path": tryEvidence, "usd_fx_path": usdEvidence,
 			"reason_codes": reasons,
 		})
 	}
@@ -204,12 +231,16 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 		return sealedValuation{}, ErrInvalidRequest
 	}
 	metricInputs := map[string]any{}
-	if metricInputsAvailable && len(metricPrices) > 0 {
-		navHistory, navErr := buildMetricNAV(metricPrices, metricQuantities)
-		if navErr == nil && len(navHistory) > 0 {
-			metricInputs = map[string]any{
-				"price_history": metricPrices, "nav_history": navHistory,
-				"signed_exposures": metricExposures, "calendar": metricCalendar,
+	if len(metricPrices) > 0 {
+		metricInputs = map[string]any{
+			"price_history":          metricPrices,
+			"price_revision_history": metricPriceProvenance,
+			"signed_exposures":       metricExposures, "calendar": metricCalendar,
+		}
+		if metricInputsAvailable {
+			navHistory, navErr := buildMetricNAV(metricPrices, metricQuantities)
+			if navErr == nil && len(navHistory) > 0 {
+				metricInputs["nav_history"] = navHistory
 			}
 		}
 	}
@@ -221,15 +252,15 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 	}}, nil
 }
 
-func loadMetricPriceHistory(ctx context.Context, tx pgx.Tx, instrumentID, quoteUnit, cutoff, knowledgeMode, knownAt string) (map[string]string, error) {
+func loadMetricPriceHistory(ctx context.Context, tx pgx.Tx, instrumentID, quoteUnit, cutoff, knowledgeMode, knownAt string) ([]metricPriceRevision, error) {
 	knownClause := "system_known_at <= $4"
 	orderClause := "observation_time, system_known_at DESC, id DESC"
 	if knowledgeMode == "source_as_of" {
 		knownClause = "source_known_at IS NOT NULL AND source_known_at <= $4"
 		orderClause = "observation_time, source_known_at DESC, system_known_at DESC, id DESC"
 	}
-	query := fmt.Sprintf(`SELECT observation_time::date::text, price::text
-		FROM (SELECT DISTINCT ON (observation_time) observation_time, price, source_known_at, system_known_at, id
+	query := fmt.Sprintf(`SELECT id::text, observation_time, price::text, source_known_at, system_known_at, knowledge_time_basis
+		FROM (SELECT DISTINCT ON (observation_time) id, observation_time, price, source_known_at, system_known_at, knowledge_time_basis
 			FROM price_revisions
 			WHERE instrument_id=$1::uuid AND quote_currency=$2
 			  AND observation_time <= $3::timestamptz
@@ -242,15 +273,54 @@ func loadMetricPriceHistory(ctx context.Context, tx pgx.Tx, instrumentID, quoteU
 		return nil, err
 	}
 	defer rows.Close()
-	history := make(map[string]string)
+	history := make([]metricPriceRevision, 0)
 	for rows.Next() {
-		var day, price string
-		if err := rows.Scan(&day, &price); err != nil {
+		var revision metricPriceRevision
+		if err := rows.Scan(&revision.ID, &revision.ObservationTime, &revision.Price, &revision.SourceKnownAt, &revision.SystemKnownAt, &revision.KnowledgeTimeBasis); err != nil {
 			return nil, err
 		}
-		history[day] = price
+		history = append(history, revision)
 	}
 	return history, rows.Err()
+}
+
+func aggregateMetricPriceHistory(revisions []metricPriceRevision) map[string]string {
+	ordered := append([]metricPriceRevision(nil), revisions...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		if ordered[i].ObservationTime.Equal(ordered[j].ObservationTime) {
+			return ordered[i].ID < ordered[j].ID
+		}
+		return ordered[i].ObservationTime.Before(ordered[j].ObservationTime)
+	})
+	history := make(map[string]string)
+	for _, revision := range ordered {
+		history[revision.ObservationTime.UTC().Format("2006-01-02")] = revision.Price
+	}
+	return history
+}
+
+func metricPriceRevisionMaps(revisions []metricPriceRevision) []map[string]any {
+	ordered := append([]metricPriceRevision(nil), revisions...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		if ordered[i].ObservationTime.Equal(ordered[j].ObservationTime) {
+			return ordered[i].ID < ordered[j].ID
+		}
+		return ordered[i].ObservationTime.Before(ordered[j].ObservationTime)
+	})
+	result := make([]map[string]any, 0, len(ordered))
+	for _, revision := range ordered {
+		var sourceKnownAt any
+		if revision.SourceKnownAt != nil {
+			sourceKnownAt = revision.SourceKnownAt.UTC().Format(time.RFC3339Nano)
+		}
+		result = append(result, map[string]any{
+			"id": revision.ID, "observation_time": revision.ObservationTime.UTC().Format(time.RFC3339Nano),
+			"price": revision.Price, "source_known_at": sourceKnownAt,
+			"system_known_at":      revision.SystemKnownAt.UTC().Format(time.RFC3339Nano),
+			"knowledge_time_basis": revision.KnowledgeTimeBasis,
+		})
+	}
+	return result
 }
 
 func buildMetricNAV(priceHistory map[string]map[string]string, quantities map[string]string) (map[string]string, error) {
@@ -315,6 +385,11 @@ func loadFXPairs(ctx context.Context, tx pgx.Tx, ids []pgtype.UUID) (map[string]
 	if len(ids) == 0 {
 		return pairs, nil
 	}
+	for _, id := range ids {
+		if !id.Valid {
+			return nil, ErrInvalidRequest
+		}
+	}
 	rows, err := tx.Query(ctx, `SELECT id::text, base_currency || '/' || quote_currency FROM fx_quote_revisions WHERE id = ANY($1::uuid[])`, ids)
 	if err != nil {
 		return nil, err
@@ -327,33 +402,59 @@ func loadFXPairs(ctx context.Context, tx pgx.Tx, ids []pgtype.UUID) (map[string]
 		}
 		pairs[id] = pair
 	}
-	return pairs, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(pairs) != len(ids) {
+		return nil, ErrInvalidRequest
+	}
+	return pairs, nil
 }
 
-func fxPathMaps(ids []pgtype.UUID, directions []string, pairs map[string]string) []map[string]string {
+func fxPathMaps(ids []pgtype.UUID, directions []string, pairs map[string]string) ([]map[string]string, error) {
+	if err := validateFXPath(ids, directions, pairs); err != nil {
+		return nil, err
+	}
 	path := make([]map[string]string, 0, len(ids))
 	for i, id := range ids {
-		if id.Valid && i < len(directions) {
-			direction := directions[i]
-			if direction == "forward" {
-				direction = "direct"
-			} else if direction == "reverse" {
-				direction = "inverse"
-			}
-			path = append(path, map[string]string{"quote_revision_id": id.String(), "pair": pairs[id.String()], "direction": direction})
+		direction := directions[i]
+		if direction == "forward" {
+			direction = "direct"
+		} else {
+			direction = "inverse"
 		}
+		path = append(path, map[string]string{"quote_revision_id": id.String(), "pair": pairs[id.String()], "direction": direction})
 	}
-	return path
+	return path, nil
 }
 
-func fxEvidence(ids []pgtype.UUID, directions []string, pairs map[string]string) []map[string]string {
+func fxEvidence(ids []pgtype.UUID, directions []string, pairs map[string]string) ([]map[string]string, error) {
+	if err := validateFXPath(ids, directions, pairs); err != nil {
+		return nil, err
+	}
 	path := make([]map[string]string, 0, len(ids))
 	for i, id := range ids {
-		if id.Valid && i < len(directions) {
-			path = append(path, map[string]string{"quote_revision_id": id.String(), "pair": pairs[id.String()], "direction": directions[i]})
+		path = append(path, map[string]string{"quote_revision_id": id.String(), "pair": pairs[id.String()], "direction": directions[i]})
+	}
+	return path, nil
+}
+
+func validateFXPath(ids []pgtype.UUID, directions []string, pairs map[string]string) error {
+	if len(ids) != len(directions) {
+		return ErrInvalidRequest
+	}
+	for i, id := range ids {
+		if !id.Valid {
+			return ErrInvalidRequest
+		}
+		if directions[i] != "forward" && directions[i] != "reverse" {
+			return ErrInvalidRequest
+		}
+		if pair, ok := pairs[id.String()]; !ok || strings.TrimSpace(pair) == "" {
+			return ErrInvalidRequest
 		}
 	}
-	return path
+	return nil
 }
 
 // CreateVersionAndRun stores a new immutable version and enqueues its run atomically.
@@ -453,13 +554,11 @@ func (s Service) CreateVersionAndRun(ctx context.Context, input VersionInput) (R
 	sealed.Provenance["scenario_id"] = input.ScenarioID
 	sealed.Provenance["scenario_version"] = version
 	sealed.Provenance["contract_version"] = "1.0"
-	sealedHashBytes := mustJSON(map[string]any{
-		"account_id": input.AccountID, "snapshot_id": input.SnapshotID, "valuation_id": input.ValuationID,
-		"scenario_id": input.ScenarioID, "scenario_version": version, "scenario_content_hash": hash,
-		"sealed_input": sealed.Provenance, "positions": sealed.Positions,
-	})
-	sealedDigest := sha256.Sum256(sealedHashBytes)
-	sealedInputHash := hex.EncodeToString(sealedDigest[:])
+	sealed.Provenance["metric_inputs"] = sealed.MetricInputs
+	sealedInputHash := canonicalSealedInputHash(
+		input.AccountID, input.SnapshotID, input.ValuationID, input.ScenarioID, version,
+		hash, sealed.Provenance, sealed.Positions, sealed.MetricInputs,
+	)
 	sealed.Provenance["input_hash"] = sealedInputHash
 	var jobID, runID string
 	payload, err := json.Marshal(map[string]any{
@@ -472,7 +571,7 @@ func (s Service) CreateVersionAndRun(ctx context.Context, input VersionInput) (R
 		"snapshot_id": input.SnapshotID, "valuation_id": input.ValuationID,
 		"sealed_input": sealed.Provenance, "positions": sealed.Positions,
 		"metric_inputs": sealed.MetricInputs,
-		"pre_metrics": preShockMetricsUnavailable(),
+		"pre_metrics":   preShockMetricsUnavailable(),
 	})
 	if err != nil {
 		return Run{}, fmt.Errorf("encode scenario job payload: %w", err)
@@ -494,4 +593,14 @@ func (s Service) CreateVersionAndRun(ctx context.Context, input VersionInput) (R
 func mustJSON(value any) []byte {
 	data, _ := json.Marshal(value)
 	return data
+}
+
+func canonicalSealedInputHash(accountID, snapshotID, valuationID, scenarioID string, version int, scenarioContentHash string, sealedInput map[string]any, positions []map[string]any, metricInputs map[string]any) string {
+	canonical := mustJSON(map[string]any{
+		"account_id": accountID, "snapshot_id": snapshotID, "valuation_id": valuationID,
+		"scenario_id": scenarioID, "scenario_version": version, "scenario_content_hash": scenarioContentHash,
+		"sealed_input": sealedInput, "positions": positions, "metric_inputs": metricInputs,
+	})
+	digest := sha256.Sum256(canonical)
+	return hex.EncodeToString(digest[:])
 }
