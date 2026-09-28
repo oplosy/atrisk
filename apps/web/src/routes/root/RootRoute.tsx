@@ -4,6 +4,7 @@ import { listPortfolios } from "../../app/api";
 import { useApiResource, type ResourceState } from "../../app/useApiResource";
 import { QualityBadge, type QualityState } from "../../components/QualityBadge";
 import { StatusPanel } from "../../components/StatusPanel";
+import { PortfolioRoute } from "../portfolio/PortfolioRoute";
 
 export type ShellRoute =
   | "/"
@@ -181,42 +182,46 @@ export function RootRoute({ route, onNavigate }: RootRouteProps) {
             </div>
           </div>
 
-          <section className="control-strip" aria-labelledby="as-of-title">
-            <div className="control-strip__title">
-              <span className="step-number">01</span>
-              <div>
-                <p className="eyebrow" id="as-of-title">
-                  Evidence window
-                </p>
-                <strong>Choose the clock before reading a result.</strong>
+          {route !== "/portfolio" && (
+            <section className="control-strip" aria-labelledby="as-of-title">
+              <div className="control-strip__title">
+                <span className="step-number">01</span>
+                <div>
+                  <p className="eyebrow" id="as-of-title">
+                    Evidence window
+                  </p>
+                  <strong>Choose the clock before reading a result.</strong>
+                </div>
               </div>
-            </div>
-            <label>
-              Knowledge mode
-              <select
-                value={mode}
-                onChange={(event) => setMode(event.target.value)}
-              >
-                <option value="latest">Latest</option>
-                <option value="source-as-of">Source as-of</option>
-                <option value="system-as-of">System as-of</option>
-              </select>
-            </label>
-            <label>
-              Cutoff
-              <input
-                type="datetime-local"
-                value={cutoff}
-                onChange={(event) => setCutoff(event.target.value)}
-              />
-            </label>
-            <output className="control-strip__output" aria-live="polite">
-              <span>Reading</span>
-              <strong>{asOfLabel}</strong>
-            </output>
-          </section>
+              <label>
+                Knowledge mode
+                <select
+                  value={mode}
+                  onChange={(event) => setMode(event.target.value)}
+                >
+                  <option value="latest">Latest</option>
+                  <option value="source-as-of">Source as-of</option>
+                  <option value="system-as-of">System as-of</option>
+                </select>
+              </label>
+              <label>
+                Cutoff
+                <input
+                  type="datetime-local"
+                  value={cutoff}
+                  onChange={(event) => setCutoff(event.target.value)}
+                />
+              </label>
+              <output className="control-strip__output" aria-live="polite">
+                <span>Reading</span>
+                <strong>{asOfLabel}</strong>
+              </output>
+            </section>
+          )}
 
-          {route === "/" ? (
+          {route === "/portfolio" ? (
+            <PortfolioRoute />
+          ) : route === "/" ? (
             <>
               <section className="signal-grid" aria-label="Workspace signals">
                 <article className="signal-card signal-card--accent">
