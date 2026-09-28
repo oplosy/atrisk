@@ -235,6 +235,47 @@ it("keeps manual input after a recoverable server error", async () => {
     "Temporary server error",
   );
   expect(screen.getByLabelText("Quantity")).toHaveValue("12.345");
+
+  fireEvent.change(screen.getByLabelText("Portfolio"), {
+    target: { value: secondaryPortfolio.id },
+  });
+  await waitFor(() =>
+    expect(portfolioApi.accounts).toHaveBeenCalledWith(secondaryPortfolio.id),
+  );
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+it("clears a success notice after switching portfolios", async () => {
+  vi.mocked(portfolioApi.createSnapshot).mockResolvedValue({
+    id: "snapshot-2",
+    portfolio_id: portfolio.id,
+    captured_at: portfolio.created_at,
+    created_at: portfolio.created_at,
+    lines: [],
+  });
+  render(<PortfolioRoute />);
+  await screen.findByRole("option", { name: "Primary" });
+  await waitFor(() => expect(portfolioApi.accounts).toHaveBeenCalled());
+  fireEvent.change(screen.getByLabelText("Instrument"), {
+    target: { value: "instrument-1" },
+  });
+  fireEvent.change(screen.getByLabelText("Quantity"), {
+    target: { value: "12.345" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Create snapshot" }));
+  expect(
+    await screen.findByText("Snapshot snapshot-2 created."),
+  ).toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText("Portfolio"), {
+    target: { value: secondaryPortfolio.id },
+  });
+  await waitFor(() =>
+    expect(portfolioApi.accounts).toHaveBeenCalledWith(secondaryPortfolio.id),
+  );
+  expect(
+    screen.queryByText("Snapshot snapshot-2 created."),
+  ).not.toBeInTheDocument();
 });
 
 it("ignores a delayed valuation result after switching portfolios", async () => {

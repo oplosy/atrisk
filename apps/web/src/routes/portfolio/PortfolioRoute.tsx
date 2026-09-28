@@ -357,6 +357,8 @@ export function PortfolioRoute() {
             };
             setPortfolioId(nextPortfolioId);
             setBusy("");
+            setError("");
+            setNotice("");
             setPreviewLock(null);
             setValuation(null);
             setReconciliation(null);
