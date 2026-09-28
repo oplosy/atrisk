@@ -38,10 +38,13 @@
 | `npm run format:check` | pass |
 | `node C:\Users\mesut\.agents\skills\impeccable\scripts\detect.mjs --json` | pass, `[]` |
 | `/portfolio` in local in-app browser | route and controls render; localhost API returns HTTP 404 because no API proxy/backend is attached |
-| `/portfolio` in local browser at `http://127.0.0.1:4175/portfolio` | Desktop accessibility tree exposed the primary navigation, snapshot, CSV import, valuation, and reconciliation controls. CSV Preview and Commit previewed CSV were disabled while the API returned HTTP 404 and no portfolio was available. |
+| `/portfolio` in local browser at `http://127.0.0.1:4175/portfolio` | Desktop accessibility tree exposed the primary navigation, snapshot, CSV import, valuation, and reconciliation controls. With the real API unattached, the route returned HTTP 404 and kept CSV preview/commit disabled because no portfolio was available. |
+| Browser flow with local fixture API | Headless Chrome intercepted the page's `fetch` calls in-page and served synthetic portfolio/account/instrument responses only; no database or production payload was used. A synthetic CSV was previewed: commit remained disabled before a valid same-hash preview, became enabled after preview, then committed against the fixture and locked again after success. This verifies UI behavior, not API/backend correctness. |
+| Recoverable browser form error | The fixture returned HTTP 503 `Temporary server error` on manual snapshot submission. The error appeared in the alert and the controlled quantity input retained `12.345`. |
+| Keyboard browser navigation | Starting at the brand link, two Tab presses focused “Information timeline”; Enter navigated to `/timeline`. |
 | Desktop browser screenshot | [1280×900 Chrome capture](evidence/AR-503-portfolio-1280.png). The visual content viewport is 1265px because the desktop vertical scrollbar occupies 15px; horizontal scroll position is 0. |
 | 320px browser viewport and screenshot | [320×844 Chrome capture](evidence/AR-503-portfolio-320.png), captured with device metrics override. `visualViewport.width`, document client width, and body width were 320px; horizontal scroll position was 0. The portfolio heading and controls wrap without clipping. |
-| `task verify` | unavailable: `task` executable not found |
+| `task verify` | unavailable locally: `task` executable not found; hosted PR CI remains required |
 
 ## Change inventory
 
