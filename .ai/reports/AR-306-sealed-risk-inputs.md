@@ -27,7 +27,7 @@
 ## Stop-condition check
 
 - Decision or scope conflict: none.
-- Missing dependency, unsafe migration, or unavailable verification: isolated PostgreSQL URL was not available; Docker was not started or reconfigured. The repository's `task` executable was also unavailable in this environment. Historical non-USD metric conversion is limited to explicit eligible fiat/USD revisions; no USDT peg or implicit FX is inferred.
+- Local verification limitation: isolated PostgreSQL URL and the repository's `task` executable were unavailable; Docker was not started or reconfigured. Hosted CI subsequently completed the database migration verification and `task verify` successfully. Historical non-USD metric conversion is limited to explicit eligible fiat/USD revisions; no USDT peg or implicit FX is inferred.
 
 ## Verification
 
@@ -48,6 +48,7 @@
 | `go test ./internal/application/scenarios ./test/integration -run 'TestScenariosRequestValidation\|TestScenarioInputProvenance\|TestRiskEndToEnd' -count=1` | pass; integration cases skip without isolated DSN |
 | `python -m pytest risk-engine/tests/jobs risk-engine/tests/scenarios risk-engine/tests/attribution risk-engine/tests/metrics -q` | pass, 39 tests with project venv |
 | `go test ./internal/application/scenarios -count=1` | pass; revision/day aggregation with UUID-ascending ties, TRY/USD FX provenance/conversion, metric-hash binding, and missing-FX fail-closed regressions |
+| Hosted PR CI run 134 (`Verify`) | pass; `task verify`, PostgreSQL migration verification, and end-to-end integration steps completed successfully for commit `3c4cafeaf46260cdec4ca5f7985fdaa73f175f42` |
 
 ## Change inventory
 
@@ -59,12 +60,12 @@
 
 - Branch: `task/AR-306-sealed-risk-inputs`
 - Implementation commit SHA: `7c9d6ac` (`fix(risk): seal historical FX inputs [AR-306]`).
-- Remote branch: not pushed.
+- Remote branch: `origin/task/AR-306-sealed-risk-inputs`, pushed; PR #53 opened against `main`.
 - Worktree: clean after the implementation and report commits; no generated drift.
 
 ## Assumptions and risks
 
-- Hosted/isolated PostgreSQL migration, end-to-end worker persistence, and `task verify` remain to be run in CI because no isolated DSN and no task executable were available locally.
+- Local PostgreSQL was unavailable; hosted PR CI verified migrations, integration paths, and `task verify` successfully.
 - AR-302 metric derivation uses complete USD-converted price histories with a common NAV calendar. Explicit TRY/USD FX history is supported; missing, stale, or non-fiat FX is explicit blocked output, never a fabricated healthy result.
 - Historical metric revisions are retained in the sealed bundle even though AR-302 consumes deterministic UTC-day aggregates; the selected revision clocks and knowledge basis are not discarded.
 - Docker was not run, restarted, or reconfigured.
