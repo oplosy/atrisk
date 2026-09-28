@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -277,6 +278,21 @@ func verifyScenarioServicePersistence(t *testing.T, pool *pgxpool.Pool) {
 	first, err := service.CreateVersionAndRun(ctx, input)
 	if err != nil || first.ScenarioVer != 1 {
 		t.Fatalf("create first immutable scenario run: run=%+v err=%v", first, err)
+	}
+	var jobPayload []byte
+	if err := pool.QueryRow(ctx, `SELECT payload FROM risk_jobs WHERE id=$1::uuid`, first.JobID).Scan(&jobPayload); err != nil {
+		t.Fatalf("load sealed scenario job payload: %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(jobPayload, &payload); err != nil {
+		t.Fatalf("decode sealed scenario job payload: %v", err)
+	}
+	preMetrics, ok := payload["pre_metrics"].(map[string]any)
+	if !ok || preMetrics["reason"] != "PRE_SHOCK_METRICS_INPUT_HISTORY_UNAVAILABLE" {
+		t.Fatalf("scenario payload did not fail closed with explicit pre-metric provenance: %#v", payload["pre_metrics"])
+	}
+	if _, ok := payload["metric_inputs"].(map[string]any); !ok {
+		t.Fatalf("scenario payload omitted server metric input bundle: %#v", payload["metric_inputs"])
 	}
 	createdJobIDs := []string{first.JobID}
 	queue := jobs.Queue{Pool: pool}

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -36,6 +37,60 @@ def test_scenario_job_is_registered_and_preserves_blocked_quality() -> None:
     assert blocked.status == "blocked"
     assert blocked.data_quality == "blocked"
     assert blocked.output["state"] == "blocked"
+
+
+def test_scenario_job_derives_pre_metrics_from_server_sealed_ar302_inputs() -> None:
+    payload = _job_payload()
+    days = []
+    current = date(2025, 1, 1)
+    while len(days) < 65:
+        if current.weekday() < 5:
+            days.append(current.isoformat())
+        current += timedelta(days=1)
+    payload["positions"] = [
+        {**payload["positions"][0], "instrument_id": "a", "asset_class": "crypto"},
+        {
+            **payload["positions"][0],
+            "snapshot_line_id": "golden-line-2",
+            "instrument_id": "b",
+            "asset_class": "equity",
+        },
+    ]
+    payload["pre_metrics"] = {
+        "data_quality": "blocked",
+        "reason": "PRE_SHOCK_METRICS_INPUT_HISTORY_UNAVAILABLE",
+    }
+    payload["metric_inputs"] = {
+        "price_history": {
+            "a": {day: str(100 + index) for index, day in enumerate(days)},
+            "b": {day: str(200 + index * 2) for index, day in enumerate(days)},
+        },
+        "nav_history": {day: str(300 + index * 3) for index, day in enumerate(days)},
+        "signed_exposures": {"a": "100", "b": "200"},
+        "calendar": "business_daily",
+    }
+    result, _ = JobWorker({}, "scenario-engine-test").run_once(
+        "job-derived-metrics", _envelope(payload)
+    )
+    assert result.status == "succeeded"
+    assert result.data_quality == "healthy"
+    assert result.output["pre_metrics"]["data_quality"] == "valid"
+    assert result.output["pre_metrics"]["volatility"]["a"]["state"] == "valid"
+
+
+def test_scenario_job_keeps_explicit_history_gap_blocked() -> None:
+    payload = _job_payload()
+    payload["pre_metrics"] = {
+        "data_quality": "blocked",
+        "reason": "PRE_SHOCK_METRICS_INPUT_HISTORY_UNAVAILABLE",
+    }
+    payload["metric_inputs"] = {}
+    result, _ = JobWorker({}, "scenario-engine-test").run_once(
+        "job-missing-metric-history", _envelope(payload)
+    )
+    assert result.status == "blocked"
+    assert result.data_quality == "blocked"
+    assert result.output["state"] == "blocked"
 
 
 def test_degraded_scenario_quality_is_not_wrapped_as_healthy() -> None:

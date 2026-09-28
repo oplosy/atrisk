@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -54,6 +55,23 @@ func valid(input VersionInput) bool {
 type sealedValuation struct {
 	Positions  []map[string]any
 	Provenance map[string]any
+	MetricInputs map[string]any
+}
+
+// preShockMetricsUnavailable is the fail-closed marker used when the sealed
+// valuation cannot produce the AR-302 history bundle. The worker replaces it
+// only when metric_inputs contains complete point-in-time histories.
+func preShockMetricsUnavailable() map[string]any {
+	return map[string]any{
+		"data_quality": "blocked",
+		"reason":       "PRE_SHOCK_METRICS_INPUT_HISTORY_UNAVAILABLE",
+		"metric_engine": "AR-302",
+		"missing_inputs": []string{
+			"point_in_time_price_history",
+			"point_in_time_nav_history",
+			"signed_exposures",
+		},
+	}
 }
 
 func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, valuationID string) (sealedValuation, error) {
@@ -92,7 +110,7 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 
 	rows, err := tx.Query(ctx, `
 		SELECT vl.snapshot_line_id::text, sl.instrument_id::text, i.instrument_type,
-		       i.native_currency, sl.modified_duration_years::text,
+		       i.native_currency, sl.quantity::text, sl.modified_duration_years::text,
 		       sl.convexity_years_squared::text, vl.try_amount::text, vl.usd_amount::text,
 		       vl.state, vl.reason_codes, vl.price_method, vl.price_revision_id::text,
 		       vl.price_quote_unit, vl.try_fx_quote_revision_ids, vl.try_fx_directions,
@@ -108,13 +126,18 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 	defer rows.Close()
 	positions := make([]map[string]any, 0)
 	provenanceLines := make([]map[string]any, 0)
+	metricPrices := make(map[string]map[string]string)
+	metricQuantities := make(map[string]string)
+	metricExposures := make(map[string]string)
+	metricCalendar := "crypto_daily"
+	metricInputsAvailable := true
 	for rows.Next() {
-		var lineID, instrumentID, instrumentType, nativeCurrency, state, priceMethod string
+		var lineID, instrumentID, instrumentType, nativeCurrency, state, priceMethod, quantity string
 		var duration, convexity, tryAmount, usdAmount, priceID, quoteUnit *string
 		var reasonsRaw []byte
 		var tryIDs, usdIDs []pgtype.UUID
 		var tryDirections, usdDirections []string
-		if err := rows.Scan(&lineID, &instrumentID, &instrumentType, &nativeCurrency, &duration, &convexity, &tryAmount, &usdAmount, &state, &reasonsRaw, &priceMethod, &priceID, &quoteUnit, &tryIDs, &tryDirections, &usdIDs, &usdDirections); err != nil {
+		if err := rows.Scan(&lineID, &instrumentID, &instrumentType, &nativeCurrency, &quantity, &duration, &convexity, &tryAmount, &usdAmount, &state, &reasonsRaw, &priceMethod, &priceID, &quoteUnit, &tryIDs, &tryDirections, &usdIDs, &usdDirections); err != nil {
 			return sealedValuation{}, fmt.Errorf("scan sealed valuation line: %w", err)
 		}
 		var reasons []string
@@ -149,6 +172,24 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 			position["convexity_years_squared"] = *convexity
 		}
 		positions = append(positions, position)
+		metricExposures[instrumentID] = *usdAmount
+		if instrumentType != "crypto_spot" {
+			metricCalendar = "business_daily"
+		}
+		if priceMethod != "revision" || quoteUnit == nil || strings.TrimSpace(*quoteUnit) != "USD" {
+			metricInputsAvailable = false
+		} else {
+			history, historyErr := loadMetricPriceHistory(ctx, tx, instrumentID, *quoteUnit, cutoff, knowledgeMode, knownAt)
+			if historyErr != nil {
+				return sealedValuation{}, fmt.Errorf("load pre-shock price history: %w", historyErr)
+			}
+			if len(history) == 0 {
+				metricInputsAvailable = false
+			} else {
+				metricPrices[instrumentID] = history
+				metricQuantities[instrumentID] = quantity
+			}
+		}
 		provenanceLines = append(provenanceLines, map[string]any{
 			"snapshot_line_id": lineID, "price_method": priceMethod,
 			"price_revision_id": priceID, "price_quote_unit": quoteUnit,
@@ -162,12 +203,96 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 	if len(positions) == 0 || len(positions) != expectedLines {
 		return sealedValuation{}, ErrInvalidRequest
 	}
-	return sealedValuation{Positions: positions, Provenance: map[string]any{
+	metricInputs := map[string]any{}
+	if metricInputsAvailable && len(metricPrices) > 0 {
+		navHistory, navErr := buildMetricNAV(metricPrices, metricQuantities)
+		if navErr == nil && len(navHistory) > 0 {
+			metricInputs = map[string]any{
+				"price_history": metricPrices, "nav_history": navHistory,
+				"signed_exposures": metricExposures, "calendar": metricCalendar,
+			}
+		}
+	}
+	return sealedValuation{Positions: positions, MetricInputs: metricInputs, Provenance: map[string]any{
 		"valuation_run_id": valuationID, "snapshot_id": snapshotID, "state": valuationState,
 		"cutoff": cutoff, "knowledge_mode": knowledgeMode, "known_at": knownAt,
 		"price_max_age_seconds": priceMaxAge, "fx_max_age_seconds": fxMaxAge,
 		"valuation_result_hash": resultHash, "lines": provenanceLines,
 	}}, nil
+}
+
+func loadMetricPriceHistory(ctx context.Context, tx pgx.Tx, instrumentID, quoteUnit, cutoff, knowledgeMode, knownAt string) (map[string]string, error) {
+	knownClause := "system_known_at <= $4"
+	orderClause := "observation_time, system_known_at DESC, id DESC"
+	if knowledgeMode == "source_as_of" {
+		knownClause = "source_known_at IS NOT NULL AND source_known_at <= $4"
+		orderClause = "observation_time, source_known_at DESC, system_known_at DESC, id DESC"
+	}
+	query := fmt.Sprintf(`SELECT observation_time::date::text, price::text
+		FROM (SELECT DISTINCT ON (observation_time) observation_time, price, source_known_at, system_known_at, id
+			FROM price_revisions
+			WHERE instrument_id=$1::uuid AND quote_currency=$2
+			  AND observation_time <= $3::timestamptz
+			  AND observation_time >= $3::timestamptz - interval '730 days'
+			  AND %s
+			ORDER BY %s) AS revisions
+		ORDER BY observation_time`, knownClause, orderClause)
+	rows, err := tx.Query(ctx, query, instrumentID, quoteUnit, cutoff, knownAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	history := make(map[string]string)
+	for rows.Next() {
+		var day, price string
+		if err := rows.Scan(&day, &price); err != nil {
+			return nil, err
+		}
+		history[day] = price
+	}
+	return history, rows.Err()
+}
+
+func buildMetricNAV(priceHistory map[string]map[string]string, quantities map[string]string) (map[string]string, error) {
+	commonDays := make(map[string]bool)
+	first := true
+	for instrument, history := range priceHistory {
+		if _, ok := quantities[instrument]; !ok || len(history) == 0 {
+			return nil, errors.New("metric quantity or price history is missing")
+		}
+		if first {
+			for day := range history {
+				commonDays[day] = true
+			}
+			first = false
+			continue
+		}
+		for day := range commonDays {
+			if _, ok := history[day]; !ok {
+				delete(commonDays, day)
+			}
+		}
+	}
+	if len(commonDays) == 0 {
+		return nil, errors.New("metric price histories have no common observations")
+	}
+	nav := make(map[string]string, len(commonDays))
+	for day := range commonDays {
+		total := new(big.Rat)
+		for instrument, history := range priceHistory {
+			quantity, ok := new(big.Rat).SetString(quantities[instrument])
+			if !ok {
+				return nil, fmt.Errorf("invalid metric quantity for %s", instrument)
+			}
+			price, ok := new(big.Rat).SetString(history[day])
+			if !ok || price.Sign() <= 0 {
+				return nil, fmt.Errorf("invalid metric price for %s on %s", instrument, day)
+			}
+			total.Add(total, new(big.Rat).Mul(quantity, price))
+		}
+		nav[day] = total.FloatString(18)
+	}
+	return nav, nil
 }
 
 func assetClass(instrumentType string) string {
@@ -346,7 +471,8 @@ func (s Service) CreateVersionAndRun(ctx context.Context, input VersionInput) (R
 		},
 		"snapshot_id": input.SnapshotID, "valuation_id": input.ValuationID,
 		"sealed_input": sealed.Provenance, "positions": sealed.Positions,
-		"pre_metrics": map[string]any{"data_quality": "blocked", "reason": "PRE_SHOCK_METRICS_NOT_PERSISTED"},
+		"metric_inputs": sealed.MetricInputs,
+		"pre_metrics": preShockMetricsUnavailable(),
 	})
 	if err != nil {
 		return Run{}, fmt.Errorf("encode scenario job payload: %w", err)
