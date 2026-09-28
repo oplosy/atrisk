@@ -28,6 +28,11 @@ func TestDecisionJournalValidation(t *testing.T) {
 	if validCreate(request) {
 		t.Fatal("expected blank invalidation condition to be rejected")
 	}
+	request.InvalidationConditions = []domain.Invalidation{{Condition: "Policy rate exceeds 15%"}}
+	request.EvidenceReferences = []domain.EvidenceRef{{Kind: " ", Reference: "fixture"}}
+	if validCreate(request) {
+		t.Fatal("expected blank evidence kind to be rejected")
+	}
 }
 
 func TestDecisionJournalDecimalValidation(t *testing.T) {
@@ -39,6 +44,20 @@ func TestDecisionJournalDecimalValidation(t *testing.T) {
 	for _, value := range []string{"", "1e3", "NaN", "Infinity", ".5"} {
 		if _, err := parseDecimal(value); err == nil {
 			t.Fatalf("parseDecimal(%q) unexpectedly succeeded", value)
+		}
+	}
+}
+
+func TestDecisionJournalPersistedDecimalBounds(t *testing.T) {
+	if !validPersistedDecimal("99999999999999999999.123456789012345678") {
+		t.Fatal("expected NUMERIC(38,18) boundary value to be accepted")
+	}
+	for _, value := range []string{
+		"100000000000000000000.000000000000000000",
+		"1.1234567890123456789",
+	} {
+		if validPersistedDecimal(value) {
+			t.Fatalf("expected NUMERIC(38,18) overflow to be rejected: %s", value)
 		}
 	}
 }

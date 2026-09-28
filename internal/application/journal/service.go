@@ -69,22 +69,33 @@ func (s Service) Create(ctx context.Context, request domain.CreateRequest) (doma
 	if err != nil {
 		return domain.Decision{}, ErrInvalidRequest
 	}
+	creationSnapshot, err := json.Marshal(map[string]any{
+		"account_id": request.AccountID, "thesis": request.Thesis,
+		"alternatives": request.Alternatives, "evidence_references": request.EvidenceReferences,
+		"invalidation_conditions": request.InvalidationConditions, "horizon": request.Horizon,
+		"risk_budget": request.RiskBudget, "intended_action": request.IntendedAction,
+		"tags": request.Tags, "status": domain.StatusDraft, "author": request.Author,
+		"source_metadata": request.SourceMetadata,
+	})
+	if err != nil {
+		return domain.Decision{}, ErrInvalidRequest
+	}
 	var result domain.Decision
 	var alternativesJSON, evidenceJSON, invalidationJSON, sourceJSON []byte
 	err = s.Pool.QueryRow(ctx, `
 		INSERT INTO decisions (
 			account_id, thesis, alternatives, evidence_references,
-			invalidation_conditions, horizon_start, horizon_end,
+			invalidation_conditions, horizon_start, horizon_end, creation_snapshot,
 			risk_budget_amount, risk_budget_currency, risk_budget_measure,
 			risk_budget_horizon, intended_action, tags, author, source_metadata
-		) VALUES ($1::uuid,$2,$3::jsonb,$4::jsonb,$5::jsonb,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb)
+		) VALUES ($1::uuid,$2,$3::jsonb,$4::jsonb,$5::jsonb,$6,$7,$8::jsonb,$9,$10,$11,$12,$13,$14,$15,$16::jsonb)
 		RETURNING id::text, account_id::text, thesis, alternatives, evidence_references,
 		          invalidation_conditions, horizon_start, horizon_end,
 		          risk_budget_amount::text, risk_budget_currency, risk_budget_measure,
 		          risk_budget_horizon, intended_action, tags, status, author,
 		          source_metadata, created_at, finalized_at`,
 		request.AccountID, request.Thesis, alternatives, evidence, invalidation,
-		request.Horizon.Start.UTC(), request.Horizon.End.UTC(), formatDecimal(amount),
+		request.Horizon.Start.UTC(), request.Horizon.End.UTC(), creationSnapshot, formatDecimal(amount),
 		request.RiskBudget.Currency, request.RiskBudget.Measure, request.RiskBudget.Horizon,
 		request.IntendedAction, request.Tags, request.Author, sourceMetadata,
 	).Scan(
@@ -228,29 +239,37 @@ func (s Service) AddAmendment(ctx context.Context, rawID string, request domain.
 }
 
 func (s Service) Timeline(ctx context.Context, rawID string) (domain.Timeline, error) {
-	decision, err := s.Get(ctx, rawID)
+	id, err := parseUUID(rawID)
+	if err != nil || s.Pool == nil {
+		return domain.Timeline{}, ErrInvalidRequest
+	}
+	tx, err := s.Pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return domain.Timeline{}, fmt.Errorf("begin decision timeline snapshot: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	decision, err := getDecision(ctx, tx, id)
 	if err != nil {
 		return domain.Timeline{}, err
 	}
-	rows, err := s.Pool.Query(ctx, `
+	rows, err := tx.Query(ctx, `
 		SELECT id::text, decision_id::text, kind, payload, author, source_metadata, created_at
 		FROM (
-			SELECT id, id AS decision_id, 'decision' AS kind,
-			       jsonb_build_object('status', status, 'thesis', thesis) AS payload,
-			       author, source_metadata, created_at
+			SELECT id, id AS decision_id, 'decision' AS kind, creation_snapshot AS payload,
+			       author, source_metadata, created_at, timeline_sequence
 			FROM decisions WHERE id=$1::uuid
 			UNION ALL
 			SELECT id, decision_id, 'review',
 			       jsonb_build_object('review', review, 'outcome', outcome),
-			       author, source_metadata, created_at
+			       author, source_metadata, created_at, timeline_sequence
 			FROM decision_reviews WHERE decision_id=$1::uuid
 			UNION ALL
 			SELECT id, decision_id, 'amendment',
 			       jsonb_build_object('summary', summary, 'changes', changes),
-			       author, source_metadata, created_at
+			       author, source_metadata, created_at, timeline_sequence
 			FROM decision_amendments WHERE decision_id=$1::uuid
 		) events
-		ORDER BY created_at ASC, id ASC`, rawID)
+		ORDER BY timeline_sequence ASC`, id)
 	if err != nil {
 		return domain.Timeline{}, fmt.Errorf("list decision timeline: %w", err)
 	}
@@ -270,13 +289,25 @@ func (s Service) Timeline(ctx context.Context, rawID string) (domain.Timeline, e
 	if err := rows.Err(); err != nil {
 		return domain.Timeline{}, fmt.Errorf("read decision timeline: %w", err)
 	}
+	rows.Close()
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Timeline{}, fmt.Errorf("commit decision timeline snapshot: %w", err)
+	}
 	return timeline, nil
 }
 
 func (s Service) get(ctx context.Context, id string) (domain.Decision, error) {
+	return getDecision(ctx, s.Pool, id)
+}
+
+type rowQuerier interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}
+
+func getDecision(ctx context.Context, query rowQuerier, id string) (domain.Decision, error) {
 	var result domain.Decision
 	var alternativesJSON, evidenceJSON, invalidationJSON, sourceJSON []byte
-	err := s.Pool.QueryRow(ctx, `
+	err := query.QueryRow(ctx, `
 		SELECT id::text, account_id::text, thesis, alternatives, evidence_references,
 		       invalidation_conditions, horizon_start, horizon_end,
 		       risk_budget_amount::text, risk_budget_currency, risk_budget_measure,
@@ -347,6 +378,11 @@ func normalizeCreate(request domain.CreateRequest) domain.CreateRequest {
 	for i := range request.Tags {
 		request.Tags[i] = strings.TrimSpace(request.Tags[i])
 	}
+	for i := range request.EvidenceReferences {
+		request.EvidenceReferences[i].Kind = strings.TrimSpace(request.EvidenceReferences[i].Kind)
+		request.EvidenceReferences[i].Reference = strings.TrimSpace(request.EvidenceReferences[i].Reference)
+		request.EvidenceReferences[i].Description = strings.TrimSpace(request.EvidenceReferences[i].Description)
+	}
 	return request
 }
 
@@ -361,8 +397,13 @@ func normalizeAmendment(request domain.AmendmentRequest) domain.AmendmentRequest
 }
 
 func validCreate(request domain.CreateRequest) bool {
-	if request.AccountID == "" || request.Thesis == "" || request.IntendedAction == "" || request.Author == "" || request.RiskBudget.Currency == "" || request.RiskBudget.Measure == "" || request.RiskBudget.Horizon == "" || !decimalPattern.MatchString(request.RiskBudget.Amount) || len(request.InvalidationConditions) == 0 {
+	if request.AccountID == "" || request.Thesis == "" || request.IntendedAction == "" || request.Author == "" || request.RiskBudget.Currency == "" || request.RiskBudget.Measure == "" || request.RiskBudget.Horizon == "" || !validPersistedDecimal(request.RiskBudget.Amount) || len(request.InvalidationConditions) == 0 {
 		return false
+	}
+	for _, evidence := range request.EvidenceReferences {
+		if strings.TrimSpace(evidence.Kind) == "" || strings.TrimSpace(evidence.Reference) == "" {
+			return false
+		}
 	}
 	for _, condition := range request.InvalidationConditions {
 		if strings.TrimSpace(condition.Condition) == "" {
@@ -395,6 +436,21 @@ func parseDecimal(value string) (*big.Rat, error) {
 		return nil, ErrInvalidRequest
 	}
 	return result, nil
+}
+
+// NUMERIC(38,18) permits at most 20 integer digits and 18 fractional digits.
+// Rejecting out-of-range input before formatting prevents silent rounding or
+// a database-dependent overflow error at the persistence boundary.
+func validPersistedDecimal(value string) bool {
+	if !decimalPattern.MatchString(value) {
+		return false
+	}
+	value = strings.TrimPrefix(value, "-")
+	parts := strings.SplitN(value, ".", 2)
+	if len(parts[0]) > 20 {
+		return false
+	}
+	return len(parts) == 1 || len(parts[1]) <= 18
 }
 
 func scaleDecimal(value *big.Rat) *big.Rat {

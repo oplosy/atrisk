@@ -1,6 +1,8 @@
 -- +goose Up
 -- +goose StatementBegin
 
+CREATE SEQUENCE decision_timeline_sequence AS BIGINT;
+
 CREATE TABLE decisions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     account_id UUID NOT NULL REFERENCES accounts (id),
@@ -19,6 +21,8 @@ CREATE TABLE decisions (
     status TEXT NOT NULL DEFAULT 'draft',
     author TEXT NOT NULL,
     source_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    creation_snapshot JSONB NOT NULL,
+    timeline_sequence BIGINT NOT NULL DEFAULT nextval('decision_timeline_sequence'),
     created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
     finalized_at TIMESTAMPTZ,
     CONSTRAINT decisions_thesis_not_blank CHECK (length(btrim(thesis)) > 0),
@@ -38,6 +42,7 @@ CREATE TABLE decisions (
     CONSTRAINT decisions_budget_horizon_not_blank CHECK (length(btrim(risk_budget_horizon)) > 0),
     CONSTRAINT decisions_action_not_blank CHECK (length(btrim(intended_action)) > 0),
     CONSTRAINT decisions_author_not_blank CHECK (length(btrim(author)) > 0),
+    CONSTRAINT decisions_creation_snapshot_object CHECK (jsonb_typeof(creation_snapshot) = 'object'),
     CONSTRAINT decisions_status CHECK (status IN ('draft', 'finalized')),
     CONSTRAINT decisions_finalized_at CHECK ((status = 'draft' AND finalized_at IS NULL) OR (status = 'finalized' AND finalized_at IS NOT NULL))
 );
@@ -49,6 +54,7 @@ CREATE TABLE decision_reviews (
     outcome TEXT NOT NULL,
     author TEXT NOT NULL,
     source_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    timeline_sequence BIGINT NOT NULL DEFAULT nextval('decision_timeline_sequence'),
     created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
     CONSTRAINT decision_reviews_review_not_blank CHECK (length(btrim(review)) > 0),
     CONSTRAINT decision_reviews_outcome_not_blank CHECK (length(btrim(outcome)) > 0),
@@ -62,6 +68,7 @@ CREATE TABLE decision_amendments (
     changes JSONB NOT NULL,
     author TEXT NOT NULL,
     source_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    timeline_sequence BIGINT NOT NULL DEFAULT nextval('decision_timeline_sequence'),
     created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
     CONSTRAINT decision_amendments_summary_not_blank CHECK (length(btrim(summary)) > 0),
     CONSTRAINT decision_amendments_changes_object CHECK (jsonb_typeof(changes) = 'object'),
@@ -92,6 +99,8 @@ BEGIN
        OR NEW.tags IS DISTINCT FROM OLD.tags
        OR NEW.author IS DISTINCT FROM OLD.author
        OR NEW.source_metadata IS DISTINCT FROM OLD.source_metadata
+       OR NEW.creation_snapshot IS DISTINCT FROM OLD.creation_snapshot
+       OR NEW.timeline_sequence IS DISTINCT FROM OLD.timeline_sequence
        OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
         RAISE EXCEPTION 'decision content is immutable during finalization' USING ERRCODE = '55000';
     END IF;
@@ -132,4 +141,5 @@ DROP FUNCTION IF EXISTS guard_finalized_decision();
 DROP TABLE IF EXISTS decision_amendments;
 DROP TABLE IF EXISTS decision_reviews;
 DROP TABLE IF EXISTS decisions;
+DROP SEQUENCE IF EXISTS decision_timeline_sequence;
 -- +goose StatementEnd

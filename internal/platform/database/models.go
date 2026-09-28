@@ -53,28 +53,32 @@ type Decision struct {
 	Status                 string             `json:"status"`
 	Author                 string             `json:"author"`
 	SourceMetadata         []byte             `json:"source_metadata"`
+	CreationSnapshot       []byte             `json:"creation_snapshot"`
+	TimelineSequence       int64              `json:"timeline_sequence"`
 	CreatedAt              pgtype.Timestamptz `json:"created_at"`
 	FinalizedAt            pgtype.Timestamptz `json:"finalized_at"`
 }
 
 type DecisionAmendment struct {
-	ID             pgtype.UUID        `json:"id"`
-	DecisionID     pgtype.UUID        `json:"decision_id"`
-	Summary        string             `json:"summary"`
-	Changes        []byte             `json:"changes"`
-	Author         string             `json:"author"`
-	SourceMetadata []byte             `json:"source_metadata"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	ID               pgtype.UUID        `json:"id"`
+	DecisionID       pgtype.UUID        `json:"decision_id"`
+	Summary          string             `json:"summary"`
+	Changes          []byte             `json:"changes"`
+	Author           string             `json:"author"`
+	SourceMetadata   []byte             `json:"source_metadata"`
+	TimelineSequence int64              `json:"timeline_sequence"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 }
 
 type DecisionReview struct {
-	ID             pgtype.UUID        `json:"id"`
-	DecisionID     pgtype.UUID        `json:"decision_id"`
-	Review         string             `json:"review"`
-	Outcome        string             `json:"outcome"`
-	Author         string             `json:"author"`
-	SourceMetadata []byte             `json:"source_metadata"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	ID               pgtype.UUID        `json:"id"`
+	DecisionID       pgtype.UUID        `json:"decision_id"`
+	Review           string             `json:"review"`
+	Outcome          string             `json:"outcome"`
+	Author           string             `json:"author"`
+	SourceMetadata   []byte             `json:"source_metadata"`
+	TimelineSequence int64              `json:"timeline_sequence"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 }
 
 type FxQuoteRevision struct {

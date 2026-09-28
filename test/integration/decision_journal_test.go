@@ -64,6 +64,12 @@ func TestDecisionJournalAPI(t *testing.T) {
 		Author:                 "integration-test",
 		SourceMetadata:         map[string]any{"source": "fixture"},
 	}
+	create.EvidenceReferences = []domain.EvidenceRef{{Kind: " ", Reference: "fixture"}}
+	invalidEvidence := post("/api/v1/decisions", create)
+	if invalidEvidence.Code != http.StatusBadRequest {
+		t.Fatalf("blank evidence reference status=%d body=%s", invalidEvidence.Code, invalidEvidence.Body.String())
+	}
+	create.EvidenceReferences = []domain.EvidenceRef{{Kind: "valuation", Reference: "valuation-fixture", Description: "stored valuation"}}
 	created := post("/api/v1/decisions", create)
 	if created.Code != http.StatusCreated {
 		t.Fatalf("create status=%d body=%s", created.Code, created.Body.String())
@@ -74,6 +80,23 @@ func TestDecisionJournalAPI(t *testing.T) {
 	}
 	if decision.Status != domain.StatusDraft || decision.RiskBudget.Currency != "TRY" {
 		t.Fatalf("created decision=%+v", decision)
+	}
+	beforeRequest := httptest.NewRequest(http.MethodGet, "/api/v1/decisions/"+decision.ID+"/timeline", nil)
+	beforeRecorder := httptest.NewRecorder()
+	h.ServeHTTP(beforeRecorder, beforeRequest)
+	if beforeRecorder.Code != http.StatusOK {
+		t.Fatalf("draft timeline status=%d body=%s", beforeRecorder.Code, beforeRecorder.Body.String())
+	}
+	var beforeTimeline domain.Timeline
+	if err := json.NewDecoder(beforeRecorder.Body).Decode(&beforeTimeline); err != nil {
+		t.Fatal(err)
+	}
+	if len(beforeTimeline.Events) != 1 || beforeTimeline.Events[0].Kind != "decision" {
+		t.Fatalf("draft timeline events=%+v", beforeTimeline.Events)
+	}
+	beforePayload, err := json.Marshal(beforeTimeline.Events[0].Payload)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	finalized := post("/api/v1/decisions/"+decision.ID+"/finalize", map[string]any{})
@@ -115,6 +138,13 @@ func TestDecisionJournalAPI(t *testing.T) {
 	}
 	if len(timeline.Events) != 3 || timeline.Events[0].Kind != "decision" || timeline.Events[1].Kind != "review" || timeline.Events[2].Kind != "amendment" {
 		t.Fatalf("timeline events=%+v", timeline.Events)
+	}
+	afterPayload, err := json.Marshal(timeline.Events[0].Payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(beforePayload) != string(afterPayload) {
+		t.Fatalf("creation timeline payload changed across finalization: before=%s after=%s", beforePayload, afterPayload)
 	}
 }
 
