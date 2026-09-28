@@ -21,6 +21,7 @@
 | Incomplete valuation is prominent and not full NAV | A non-valid run displays an alert and never renders the Complete NAV label; component test covers blocked state. |
 | Reconciliation displays tolerance and differences | Checkpoint comparison renders cutoff, absolute/relative difference, effective tolerance and version; checkpoint creation is limited to valid valuations. |
 | Forms preserve input on recoverable errors | Manual snapshot error test proves exact quantity remains after a rejected request. All forms keep controlled state after API errors. |
+| Stale mutation results cannot cross portfolio contexts | Three deferred-response tests prove delayed snapshot, valuation, and CSV snapshot-refresh results are ignored after switching portfolios. Implemented in `c18337f`; independent review finding addressed, awaiting re-review. |
 
 ## Stop-condition check
 
@@ -31,7 +32,7 @@
 
 | Command | Result |
 |---|---|
-| `npm test -- --run` | pass, 26 tests in 6 files |
+| `npm test -- --run` | pass, 29 tests in 7 files |
 | `npm run typecheck` | pass |
 | `npm run build` | pass |
 | `npm run lint` | pass |
@@ -55,10 +56,10 @@
 ## Git state
 
 - Branch: `task/AR-503-portfolio-ui`
-- Implementation commit SHA: `61eab655c0c1e7a262a2bd05a0a32c9c11104460`
+- Implementation commits: `61eab655c0c1e7a262a2bd05a0a32c9c11104460` and stale-context repair `c18337f526692604ff87be6c2d856a9cb56a6377`.
 - Base SHA: `0277e082843b6caa8f16e95e96bac06ba4d4a1a4`
 - Evidence/status commit SHA: recorded in the final handoff message.
-- Remote branch: not pushed; branch-specific authorization is pending. The task branch is ahead of `origin/main` by three commits after this evidence/status commit.
+- Remote branch: not pushed; branch-specific authorization is pending. The task branch is ahead of `origin/main` by six commits after this report/status update.
 - Worktree: clean at final handoff.
 
 ## Assumptions and risks
