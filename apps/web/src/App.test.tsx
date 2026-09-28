@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+
 import { vi } from "vitest";
 
 import { App } from "./App";
@@ -28,7 +29,7 @@ describe("App", () => {
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("This surface is ready for its domain task"),
+      screen.getByRole("heading", { name: "Inspect a risk run" }),
     ).toBeInTheDocument();
   });
 
