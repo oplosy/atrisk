@@ -23,7 +23,7 @@ test("risk job and result schemas are versioned contract sources", async () => {
 test("scenario revaluation jobs bind one immutable version to a snapshot", async () => {
   const schema = await readJson("contracts/jobs/scenario-revalue.schema.json");
   assert.equal(schema.$schema, "https://json-schema.org/draft/2020-12/schema");
-  assert.deepEqual(schema.required, ["scenario_id", "scenario_version", "snapshot_id", "positions", "pre_metrics"]);
+  assert.deepEqual(schema.required, ["scenario_id", "scenario_version", "snapshot_id", "valuation_id", "sealed_input", "positions", "pre_metrics"]);
   assert.equal(schema.properties.scenario_version.properties.version.minimum, 1);
   assert.equal(schema.additionalProperties, false);
 });
@@ -45,5 +45,6 @@ test("generated OpenAPI risk client round-trips representative risk input", asyn
   assert.ok(schema);
   for (const field of schema.required) assert.ok(Object.hasOwn(value, field), `missing ${field}`);
   await run("go", ["test", "./contracts/jobs", "-run", "TestGeneratedRiskRunRequestRoundTrip", "-count=1"], { cwd: root });
-  assert.equal(schema.properties.positions.items.type, "object");
+  assert.equal(schema.required.includes("valuation_id"), true);
+  assert.equal(schema.properties.positions, undefined);
 });

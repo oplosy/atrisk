@@ -25,18 +25,17 @@ var (
 type SubmitRequest struct {
 	AccountID   string `json:"account_id"`
 	SnapshotID  string `json:"snapshot_id"`
+	ValuationID string `json:"valuation_id"`
 	ScenarioID  string `json:"scenario_id,omitempty"`
 	Name        string `json:"name"`
 	TemplateKey string `json:"template_key"`
 	// IdempotencyKey is supplied by the Idempotency-Key header at the HTTP
 	// boundary. json:"-" prevents a body value from becoming a second source.
-	IdempotencyKey string           `json:"-"`
-	Units          map[string]any   `json:"units"`
-	Shocks         map[string]any   `json:"shocks"`
-	Mappings       map[string]any   `json:"mappings"`
-	Assumptions    map[string]any   `json:"assumptions"`
-	Positions      []map[string]any `json:"positions"`
-	PreMetrics     map[string]any   `json:"pre_metrics,omitempty"`
+	IdempotencyKey string         `json:"-"`
+	Units          map[string]any `json:"units"`
+	Shocks         map[string]any `json:"shocks"`
+	Mappings       map[string]any `json:"mappings"`
+	Assumptions    map[string]any `json:"assumptions"`
 }
 
 type Run struct {
@@ -45,6 +44,7 @@ type Run struct {
 	ScenarioVersion    int             `json:"scenario_version"`
 	AccountID          string          `json:"account_id"`
 	SnapshotID         string          `json:"snapshot_id"`
+	ValuationID        string          `json:"valuation_id"`
 	JobID              string          `json:"job_id"`
 	Status             string          `json:"status"`
 	DataQuality        string          `json:"data_quality"`
@@ -73,14 +73,14 @@ type Page struct {
 type Service struct{ Pool *pgxpool.Pool }
 
 func (s Service) Submit(ctx context.Context, request SubmitRequest) (Run, error) {
-	if s.Pool == nil || strings.TrimSpace(request.IdempotencyKey) == "" || !validUUID(request.AccountID) || !validUUID(request.SnapshotID) || (request.ScenarioID != "" && !validUUID(request.ScenarioID)) {
+	if s.Pool == nil || strings.TrimSpace(request.IdempotencyKey) == "" || !validUUID(request.AccountID) || !validUUID(request.SnapshotID) || !validUUID(request.ValuationID) || (request.ScenarioID != "" && !validUUID(request.ScenarioID)) {
 		return Run{}, ErrInvalidRequest
 	}
 	created, err := (applicationscenarios.Service{Pool: s.Pool}).CreateVersionAndRun(ctx, applicationscenarios.VersionInput{
 		AccountID: request.AccountID, SnapshotID: request.SnapshotID, ScenarioID: request.ScenarioID,
-		Name: request.Name, TemplateKey: request.TemplateKey, IdempotencyKey: request.IdempotencyKey,
+		ValuationID: request.ValuationID,
+		Name:        request.Name, TemplateKey: request.TemplateKey, IdempotencyKey: request.IdempotencyKey,
 		Units: request.Units, Shocks: request.Shocks, Mappings: request.Mappings, Assumptions: request.Assumptions,
-		Positions: request.Positions, PreMetrics: request.PreMetrics,
 	})
 	if err != nil {
 		if errors.Is(err, applicationscenarios.ErrInvalidRequest) {
@@ -102,7 +102,7 @@ func (s Service) Get(ctx context.Context, id string) (Run, error) {
 	}
 	const query = `
 SELECT sr.id::text, sr.scenario_id::text, sr.scenario_version, sr.account_id::text,
-       sr.snapshot_id::text, sr.job_id::text, sr.state, COALESCE(sr.result,'null'::jsonb),
+       sr.snapshot_id::text, COALESCE(sr.valuation_id::text,''), sr.job_id::text, sr.state, COALESCE(sr.result,'null'::jsonb),
        COALESCE(btrim(sr.result_hash),''), btrim(sr.request_hash), sr.created_at, sr.completed_at,
        sv.template_key, btrim(sv.content_hash), j.state, j.schema_version,
        j.input_snapshot_ids, COALESCE(j.result,'null'::jsonb), COALESCE(btrim(j.result_hash),''),
@@ -115,7 +115,7 @@ WHERE sr.id=$1::uuid`
 	var runState, jobState, template, resultHash, requestHash, schemaVersion, jobHash, errorCode, errorMessage string
 	var scenarioResult, jobResult []byte
 	var inputSnapshotIDs []string
-	if err := s.Pool.QueryRow(ctx, query, id).Scan(&run.ID, &run.ScenarioID, &run.ScenarioVersion, &run.AccountID, &run.SnapshotID, &run.JobID, &runState, &scenarioResult, &resultHash, &requestHash, &run.CreatedAt, &run.CompletedAt, &template, &run.ScenarioContentSHA, &jobState, &schemaVersion, &inputSnapshotIDs, &jobResult, &jobHash, &errorCode, &errorMessage); err != nil {
+	if err := s.Pool.QueryRow(ctx, query, id).Scan(&run.ID, &run.ScenarioID, &run.ScenarioVersion, &run.AccountID, &run.SnapshotID, &run.ValuationID, &run.JobID, &runState, &scenarioResult, &resultHash, &requestHash, &run.CreatedAt, &run.CompletedAt, &template, &run.ScenarioContentSHA, &jobState, &schemaVersion, &inputSnapshotIDs, &jobResult, &jobHash, &errorCode, &errorMessage); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Run{}, ErrNotFound
 		}

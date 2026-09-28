@@ -226,6 +226,7 @@ export interface ValuationRun {
 export interface RiskRunRequest {
   account_id: string;
   snapshot_id: string;
+  valuation_id: string;
   scenario_id?: string;
   name: string;
   template_key: "try_depreciation" | "rates_up" | "risk_off";
@@ -233,8 +234,6 @@ export interface RiskRunRequest {
   shocks: Record<string, unknown>;
   mappings: Record<string, unknown>;
   assumptions: Record<string, unknown>;
-  positions: Record<string, unknown>[];
-  pre_metrics?: Record<string, unknown>;
 }
 
 export interface RiskRun {
@@ -243,6 +242,7 @@ export interface RiskRun {
   scenario_version: number;
   account_id: string;
   snapshot_id: string;
+  valuation_id: string;
   job_id: string;
   status: "queued" | "running" | "retryable" | "permanent" | "cancelled" | "completed";
   data_quality: "healthy" | "degraded" | "blocked";

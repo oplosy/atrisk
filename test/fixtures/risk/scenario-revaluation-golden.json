@@ -16,6 +16,17 @@
       },
       "assumptions": {"coverage_policy": "block", "pnl_tolerance": "0.00000001"}
     },
+    "valuation_id": "golden-valuation-1",
+    "sealed_input": {
+      "valuation_run_id": "golden-valuation-1",
+      "snapshot_id": "golden-snapshot-1",
+      "state": "valid",
+      "cutoff": "2026-01-01T00:00:00Z",
+      "knowledge_mode": "system_as_of",
+      "known_at": "2026-01-01T00:00:00Z",
+      "lines": []
+    },
+    "snapshot_id": "golden-snapshot-1",
     "positions": [
       {"snapshot_line_id": "golden-line-1", "instrument_id": "golden-crypto", "instrument_type": "crypto_spot", "asset_class": "crypto", "native_currency": "USD", "value_try": "3200", "value_usd": "100"}
     ],

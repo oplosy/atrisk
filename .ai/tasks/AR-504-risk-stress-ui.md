@@ -1,9 +1,9 @@
 ---
 id: AR-504
 title: Build risk and stress analysis UI
-status: ready
+status: blocked
 phase: 5
-depends_on: [AR-305, AR-501]
+depends_on: [AR-305, AR-306, AR-501]
 branch: task/AR-504-risk-stress-ui
 owned_paths: [apps/web/src/features/risk/, apps/web/src/routes/risk/]
 shared_paths: [apps/web/src/components/, apps/web/src/routes/root/, apps/web/src/app/, apps/web/src/styles.css, apps/web/src/App.test.tsx]

@@ -40,6 +40,7 @@ flowchart TD
     A303 --> A304[AR-304 Factor attribution]
     A302 --> A305[AR-305 Risk result API]
     A304 --> A305
+    A305 --> A306[AR-306 Sealed risk inputs and stress attribution]
     A201 --> A401[AR-401 Decision journal]
     A305 --> A402[AR-402 Immutable decision evidence]
     A401 --> A402
@@ -48,7 +49,7 @@ flowchart TD
     A501 --> A502
     A204 --> A503[AR-503 Portfolio and reconciliation UI]
     A501 --> A503
-    A305 --> A504[AR-504 Risk and stress UI]
+    A306 --> A504[AR-504 Risk and stress UI]
     A501 --> A504
     A402 --> A505[AR-505 Decision journal UI]
     A501 --> A505
@@ -191,6 +192,12 @@ factor set, interaction residuals, numerical tolerances, and property/golden tes
 
 Expose job submission/status, risk results, stress results, attribution, quality,
 engine/schema versions, and input snapshot links without leaking internal tables.
+
+### AR-306 Sealed risk inputs and stress attribution
+
+Bind scenario jobs to persisted valuation and point-in-time market inputs, derive
+pre-shock metrics server-side, and expose deterministic position/factor attribution
+with residual reconciliation in the immutable result.
 
 **Exit evidence:** total stress P&L reconciles to positions and factors; repeated
 runs with identical versions produce byte-stable canonical result payloads.
