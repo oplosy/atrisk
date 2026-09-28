@@ -228,3 +228,64 @@ class ValuationRun(ContractModel):
     lines: list[ValuationLine]
     totals: ValuationTotals
     created_at: str
+
+class RiskRunRequest(ContractModel):
+    account_id: str
+    snapshot_id: str
+    scenario_id: str | None = None
+    name: str
+    template_key: Literal["try_depreciation", "rates_up", "risk_off"]
+    units: dict[str, Any]
+    shocks: dict[str, Any]
+    mappings: dict[str, Any]
+    assumptions: dict[str, Any]
+    positions: list[dict[str, Any]]
+    pre_metrics: dict[str, Any] | None = None
+
+class RiskRun(ContractModel):
+    id: str
+    scenario_id: str
+    scenario_version: int
+    account_id: str
+    snapshot_id: str
+    job_id: str
+    status: Literal["queued", "running", "retryable", "permanent", "cancelled", "completed"]
+    data_quality: Literal["healthy", "degraded", "blocked"]
+    schema_version: str
+    engine_version: str
+    scenario_template: str
+    scenario_content_sha256: str
+    request_hash: str
+    result_hash: str | None = None
+    input_snapshot_ids: list[str]
+    reason_codes: list[str]
+    result: dict[str, Any] | None = None
+    created_at: str
+    completed_at: str | None | None = None
+    error_code: str | None = None
+    error_message: str | None = None
+
+class RiskPosition(ContractModel):
+    snapshot_line_id: str
+    instrument_id: str
+    state: Literal["valid", "blocked"]
+    reason_codes: list[str]
+    pre_value_try: str | None | None = None
+    post_value_try: str | None | None = None
+    pnl_try: str | None | None = None
+    pre_value_usd: str | None | None = None
+    post_value_usd: str | None | None = None
+    pnl_usd: str | None | None = None
+    price_return: str | None | None = None
+    yield_return: str | None | None = None
+    fx_multiplier_try: str | None | None = None
+    fx_multiplier_usd: str | None | None = None
+
+class RiskPositionPage(ContractModel):
+    items: list[RiskPosition]
+    limit: int
+    next_cursor: str | None = None
+    has_more: bool
+
+class CancelRiskRunRequest(ContractModel):
+    reason: str | None = None

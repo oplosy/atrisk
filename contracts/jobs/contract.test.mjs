@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { promisify } from "node:util";
+
+const run = promisify(execFile);
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 const readJson = async (path) => JSON.parse(await readFile(path, "utf8"));
 
@@ -29,4 +36,14 @@ test("golden job and result fixtures match their envelope contracts", async () =
   assert.equal(result.schema_version, "1.0");
   assert.equal(result.status, "succeeded");
   assert.equal(result.data_quality, "healthy");
+});
+
+test("generated OpenAPI risk client round-trips representative risk input", async () => {
+  const openapi = await readJson("contracts/openapi/openapi.json");
+  const schema = openapi.components.schemas.RiskRunRequest;
+  const value = await readJson("contracts/jobs/risk-request.golden.json");
+  assert.ok(schema);
+  for (const field of schema.required) assert.ok(Object.hasOwn(value, field), `missing ${field}`);
+  await run("go", ["test", "./contracts/jobs", "-run", "TestGeneratedRiskRunRequestRoundTrip", "-count=1"], { cwd: root });
+  assert.equal(schema.properties.positions.items.type, "object");
 });

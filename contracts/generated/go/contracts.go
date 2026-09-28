@@ -272,3 +272,69 @@ type ValuationRun struct {
 	Totals             ValuationTotals `json:"totals"`
 	CreatedAt          string          `json:"created_at"`
 }
+
+type RiskRunRequest struct {
+	AccountID   string           `json:"account_id"`
+	SnapshotID  string           `json:"snapshot_id"`
+	ScenarioID  *string          `json:"scenario_id,omitempty"`
+	Name        string           `json:"name"`
+	TemplateKey string           `json:"template_key"`
+	Units       map[string]any   `json:"units"`
+	Shocks      map[string]any   `json:"shocks"`
+	Mappings    map[string]any   `json:"mappings"`
+	Assumptions map[string]any   `json:"assumptions"`
+	Positions   []map[string]any `json:"positions"`
+	PreMetrics  map[string]any   `json:"pre_metrics,omitempty"`
+}
+
+type RiskRun struct {
+	ID                    string         `json:"id"`
+	ScenarioID            string         `json:"scenario_id"`
+	ScenarioVersion       int            `json:"scenario_version"`
+	AccountID             string         `json:"account_id"`
+	SnapshotID            string         `json:"snapshot_id"`
+	JobID                 string         `json:"job_id"`
+	Status                string         `json:"status"`
+	DataQuality           string         `json:"data_quality"`
+	SchemaVersion         string         `json:"schema_version"`
+	EngineVersion         string         `json:"engine_version"`
+	ScenarioTemplate      string         `json:"scenario_template"`
+	ScenarioContentSHA256 string         `json:"scenario_content_sha256"`
+	RequestHash           string         `json:"request_hash"`
+	ResultHash            *string        `json:"result_hash,omitempty"`
+	InputSnapshotIDs      []string       `json:"input_snapshot_ids"`
+	ReasonCodes           []string       `json:"reason_codes"`
+	Result                map[string]any `json:"result,omitempty"`
+	CreatedAt             string         `json:"created_at"`
+	CompletedAt           *string        `json:"completed_at,omitempty"`
+	ErrorCode             *string        `json:"error_code,omitempty"`
+	ErrorMessage          *string        `json:"error_message,omitempty"`
+}
+
+type RiskPosition struct {
+	SnapshotLineID  string   `json:"snapshot_line_id"`
+	InstrumentID    string   `json:"instrument_id"`
+	State           string   `json:"state"`
+	ReasonCodes     []string `json:"reason_codes"`
+	PreValueTry     *string  `json:"pre_value_try,omitempty"`
+	PostValueTry    *string  `json:"post_value_try,omitempty"`
+	PnlTry          *string  `json:"pnl_try,omitempty"`
+	PreValueUsd     *string  `json:"pre_value_usd,omitempty"`
+	PostValueUsd    *string  `json:"post_value_usd,omitempty"`
+	PnlUsd          *string  `json:"pnl_usd,omitempty"`
+	PriceReturn     *string  `json:"price_return,omitempty"`
+	YieldReturn     *string  `json:"yield_return,omitempty"`
+	FxMultiplierTry *string  `json:"fx_multiplier_try,omitempty"`
+	FxMultiplierUsd *string  `json:"fx_multiplier_usd,omitempty"`
+}
+
+type RiskPositionPage struct {
+	Items      []RiskPosition `json:"items"`
+	Limit      int            `json:"limit"`
+	NextCursor *string        `json:"next_cursor,omitempty"`
+	HasMore    bool           `json:"has_more"`
+}
+
+type CancelRiskRunRequest struct {
+	Reason *string `json:"reason,omitempty"`
+}
