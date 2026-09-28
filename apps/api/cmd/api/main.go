@@ -77,7 +77,7 @@ func main() {
 		}
 	}
 	importHandler := apiimports.New(applicationimports.Service{Pool: pool, Archive: importArchive})
-	journalHandler := apijournal.New(applicationjournal.Service{Pool: pool})
+	journalHandler := apijournal.New(applicationjournal.Service{Pool: pool, Archive: importArchive})
 	mux := http.NewServeMux()
 	mux.Handle("/api/v1/instruments", portfolioHandler)
 	mux.Handle("/api/v1/instruments/", portfolioHandler)

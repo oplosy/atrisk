@@ -32,6 +32,7 @@ func TestDecisionJournalAPI(t *testing.T) {
 		RETURNING id::text`, portfolioID).Scan(&accountID); err != nil {
 		t.Fatal(err)
 	}
+	_, sealedRefs := decisionEvidenceFixture(t, pool, portfolioID, accountID)
 	h := apijournal.New(applicationjournal.Service{Pool: pool})
 	post := func(path string, body any) *httptest.ResponseRecorder {
 		t.Helper()
@@ -69,7 +70,7 @@ func TestDecisionJournalAPI(t *testing.T) {
 	if invalidEvidence.Code != http.StatusBadRequest {
 		t.Fatalf("blank evidence reference status=%d body=%s", invalidEvidence.Code, invalidEvidence.Body.String())
 	}
-	create.EvidenceReferences = []domain.EvidenceRef{{Kind: "valuation", Reference: "valuation-fixture", Description: "stored valuation"}}
+	create.EvidenceReferences = sealedRefs
 	created := post("/api/v1/decisions", create)
 	if created.Code != http.StatusCreated {
 		t.Fatalf("create status=%d body=%s", created.Code, created.Body.String())

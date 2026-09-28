@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oplosy/atrisk/internal/application/evidence"
 	application "github.com/oplosy/atrisk/internal/application/journal"
 	domain "github.com/oplosy/atrisk/internal/domain/journal"
 )
@@ -18,6 +19,7 @@ type Service interface {
 	Create(context.Context, domain.CreateRequest) (domain.Decision, error)
 	Get(context.Context, string) (domain.Decision, error)
 	Finalize(context.Context, string) (domain.Decision, error)
+	Evidence(context.Context, string) (evidence.Sealed, error)
 	AddReview(context.Context, string, domain.ReviewRequest) (domain.Review, error)
 	AddAmendment(context.Context, string, domain.AmendmentRequest) (domain.Amendment, error)
 	Timeline(context.Context, string) (domain.Timeline, error)
@@ -75,6 +77,17 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			result, err := h.Service.Finalize(r.Context(), decisionID)
+			if err != nil {
+				h.writeServiceError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, result)
+		case "evidence":
+			if r.Method != http.MethodGet {
+				writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "only GET is supported for decision evidence")
+				return
+			}
+			result, err := h.Service.Evidence(r.Context(), decisionID)
 			if err != nil {
 				h.writeServiceError(w, err)
 				return
@@ -152,6 +165,8 @@ func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "decision journal resource not found")
 	case errors.As(err, &conflict):
 		writeError(w, http.StatusConflict, conflict.Code, conflict.Message)
+	case errors.Is(err, evidence.ErrIntegrity):
+		writeError(w, http.StatusConflict, "EVIDENCE_INTEGRITY_FAILURE", "sealed evidence failed integrity verification")
 	default:
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "decision journal operation failed")
 	}
