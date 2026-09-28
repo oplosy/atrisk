@@ -6,7 +6,7 @@ describe("App", () => {
   it("renders an accessible shell with explicit evidence controls", () => {
     render(<App />);
     expect(
-      screen.getByRole("heading", { name: /see what was knowable/i }),
+      screen.getByRole("heading", { name: /know what was knowable/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("navigation", { name: /primary navigation/i }),
