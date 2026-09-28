@@ -25,6 +25,7 @@ var (
 type SubmitRequest struct {
 	AccountID   string `json:"account_id"`
 	SnapshotID  string `json:"snapshot_id"`
+	ValuationID string `json:"valuation_id"`
 	ScenarioID  string `json:"scenario_id,omitempty"`
 	Name        string `json:"name"`
 	TemplateKey string `json:"template_key"`
@@ -35,8 +36,6 @@ type SubmitRequest struct {
 	Shocks         map[string]any   `json:"shocks"`
 	Mappings       map[string]any   `json:"mappings"`
 	Assumptions    map[string]any   `json:"assumptions"`
-	Positions      []map[string]any `json:"positions"`
-	PreMetrics     map[string]any   `json:"pre_metrics,omitempty"`
 }
 
 type Run struct {
@@ -73,14 +72,14 @@ type Page struct {
 type Service struct{ Pool *pgxpool.Pool }
 
 func (s Service) Submit(ctx context.Context, request SubmitRequest) (Run, error) {
-	if s.Pool == nil || strings.TrimSpace(request.IdempotencyKey) == "" || !validUUID(request.AccountID) || !validUUID(request.SnapshotID) || (request.ScenarioID != "" && !validUUID(request.ScenarioID)) {
+	if s.Pool == nil || strings.TrimSpace(request.IdempotencyKey) == "" || !validUUID(request.AccountID) || !validUUID(request.SnapshotID) || !validUUID(request.ValuationID) || (request.ScenarioID != "" && !validUUID(request.ScenarioID)) {
 		return Run{}, ErrInvalidRequest
 	}
 	created, err := (applicationscenarios.Service{Pool: s.Pool}).CreateVersionAndRun(ctx, applicationscenarios.VersionInput{
 		AccountID: request.AccountID, SnapshotID: request.SnapshotID, ScenarioID: request.ScenarioID,
+		ValuationID: request.ValuationID,
 		Name: request.Name, TemplateKey: request.TemplateKey, IdempotencyKey: request.IdempotencyKey,
 		Units: request.Units, Shocks: request.Shocks, Mappings: request.Mappings, Assumptions: request.Assumptions,
-		Positions: request.Positions, PreMetrics: request.PreMetrics,
 	})
 	if err != nil {
 		if errors.Is(err, applicationscenarios.ErrInvalidRequest) {

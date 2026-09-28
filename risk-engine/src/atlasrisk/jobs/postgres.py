@@ -235,6 +235,47 @@ class PostgresQueueClient:
                 ),
             )
 
+        attribution = output.get("attribution")
+        if isinstance(attribution, Mapping):
+            method = attribution.get("method", "shapley")
+            method_version = attribution.get("method_version", "1.0.0")
+            tolerance = attribution.get("tolerance", "0")
+            residual = attribution.get("interaction_residual")
+            for factor in attribution.get("factor_contributions", []):
+                if not isinstance(factor, Mapping):
+                    raise ValueError("scenario factor attribution must be an object")
+                cursor.execute(
+                    """
+                    INSERT INTO scenario_run_factor_attributions (
+                        run_id,factor,contribution,method,method_version,interaction_residual,tolerance
+                    )
+                    SELECT id,%s,%s,%s,%s,%s,%s
+                    FROM scenario_runs WHERE job_id=%s::uuid
+                    """,
+                    (
+                        factor.get("factor"), factor.get("contribution"), method, method_version,
+                        residual, tolerance, job_id,
+                    ),
+                )
+            for position in attribution.get("position_contributions", []):
+                if not isinstance(position, Mapping):
+                    raise ValueError("scenario position attribution must be an object")
+                cursor.execute(
+                    """
+                    INSERT INTO scenario_run_position_attributions (
+                        run_id,snapshot_line_id,instrument_id,state,total_pnl,factor_contributions,residual
+                    )
+                    SELECT id,%s::uuid,%s::uuid,%s,%s,%s::jsonb,%s
+                    FROM scenario_runs WHERE job_id=%s::uuid
+                    """,
+                    (
+                        position.get("snapshot_line_id"), position.get("instrument_id"),
+                        position.get("state", "blocked"), position.get("total_pnl"),
+                        self._json(position.get("factor_contributions", [])),
+                        position.get("residual"), job_id,
+                    ),
+                )
+
         pre_metrics = output.get("pre_metrics", {})
         post_metrics = output.get("post_metrics", {})
         for category, value_key in (("volatility", "annualized"), ("correlations", "coefficient")):
