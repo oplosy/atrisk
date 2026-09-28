@@ -35,8 +35,77 @@ describe("portfolio API boundary", () => {
   });
 
   it.each([
+    [],
     { items: ["bad"] },
-    { items: [{ id: "portfolio-1", name: "Missing currency" }] },
+    {
+      items: [
+        {
+          id: "portfolio-1",
+          name: "Missing metadata",
+          reporting_currency: "TRY",
+          created_at: "2026-09-28T00:00:00Z",
+          updated_at: "2026-09-28T00:00:00Z",
+        },
+      ],
+    },
+    {
+      items: [
+        {
+          id: " ",
+          name: "Blank id",
+          reporting_currency: "TRY",
+          metadata: {},
+          created_at: "2026-09-28T00:00:00Z",
+          updated_at: "2026-09-28T00:00:00Z",
+        },
+      ],
+    },
+    {
+      items: [
+        {
+          id: "portfolio-1",
+          name: " ",
+          reporting_currency: "TRY",
+          metadata: {},
+          created_at: "2026-09-28T00:00:00Z",
+          updated_at: "2026-09-28T00:00:00Z",
+        },
+      ],
+    },
+    {
+      items: [
+        {
+          id: "portfolio-1",
+          name: "Missing created_at",
+          reporting_currency: "TRY",
+          metadata: {},
+          updated_at: "2026-09-28T00:00:00Z",
+        },
+      ],
+    },
+    {
+      items: [
+        {
+          id: "portfolio-1",
+          name: "Missing updated_at",
+          reporting_currency: "TRY",
+          metadata: {},
+          created_at: "2026-09-28T00:00:00Z",
+        },
+      ],
+    },
+    {
+      items: [
+        {
+          id: "portfolio-1",
+          name: "Blank timestamps",
+          reporting_currency: "TRY",
+          metadata: {},
+          created_at: " ",
+          updated_at: "2026-09-28T00:00:00Z",
+        },
+      ],
+    },
   ])("rejects a malformed portfolio item: %j", async (payload) => {
     vi.stubGlobal(
       "fetch",

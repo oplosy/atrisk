@@ -62,23 +62,38 @@ export async function requestJson<T>(
   return (await response.json()) as T;
 }
 
+function isPortfolioItem(value: unknown): boolean {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.id === "string" &&
+    record.id.trim().length > 0 &&
+    typeof record.name === "string" &&
+    record.name.trim().length > 0 &&
+    (record.reporting_currency === "TRY" ||
+      record.reporting_currency === "USD") &&
+    typeof record.metadata === "object" &&
+    record.metadata !== null &&
+    !Array.isArray(record.metadata) &&
+    typeof record.created_at === "string" &&
+    record.created_at.trim().length > 0 &&
+    typeof record.updated_at === "string" &&
+    record.updated_at.trim().length > 0
+  );
+}
+
 export function listPortfolios(signal?: AbortSignal) {
   return requestJson<unknown>("/api/v1/portfolios", signal).then((payload) => {
     if (
       typeof payload !== "object" ||
       payload === null ||
+      Array.isArray(payload) ||
       !("items" in payload) ||
       !Array.isArray(payload.items) ||
-      !payload.items.every((item) => {
-        if (typeof item !== "object" || item === null) return false;
-        const record = item as Record<string, unknown>;
-        return (
-          typeof record.id === "string" &&
-          typeof record.name === "string" &&
-          (record.reporting_currency === "TRY" ||
-            record.reporting_currency === "USD")
-        );
-      })
+      !payload.items.every(isPortfolioItem)
     ) {
       throw new ApiRequestError(
         "error",
