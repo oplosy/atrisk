@@ -10,7 +10,7 @@
 
 ## Result
 
-`needs-review`
+`merged` (PR #53)
 
 ## Acceptance evidence
 
@@ -48,7 +48,7 @@
 | `go test ./internal/application/scenarios ./test/integration -run 'TestScenariosRequestValidation\|TestScenarioInputProvenance\|TestRiskEndToEnd' -count=1` | pass; integration cases skip without isolated DSN |
 | `python -m pytest risk-engine/tests/jobs risk-engine/tests/scenarios risk-engine/tests/attribution risk-engine/tests/metrics -q` | pass, 39 tests with project venv |
 | `go test ./internal/application/scenarios -count=1` | pass; revision/day aggregation with UUID-ascending ties, TRY/USD FX provenance/conversion, metric-hash binding, and missing-FX fail-closed regressions |
-| Hosted PR CI run 134 (`Verify`) | pass; `task verify`, PostgreSQL migration verification, and end-to-end integration steps completed successfully for commit `3c4cafeaf46260cdec4ca5f7985fdaa73f175f42` |
+| Hosted PR CI run 136 (`Verify`) | pass; `task verify`, PostgreSQL migration verification, and end-to-end integration steps completed successfully for reviewed head `aaee3c36b418a41fdaa4ad233dbc212a3b83a9fa`. |
 
 ## Change inventory
 
@@ -60,7 +60,7 @@
 
 - Branch: `task/AR-306-sealed-risk-inputs`
 - Implementation commit SHA: `7c9d6ac` (`fix(risk): seal historical FX inputs [AR-306]`).
-- Remote branch: `origin/task/AR-306-sealed-risk-inputs`, pushed; PR #53 opened against `main`.
+- Remote branch: `origin/task/AR-306-sealed-risk-inputs`, pushed; [PR #53](https://github.com/oplosy/atrisk/pull/53) merged at `11dd2fc033311a114569a192a878c49d68ce0839` after hosted Verify run 136.
 - Worktree: clean after the implementation and report commits; no generated drift.
 
 ## Assumptions and risks
