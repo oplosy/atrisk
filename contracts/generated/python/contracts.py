@@ -232,6 +232,7 @@ class ValuationRun(ContractModel):
 class RiskRunRequest(ContractModel):
     account_id: str
     snapshot_id: str
+    valuation_id: str
     scenario_id: str | None = None
     name: str
     template_key: Literal["try_depreciation", "rates_up", "risk_off"]
@@ -239,8 +240,6 @@ class RiskRunRequest(ContractModel):
     shocks: dict[str, Any]
     mappings: dict[str, Any]
     assumptions: dict[str, Any]
-    positions: list[dict[str, Any]]
-    pre_metrics: dict[str, Any] | None = None
 
 class RiskRun(ContractModel):
     id: str
@@ -248,6 +247,7 @@ class RiskRun(ContractModel):
     scenario_version: int
     account_id: str
     snapshot_id: str
+    valuation_id: str
     job_id: str
     status: Literal["queued", "running", "retryable", "permanent", "cancelled", "completed"]
     data_quality: Literal["healthy", "degraded", "blocked"]

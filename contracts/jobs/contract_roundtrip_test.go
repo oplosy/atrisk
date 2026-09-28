@@ -17,8 +17,8 @@ func TestGeneratedRiskRunRequestRoundTrip(t *testing.T) {
 	if err := json.Unmarshal(data, &request); err != nil {
 		t.Fatalf("generated RiskRunRequest rejected golden payload: %v", err)
 	}
-	if len(request.Positions) != 1 || request.Positions[0]["instrument_id"] != "00000000-0000-0000-0000-000000000007" {
-		t.Fatalf("generated position model lost object fields: %#v", request.Positions)
+	if request.ValuationID != "00000000-0000-0000-0000-000000000005" {
+		t.Fatalf("generated valuation binding was lost: %#v", request.ValuationID)
 	}
 	encoded, err := json.Marshal(request)
 	if err != nil {
@@ -28,7 +28,7 @@ func TestGeneratedRiskRunRequestRoundTrip(t *testing.T) {
 	if err := json.Unmarshal(encoded, &roundTrip); err != nil {
 		t.Fatalf("generated RiskRunRequest round trip failed: %v", err)
 	}
-	if len(roundTrip.Positions) != len(request.Positions) || roundTrip.Positions[0]["snapshot_line_id"] != request.Positions[0]["snapshot_line_id"] {
-		t.Fatalf("generated round trip changed positions: %#v", roundTrip.Positions)
+	if roundTrip.ValuationID != request.ValuationID {
+		t.Fatalf("generated round trip changed valuation binding: %#v", roundTrip.ValuationID)
 	}
 }

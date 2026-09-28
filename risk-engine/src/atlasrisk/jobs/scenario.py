@@ -25,6 +25,9 @@ def handle_scenario_revaluation(job: JobEnvelope) -> dict[str, Any]:
                 "reason_code": "ATTRIBUTION_UNAVAILABLE",
                 "reason": str(error),
             }
+        if result.get("state") == "valid" and not attribution.get("reconciles", False):
+            result["state"] = "degraded"
+            result.setdefault("reason_codes", []).append("ATTRIBUTION_RESIDUAL_EXCEEDS_TOLERANCE")
         result["attribution"] = attribution
         result["input_provenance"] = job.payload.get("sealed_input", {})
         return result

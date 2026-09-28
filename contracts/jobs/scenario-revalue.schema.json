@@ -4,7 +4,7 @@
   "title": "AtlasRisk versioned scenario revaluation job payload",
   "type": "object",
   "additionalProperties": false,
-  "required": ["scenario_id", "scenario_version", "snapshot_id", "positions", "pre_metrics"],
+  "required": ["scenario_id", "scenario_version", "snapshot_id", "valuation_id", "sealed_input", "positions", "pre_metrics"],
   "properties": {
     "scenario_id": { "type": "string", "format": "uuid" },
     "scenario_version": {
@@ -22,6 +22,8 @@
       "additionalProperties": false
     },
     "snapshot_id": { "type": "string", "format": "uuid" },
+    "valuation_id": { "type": "string", "format": "uuid" },
+    "sealed_input": { "type": "object", "additionalProperties": true },
     "positions": { "type": "array", "items": { "type": "object" } },
     "pre_metrics": { "type": "object" }
   }

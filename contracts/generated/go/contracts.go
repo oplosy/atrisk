@@ -274,17 +274,16 @@ type ValuationRun struct {
 }
 
 type RiskRunRequest struct {
-	AccountID   string           `json:"account_id"`
-	SnapshotID  string           `json:"snapshot_id"`
-	ScenarioID  *string          `json:"scenario_id,omitempty"`
-	Name        string           `json:"name"`
-	TemplateKey string           `json:"template_key"`
-	Units       map[string]any   `json:"units"`
-	Shocks      map[string]any   `json:"shocks"`
-	Mappings    map[string]any   `json:"mappings"`
-	Assumptions map[string]any   `json:"assumptions"`
-	Positions   []map[string]any `json:"positions"`
-	PreMetrics  map[string]any   `json:"pre_metrics,omitempty"`
+	AccountID   string         `json:"account_id"`
+	SnapshotID  string         `json:"snapshot_id"`
+	ValuationID string         `json:"valuation_id"`
+	ScenarioID  *string        `json:"scenario_id,omitempty"`
+	Name        string         `json:"name"`
+	TemplateKey string         `json:"template_key"`
+	Units       map[string]any `json:"units"`
+	Shocks      map[string]any `json:"shocks"`
+	Mappings    map[string]any `json:"mappings"`
+	Assumptions map[string]any `json:"assumptions"`
 }
 
 type RiskRun struct {
@@ -293,6 +292,7 @@ type RiskRun struct {
 	ScenarioVersion       int            `json:"scenario_version"`
 	AccountID             string         `json:"account_id"`
 	SnapshotID            string         `json:"snapshot_id"`
+	ValuationID           string         `json:"valuation_id"`
 	JobID                 string         `json:"job_id"`
 	Status                string         `json:"status"`
 	DataQuality           string         `json:"data_quality"`

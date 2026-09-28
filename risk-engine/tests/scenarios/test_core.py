@@ -29,6 +29,13 @@ def _payload(template: str, positions: list[dict[str, object]]) -> dict[str, obj
     version = create_template_version(template, scenario_id="scenario-1")
     return {
         "scenario_version": version,
+        "snapshot_id": "snapshot-1",
+        "valuation_id": "valuation-1",
+        "sealed_input": {
+            "snapshot_id": "snapshot-1",
+            "valuation_run_id": "valuation-1",
+            "state": "valid",
+        },
         "positions": positions,
         "pre_metrics": {
             "volatility": {"crypto": {"annualized": 0.4, "state": "valid"}},
@@ -61,6 +68,13 @@ def test_try_depreciation_does_not_require_unshocked_risk_metrics() -> None:
     result = evaluate_scenario(
         {
             "scenario_version": create_template_version("try_depreciation", scenario_id="s-1"),
+            "snapshot_id": "snapshot-1",
+            "valuation_id": "valuation-1",
+            "sealed_input": {
+                "snapshot_id": "snapshot-1",
+                "valuation_run_id": "valuation-1",
+                "state": "valid",
+            },
             "positions": [],
         }
     )
@@ -162,7 +176,19 @@ def test_unsupported_derivative_and_missing_fx_path_are_blocked() -> None:
 def test_revaluation_does_not_mutate_the_sealed_version() -> None:
     version = create_template_version("rates_up", scenario_id="scenario-1")
     original = deepcopy(version)
-    evaluate_scenario({"scenario_version": version, "positions": []})
+    evaluate_scenario(
+        {
+            "scenario_version": version,
+            "snapshot_id": "snapshot-1",
+            "valuation_id": "valuation-1",
+            "sealed_input": {
+                "snapshot_id": "snapshot-1",
+                "valuation_run_id": "valuation-1",
+                "state": "valid",
+            },
+            "positions": [],
+        }
+    )
     assert version == original
 
 
@@ -170,7 +196,19 @@ def test_invalid_coverage_policy_is_rejected() -> None:
     version = create_template_version("risk_off", scenario_id="scenario-1")
     version["assumptions"]["coverage_policy"] = "ignore"
     with pytest.raises(ScenarioValidationError, match="coverage_policy"):
-        evaluate_scenario({"scenario_version": version, "positions": []})
+        evaluate_scenario(
+            {
+                "scenario_version": version,
+                "snapshot_id": "snapshot-1",
+                "valuation_id": "valuation-1",
+                "sealed_input": {
+                    "snapshot_id": "snapshot-1",
+                    "valuation_run_id": "valuation-1",
+                    "state": "valid",
+                },
+                "positions": [],
+            }
+        )
 
 
 def test_risk_off_without_pre_shock_metrics_is_not_reported_healthy() -> None:
@@ -180,3 +218,10 @@ def test_risk_off_without_pre_shock_metrics_is_not_reported_healthy() -> None:
     assert result["state"] == "blocked"
     assert result["portfolio_pnl_try"] is None
     assert result["reason_codes"] == ["REQUIRED_RISK_METRICS_MISSING"]
+
+
+def test_sealed_provenance_must_match_bound_snapshot_and_valuation() -> None:
+    payload = _payload("try_depreciation", [_position()])
+    payload["sealed_input"]["valuation_run_id"] = "forged-valuation"
+    with pytest.raises(ScenarioValidationError, match="sealed valuation provenance"):
+        evaluate_scenario(payload)

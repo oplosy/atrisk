@@ -293,13 +293,29 @@ def _post_metrics(pre_metrics: dict[str, Any], shocks: dict[str, Any]) -> dict[s
 def evaluate_scenario(payload: dict[str, Any]) -> dict[str, Any]:
     """Revalue a sealed valuation bundle and return deterministic risk-job output."""
     version = payload.get("scenario_version")
+    snapshot_id = payload.get("snapshot_id")
+    valuation_id = payload.get("valuation_id")
+    sealed_input = payload.get("sealed_input")
     positions = payload.get("positions")
     if (
         not isinstance(version, dict)
+        or not isinstance(snapshot_id, str)
+        or not snapshot_id
+        or not isinstance(valuation_id, str)
+        or not valuation_id
+        or not isinstance(sealed_input, dict)
         or not isinstance(positions, list)
         or any(not isinstance(position, dict) for position in positions)
     ):
-        raise ScenarioValidationError("scenario_version and positions are required")
+        raise ScenarioValidationError(
+            "scenario_version, snapshot_id, valuation_id, sealed_input, and positions are required"
+        )
+    if (
+        sealed_input.get("valuation_run_id") != valuation_id
+        or sealed_input.get("snapshot_id") != snapshot_id
+        or sealed_input.get("state") != "valid"
+    ):
+        raise ScenarioValidationError("sealed valuation provenance does not match scenario inputs")
     if (
         not isinstance(version.get("scenario_id"), str)
         or not version["scenario_id"]

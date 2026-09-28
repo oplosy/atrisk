@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -19,17 +20,17 @@ var ErrInvalidRequest = errors.New("invalid scenario request")
 type Service struct{ Pool *pgxpool.Pool }
 
 type VersionInput struct {
-	AccountID      string           `json:"account_id"`
-	SnapshotID     string           `json:"snapshot_id"`
-	ValuationID    string           `json:"valuation_id"`
-	ScenarioID     string           `json:"scenario_id,omitempty"`
-	Name           string           `json:"name"`
-	TemplateKey    string           `json:"template_key"`
-	IdempotencyKey string           `json:"idempotency_key"`
-	Units          map[string]any   `json:"units"`
-	Shocks         map[string]any   `json:"shocks"`
-	Mappings       map[string]any   `json:"mappings"`
-	Assumptions    map[string]any   `json:"assumptions"`
+	AccountID      string         `json:"account_id"`
+	SnapshotID     string         `json:"snapshot_id"`
+	ValuationID    string         `json:"valuation_id"`
+	ScenarioID     string         `json:"scenario_id,omitempty"`
+	Name           string         `json:"name"`
+	TemplateKey    string         `json:"template_key"`
+	IdempotencyKey string         `json:"idempotency_key"`
+	Units          map[string]any `json:"units"`
+	Shocks         map[string]any `json:"shocks"`
+	Mappings       map[string]any `json:"mappings"`
+	Assumptions    map[string]any `json:"assumptions"`
 }
 
 type Run struct {
@@ -58,7 +59,7 @@ type sealedValuation struct {
 func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, valuationID string) (sealedValuation, error) {
 	var (
 		valuationSnapshot, valuationState, knowledgeMode, cutoff, knownAt, resultHash string
-		priceMaxAge, fxMaxAge                                           int64
+		priceMaxAge, fxMaxAge                                                         int64
 	)
 	err := tx.QueryRow(ctx, `
 		SELECT vr.snapshot_id::text, vr.state, vr.cutoff::text, vr.knowledge_mode,
@@ -77,6 +78,16 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 	}
 	if err != nil {
 		return sealedValuation{}, fmt.Errorf("load sealed valuation: %w", err)
+	}
+	var expectedLines int
+	if err := tx.QueryRow(ctx, `
+		SELECT count(*)
+		FROM portfolio_snapshot_lines
+		WHERE snapshot_id=$1::uuid AND account_id=$2::uuid`, snapshotID, accountID).Scan(&expectedLines); err != nil {
+		return sealedValuation{}, fmt.Errorf("count sealed snapshot lines: %w", err)
+	}
+	if expectedLines == 0 {
+		return sealedValuation{}, ErrInvalidRequest
 	}
 
 	rows, err := tx.Query(ctx, `
@@ -100,11 +111,17 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 	for rows.Next() {
 		var lineID, instrumentID, instrumentType, nativeCurrency, state, priceMethod string
 		var duration, convexity, tryAmount, usdAmount, priceID, quoteUnit *string
-		var reasons []string
+		var reasonsRaw []byte
 		var tryIDs, usdIDs []pgtype.UUID
 		var tryDirections, usdDirections []string
-		if err := rows.Scan(&lineID, &instrumentID, &instrumentType, &nativeCurrency, &duration, &convexity, &tryAmount, &usdAmount, &state, &reasons, &priceMethod, &priceID, &quoteUnit, &tryIDs, &tryDirections, &usdIDs, &usdDirections); err != nil {
+		if err := rows.Scan(&lineID, &instrumentID, &instrumentType, &nativeCurrency, &duration, &convexity, &tryAmount, &usdAmount, &state, &reasonsRaw, &priceMethod, &priceID, &quoteUnit, &tryIDs, &tryDirections, &usdIDs, &usdDirections); err != nil {
 			return sealedValuation{}, fmt.Errorf("scan sealed valuation line: %w", err)
+		}
+		var reasons []string
+		if len(reasonsRaw) > 0 && string(reasonsRaw) != "null" {
+			if err := json.Unmarshal(reasonsRaw, &reasons); err != nil {
+				return sealedValuation{}, fmt.Errorf("decode sealed valuation reasons: %w", err)
+			}
 		}
 		if state != "valid" || tryAmount == nil || usdAmount == nil {
 			return sealedValuation{}, ErrInvalidRequest
@@ -127,13 +144,14 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 		provenanceLines = append(provenanceLines, map[string]any{
 			"snapshot_line_id": lineID, "price_method": priceMethod,
 			"price_revision_id": priceID, "price_quote_unit": quoteUnit,
-			"try_fx_path": tryPath, "usd_fx_path": usdPath, "reason_codes": reasons,
+			"try_fx_path": fxEvidence(tryIDs, tryDirections), "usd_fx_path": fxEvidence(usdIDs, usdDirections),
+			"reason_codes": reasons,
 		})
 	}
 	if err := rows.Err(); err != nil {
 		return sealedValuation{}, fmt.Errorf("read sealed valuation lines: %w", err)
 	}
-	if len(positions) == 0 {
+	if len(positions) == 0 || len(positions) != expectedLines {
 		return sealedValuation{}, ErrInvalidRequest
 	}
 	return sealedValuation{Positions: positions, Provenance: map[string]any{
@@ -160,6 +178,22 @@ func assetClass(instrumentType string) string {
 }
 
 func fxPathMaps(ids []pgtype.UUID, directions []string) []map[string]string {
+	path := make([]map[string]string, 0, len(ids))
+	for i, id := range ids {
+		if id.Valid && i < len(directions) {
+			direction := directions[i]
+			if direction == "forward" {
+				direction = "direct"
+			} else if direction == "reverse" {
+				direction = "inverse"
+			}
+			path = append(path, map[string]string{"quote_revision_id": id.String(), "direction": direction})
+		}
+	}
+	return path
+}
+
+func fxEvidence(ids []pgtype.UUID, directions []string) []map[string]string {
 	path := make([]map[string]string, 0, len(ids))
 	for i, id := range ids {
 		if id.Valid && i < len(directions) {
@@ -262,6 +296,18 @@ func (s Service) CreateVersionAndRun(ctx context.Context, input VersionInput) (R
 	if _, err = tx.Exec(ctx, `INSERT INTO scenario_versions (scenario_id,version,template_key,units,shocks,mappings,assumptions,content_hash) VALUES ($1::uuid,$2,$3,$4::jsonb,$5::jsonb,$6::jsonb,$7::jsonb,$8)`, input.ScenarioID, version, input.TemplateKey, mustJSON(input.Units), mustJSON(input.Shocks), mustJSON(input.Mappings), mustJSON(input.Assumptions), hash); err != nil {
 		return Run{}, fmt.Errorf("persist immutable scenario version: %w", err)
 	}
+	sealed.Provenance["account_id"] = input.AccountID
+	sealed.Provenance["scenario_id"] = input.ScenarioID
+	sealed.Provenance["scenario_version"] = version
+	sealed.Provenance["contract_version"] = "1.0"
+	sealedHashBytes := mustJSON(map[string]any{
+		"account_id": input.AccountID, "snapshot_id": input.SnapshotID, "valuation_id": input.ValuationID,
+		"scenario_id": input.ScenarioID, "scenario_version": version, "scenario_content_hash": hash,
+		"sealed_input": sealed.Provenance, "positions": sealed.Positions,
+	})
+	sealedDigest := sha256.Sum256(sealedHashBytes)
+	sealedInputHash := hex.EncodeToString(sealedDigest[:])
+	sealed.Provenance["input_hash"] = sealedInputHash
 	var jobID, runID string
 	payload, err := json.Marshal(map[string]any{
 		"scenario_id": input.ScenarioID,
@@ -277,7 +323,7 @@ func (s Service) CreateVersionAndRun(ctx context.Context, input VersionInput) (R
 	if err != nil {
 		return Run{}, fmt.Errorf("encode scenario job payload: %w", err)
 	}
-	err = tx.QueryRow(ctx, `INSERT INTO risk_jobs (kind,schema_version,idempotency_key,input_snapshot_ids,input_hash,payload) VALUES ('scenario.revalue','1.0',$1,ARRAY[$2]::text[],$3,$4::jsonb) RETURNING id::text`, input.IdempotencyKey, input.SnapshotID, requestHash, payload).Scan(&jobID)
+	err = tx.QueryRow(ctx, `INSERT INTO risk_jobs (kind,schema_version,idempotency_key,input_snapshot_ids,input_hash,payload) VALUES ('scenario.revalue','1.0',$1,ARRAY[$2]::text[],$3,$4::jsonb) RETURNING id::text`, input.IdempotencyKey, input.SnapshotID, sealedInputHash, payload).Scan(&jobID)
 	if err != nil {
 		return Run{}, fmt.Errorf("enqueue scenario revaluation: %w", err)
 	}

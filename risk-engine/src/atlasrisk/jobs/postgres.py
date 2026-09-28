@@ -253,8 +253,13 @@ class PostgresQueueClient:
                     FROM scenario_runs WHERE job_id=%s::uuid
                     """,
                     (
-                        factor.get("factor"), factor.get("contribution"), method, method_version,
-                        residual, tolerance, job_id,
+                        factor.get("factor"),
+                        factor.get("contribution"),
+                        method,
+                        method_version,
+                        residual,
+                        tolerance,
+                        job_id,
                     ),
                 )
             for position in attribution.get("position_contributions", []):
@@ -269,10 +274,13 @@ class PostgresQueueClient:
                     FROM scenario_runs WHERE job_id=%s::uuid
                     """,
                     (
-                        position.get("snapshot_line_id"), position.get("instrument_id"),
-                        position.get("state", "blocked"), position.get("total_pnl"),
+                        position.get("snapshot_line_id"),
+                        position.get("instrument_id"),
+                        position.get("state", "blocked"),
+                        position.get("total_pnl"),
                         self._json(position.get("factor_contributions", [])),
-                        position.get("residual"), job_id,
+                        position.get("residual"),
+                        job_id,
                     ),
                 )
 

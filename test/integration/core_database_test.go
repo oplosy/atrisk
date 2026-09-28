@@ -24,7 +24,7 @@ import (
 
 const testDatabaseEnv = "ATLASRISK_TEST_DATABASE_URL"
 const requireTestDatabaseEnv = "ATLASRISK_REQUIRE_TEST_DATABASE"
-const latestCoreMigrationVersion int64 = 11
+const latestCoreMigrationVersion int64 = 12
 
 func isolatedTestDSN(t *testing.T) string {
 	t.Helper()
@@ -231,7 +231,7 @@ func TestCoreDatabaseMigrations(t *testing.T) {
 func verifyScenarioServicePersistence(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	ctx := context.Background()
-	var portfolioID, accountID, snapshotID, foreignPortfolioID, foreignAccountID, foreignSnapshotID, instrumentID, foreignLineID string
+	var portfolioID, accountID, snapshotID, valuationID, lineID, foreignPortfolioID, foreignAccountID, foreignSnapshotID, instrumentID, foreignLineID string
 	if err := pool.QueryRow(ctx, `INSERT INTO portfolios (name,reporting_currency) VALUES ('scenario-'||gen_random_uuid()::text,'TRY') RETURNING id::text`).Scan(&portfolioID); err != nil {
 		t.Fatalf("create scenario test portfolio: %v", err)
 	}
@@ -253,17 +253,26 @@ func verifyScenarioServicePersistence(t *testing.T, pool *pgxpool.Pool) {
 	if err := pool.QueryRow(ctx, `INSERT INTO instruments (canonical_symbol,instrument_type,native_currency) VALUES ('SCENARIO-'||gen_random_uuid()::text,'equity_spot','USD') RETURNING id::text`).Scan(&instrumentID); err != nil {
 		t.Fatalf("create scenario test instrument: %v", err)
 	}
+	if err := pool.QueryRow(ctx, `INSERT INTO portfolio_snapshot_lines (portfolio_id,snapshot_id,account_id,instrument_id,quantity) VALUES ($1::uuid,$2::uuid,$3::uuid,$4::uuid,1) RETURNING id::text`, portfolioID, snapshotID, accountID, instrumentID).Scan(&lineID); err != nil {
+		t.Fatalf("create scenario test snapshot line: %v", err)
+	}
+	cutoff := "2026-01-01T00:00:00Z"
+	if err := pool.QueryRow(ctx, `INSERT INTO valuation_runs (snapshot_id,cutoff,knowledge_mode,known_at,price_max_age_seconds,fx_max_age_seconds,request,state,result_hash) VALUES ($1::uuid,$2::timestamptz,'system_as_of',$2::timestamptz,0,0,'{}','valid',repeat('0',64)) RETURNING id::text`, snapshotID, cutoff).Scan(&valuationID); err != nil {
+		t.Fatalf("create scenario test valuation: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO valuation_lines (run_id,snapshot_line_id,native_currency,native_amount,try_amount,usd_amount,state,reason_codes,price_method) VALUES ($1::uuid,$2::uuid,'USD','1','100','1','valid','[]','identity')`, valuationID, lineID); err != nil {
+		t.Fatalf("create scenario test valuation line: %v", err)
+	}
 	if err := pool.QueryRow(ctx, `INSERT INTO portfolio_snapshot_lines (portfolio_id,snapshot_id,account_id,instrument_id,quantity) VALUES ($1::uuid,$2::uuid,$3::uuid,$4::uuid,1) RETURNING id::text`, foreignPortfolioID, foreignSnapshotID, foreignAccountID, instrumentID).Scan(&foreignLineID); err != nil {
 		t.Fatalf("create foreign scenario snapshot line: %v", err)
 	}
 	service := applicationscenarios.Service{Pool: pool}
 	input := applicationscenarios.VersionInput{
-		AccountID: accountID, SnapshotID: snapshotID, Name: "TRY depreciation", TemplateKey: "try_depreciation",
+		AccountID: accountID, SnapshotID: snapshotID, ValuationID: valuationID, Name: "TRY depreciation", TemplateKey: "try_depreciation",
 		IdempotencyKey: "scenario-replay-" + portfolioID,
 		Units:          map[string]any{"fx_pair_changes": "relative", "yield_shifts_bps": "basis_points"},
 		Shocks:         map[string]any{"fx_pair_changes": map[string]any{"USD/TRY": "0.25"}},
 		Mappings:       map[string]any{}, Assumptions: map[string]any{"coverage_policy": "block"},
-		Positions: []map[string]any{}, PreMetrics: map[string]any{},
 	}
 	first, err := service.CreateVersionAndRun(ctx, input)
 	if err != nil || first.ScenarioVer != 1 {
@@ -310,7 +319,7 @@ func verifyScenarioServicePersistence(t *testing.T, pool *pgxpool.Pool) {
 		}
 	}
 	changed := input
-	changed.Positions = []map[string]any{{"instrument_id": "different-input"}}
+	changed.Shocks = map[string]any{"fx_pair_changes": map[string]any{"USD/TRY": "0.26"}}
 	if _, err := service.CreateVersionAndRun(ctx, changed); !errors.Is(err, applicationscenarios.ErrInvalidRequest) {
 		t.Fatalf("idempotency key accepted a different payload: %v", err)
 	}

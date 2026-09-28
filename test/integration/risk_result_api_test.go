@@ -20,22 +20,21 @@ func TestRiskEndToEnd(t *testing.T) {
 	_, pool := testDatabase(t)
 	defer pool.Close()
 	ctx := context.Background()
-	accountID, snapshotID, lineID, instrumentID := createRiskAPIFixture(t, pool)
+	accountID, snapshotID, valuationID, lineID, instrumentID := createRiskAPIFixture(t, pool)
 	handler := apirisk.New(applicationrisk.Service{Pool: pool})
 
 	request := map[string]any{
-		"account_id": accountID, "snapshot_id": snapshotID, "name": "risk-api-e2e",
+		"account_id": accountID, "snapshot_id": snapshotID, "valuation_id": valuationID, "name": "risk-api-e2e",
 		"template_key": "risk_off", "units": map[string]any{"reporting_currency": "TRY"},
 		"shocks": map[string]any{"crypto_return": "-0.40"}, "mappings": map[string]any{},
 		"assumptions": map[string]any{"coverage_policy": "block"},
-		"positions":   []map[string]any{{"snapshot_line_id": lineID, "instrument_id": instrumentID}},
 	}
 	first := submitRiskRun(t, handler, request, "risk-api-e2e-key")
 	replay := submitRiskRun(t, handler, request, "risk-api-e2e-key")
 	if first.ID != replay.ID || first.JobID != replay.JobID || first.ScenarioVersion != replay.ScenarioVersion {
 		t.Fatalf("idempotent submission created different runs: first=%+v replay=%+v", first, replay)
 	}
-	if first.SnapshotID != snapshotID || first.AccountID != accountID || first.ScenarioTemplate != "risk_off" {
+	if first.SnapshotID != snapshotID || first.AccountID != accountID || first.ValuationID != valuationID || first.ScenarioTemplate != "risk_off" {
 		t.Fatalf("submission lost provenance: %+v", first)
 	}
 
@@ -45,7 +44,7 @@ func TestRiskEndToEnd(t *testing.T) {
 	}
 	var queued applicationrisk.Run
 	decodeRisk(t, get, &queued)
-	if queued.Status != "queued" || queued.SnapshotID != snapshotID || queued.EngineVersion == "" || queued.SchemaVersion == "" {
+	if queued.Status != "queued" || queued.SnapshotID != snapshotID || queued.ValuationID != valuationID || queued.EngineVersion == "" || queued.SchemaVersion == "" {
 		t.Fatalf("queued status/provenance=%+v", queued)
 	}
 	status := requestRisk(t, handler, http.MethodGet, "/api/v1/risk/runs/"+first.ID+"/status", nil)
@@ -80,7 +79,6 @@ func TestRiskEndToEnd(t *testing.T) {
 
 	completedRequest := request
 	completedRequest["name"] = "risk-api-e2e-completed"
-	completedRequest["positions"] = []map[string]any{{"snapshot_line_id": lineID, "instrument_id": instrumentID}}
 	completed := submitRiskRun(t, handler, completedRequest, "risk-api-e2e-completed-key")
 	resultJSON := `{"job_id":"` + completed.JobID + `","schema_version":"1.0","status":"succeeded","input_snapshot_ids":["` + snapshotID + `"],"data_quality":"healthy","engine_version":"risk-engine-0.1.0","output":{"state":"valid","positions":[]}}`
 	resultHash := strings.Repeat("a", 64)
@@ -120,7 +118,7 @@ func TestRiskEndToEnd(t *testing.T) {
 	}
 }
 
-func createRiskAPIFixture(t *testing.T, pool *pgxpool.Pool) (accountID, snapshotID, lineID, instrumentID string) {
+func createRiskAPIFixture(t *testing.T, pool *pgxpool.Pool) (accountID, snapshotID, valuationID, lineID, instrumentID string) {
 	t.Helper()
 	ctx := context.Background()
 	var portfolioID string
@@ -139,7 +137,14 @@ func createRiskAPIFixture(t *testing.T, pool *pgxpool.Pool) (accountID, snapshot
 	if err := pool.QueryRow(ctx, `INSERT INTO portfolio_snapshot_lines (portfolio_id,snapshot_id,account_id,instrument_id,quantity) VALUES ($1::uuid,$2::uuid,$3::uuid,$4::uuid,1) RETURNING id::text`, portfolioID, snapshotID, accountID, instrumentID).Scan(&lineID); err != nil {
 		t.Fatal(err)
 	}
-	return accountID, snapshotID, lineID, instrumentID
+	cutoff := "2026-01-01T00:00:00Z"
+	if err := pool.QueryRow(ctx, `INSERT INTO valuation_runs (snapshot_id,cutoff,knowledge_mode,known_at,price_max_age_seconds,fx_max_age_seconds,request,state,result_hash) VALUES ($1::uuid,$2::timestamptz,'system_as_of',$2::timestamptz,0,0,'{}','valid',repeat('0',64)) RETURNING id::text`, snapshotID, cutoff).Scan(&valuationID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO valuation_lines (run_id,snapshot_line_id,native_currency,native_amount,try_amount,usd_amount,state,reason_codes,price_method) VALUES ($1::uuid,$2::uuid,'USD','1','100','1','valid','[]','identity')`, valuationID, lineID); err != nil {
+		t.Fatal(err)
+	}
+	return accountID, snapshotID, valuationID, lineID, instrumentID
 }
 
 func submitRiskRun(t *testing.T, handler http.Handler, payload map[string]any, key string) applicationrisk.Run {

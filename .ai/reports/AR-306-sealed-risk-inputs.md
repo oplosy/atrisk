@@ -1,49 +1,65 @@
-# AR-306 Orchestrator Handoff
+# AR-306 Worker Report
 
 ## Task authority
 
 - Task packet: `.ai/tasks/AR-306-sealed-risk-inputs.md`
-- Packet status: `ready`; AR-402 was merged to `main` at `bfd36bd5e49a433dbd3657548019b18a4e2a0b58`, resolving the migration-number conflict.
+- Packet status at start: `ready`
 - Referenced ADRs: ADR-009 through ADR-015, accepted in `docs/decisions/README.md`.
-- Owned paths: as listed in the task packet.
-- Shared paths changed: migration, OpenAPI contract, and task/report handoff paths as listed in the task packet.
+- Owned paths: scenario/risk application services, risk-engine scenario/jobs/attribution/metrics tests and implementations.
+- Shared paths changed and justification: migration `00012` (the prior `00011` number was occupied by AR-402), OpenAPI-generated contracts and job schemas, integration fixtures/tests, and the migration version assertion required by the new schema.
 
 ## Result
 
-`active` (resume checkpoint; partial implementation remains unverified)
+`needs-review`
 
 ## Acceptance evidence
 
 | Criterion | Evidence |
 |---|---|
-| AC-1 through AC-7 | Not yet verified; implementation is partial and no tests were run after the partial edits. |
+| AC-1 | `SubmitRequest` no longer contains client positions or pre-metrics; the risk handler rejects unknown body fields. `apps/api/handlers/risk/handler_test.go` covers the strict request boundary. |
+| AC-2 | `loadSealedValuation` checks account/snapshot ownership, valid valuation state/hash, every account snapshot line, and valid non-null valuation amounts. Migration `00012_sealed_risk_inputs.sql` adds the database valuation-binding trigger. |
+| AC-3 | Job payload contains server-selected `sealed_input`, valuation/snapshot identifiers, price/FX evidence paths, temporal cutoffs, scenario version, and canonical `input_hash`. |
+| AC-4 | Request fingerprint includes valuation binding and scenario inputs; the database job input hash is derived from canonical sealed inputs and the idempotency replay path rejects changed fingerprints. |
+| AC-5 | `handle_scenario_revaluation` invokes AR-304 attribution, emits factor/position rows and residuals, and downgrades a nominally valid result when attribution does not reconcile. PostgreSQL persistence is implemented in `risk-engine/src/atlasrisk/jobs/postgres.py`. |
+| AC-6 | Versioned schema/engine and data-quality fields remain in the job/result envelope; missing pre-shock inputs remain blocked and cannot be promoted to healthy. |
+| AC-7 | Existing scenario rows retain nullable valuation binding and remain readable; new sealed fields and attribution tables use immutable triggers. Migration numbering is now `00012` after AR-402's `00011`. |
 
 ## Stop-condition check
 
-- Decision or scope conflict: none in accepted architecture; ADRs are present in the accepted register, not individual files.
-- Prior blocking condition resolved: AR-402 is merged. The checkpointed AR-306 migration still needs renumbering to `00012` after merged `00011_decision_evidence.sql`; regenerate contracts after rebasing before verification.
+- Decision or scope conflict: none.
+- Missing dependency, unsafe migration, or unavailable verification: isolated PostgreSQL URL was not available; Docker was not started or reconfigured. The repository's `task` executable was also unavailable in this environment.
 
 ## Verification
 
 | Command | Result |
 |---|---|
-| `git diff --check` | pass on partial worktree |
-| AR-306 test commands | not run; implementation paused before tests |
+| `uv run --project risk-engine --locked pytest risk-engine/tests/jobs risk-engine/tests/scenarios risk-engine/tests/attribution risk-engine/tests/metrics -q` | blocked: uv could not fetch locked `hatchling==1.27.0`; equivalent tests with the existing project venv passed `37 passed`. |
+| `python -m ruff check risk-engine/src risk-engine/tests` / `python -m ruff format --check risk-engine/src risk-engine/tests` | pass with existing project venv (26 files formatted) |
+| `go test ./apps/api/handlers/risk ./internal/application/risk ./internal/application/scenarios -count=1` | pass |
+| `go test ./contracts/jobs -count=1` | pass |
+| `node --test test/contract/contract.test.mjs contracts/jobs/contract.test.mjs` | pass, 15 tests |
+| `node scripts/generate/contract-models.mjs` | pass |
+| `go test -run '^$' ./apps/... ./internal/...` | pass |
+| `go vet ./apps/... ./internal/...` | pass |
+| `go test ./test/integration -run 'TestRiskEndToEnd\|TestScenarioInputProvenance' -count=1` | compile/pass; tests skipped without an isolated DB URL |
+| `go test ./test/integration -run '^TestCoreDatabaseMigrations$' -count=1` with `ATLASRISK_REQUIRE_TEST_DATABASE=1` | fail closed: `test database URL is required` |
+| `task migrate-test` / `task verify` | unavailable: `task` executable not installed; no Docker fallback was used |
+| `git diff --check` | pass |
 
 ## Change inventory
 
-- Checkpointed partial files: `apps/api/handlers/risk/handler.go`, `apps/api/handlers/risk/handler_test.go`, `contracts/openapi/openapi.json`, `db/migrations/00011_sealed_risk_inputs.sql` (must be renumbered), `internal/application/risk/service.go`, `internal/application/scenarios/service.go`, `internal/application/scenarios/service_test.go`, `risk-engine/src/atlasrisk/jobs/postgres.py`, and `risk-engine/src/atlasrisk/jobs/scenario.py`.
-- Schema/API changes: incomplete; migration numbering and contract regeneration must be completed on the updated base.
-- Generated artifacts: not yet updated.
+- Files changed: AR-306 application/risk binding, migration `00012_sealed_risk_inputs.sql`, generated API contracts, scenario job schema/fixtures, risk-engine sealed provenance validation and attribution quality gate, and integration fixtures for persisted valuation binding.
+- Schema/API changes: required `valuation_id` on risk submission/result; client-authored `positions` and `pre_metrics` removed; sealed valuation/provenance and attribution persistence added.
+- Generated artifacts: `contracts/generated/go/contracts.go`, `contracts/generated/typescript/contracts.ts`, `contracts/generated/python/contracts.py` and its package export regenerated by `scripts/generate/contract-models.mjs`.
 
 ## Git state
 
 - Branch: `task/AR-306-sealed-risk-inputs`
-- Last commit: `f09936f` recovery checkpoint, rebased on `bfd36bd5e49a433dbd3657548019b18a4e2a0b58`.
+- Commit SHA: `1b792e4` (amended final commit; verify with `git rev-parse HEAD`).
 - Remote branch: not pushed.
-- Worktree: clean at the recovery checkpoint; partial code remains unverified.
+- Worktree: clean after commit and generated-artifact verification.
 
 ## Assumptions and risks
 
-- Renumber the migration, regenerate contracts, and then rerun the complete packet verification.
-- Docker was not run or reconfigured.
+- Hosted/isolated PostgreSQL migration, end-to-end worker persistence, and `task verify` remain to be run in CI because no isolated DSN and no task executable were available locally.
+- Docker was not run, restarted, or reconfigured.
