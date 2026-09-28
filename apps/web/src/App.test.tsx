@@ -27,7 +27,7 @@ describe("App", () => {
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("This surface is ready for its domain task"),
+      screen.getByRole("heading", { name: "Inspect a risk run" }),
     ).toBeInTheDocument();
   });
 });
