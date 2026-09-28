@@ -45,7 +45,7 @@
 | Keyboard browser navigation | Starting at the brand link, two Tab presses focused “Information timeline”; Enter navigated to `/timeline`. |
 | Desktop browser screenshot | [1280×900 Chrome capture](evidence/AR-503-portfolio-1280.png). The visual content viewport is 1265px because the desktop vertical scrollbar occupies 15px; horizontal scroll position is 0. |
 | 320px browser viewport and screenshot | [320×844 Chrome capture](evidence/AR-503-portfolio-320.png), captured with device metrics override. `visualViewport.width`, document client width, and body width were 320px; horizontal scroll position was 0. The portfolio heading and controls wrap without clipping. |
-| `task verify` | unavailable locally: `task` executable not found; hosted PR CI remains required |
+| `task verify` | unavailable locally: `task` executable not found; hosted PR CI run 135 (`Verify`) passed, including database migration verification and `task verify`, for commit `2ba16f042bbcca041e7eda0f404985a2b2984f28` |
 
 ## Change inventory
 
@@ -59,11 +59,11 @@
 - Implementation commits: `61eab655c0c1e7a262a2bd05a0a32c9c11104460`, stale-context guard `83be50a`, and portfolio-switch notice cleanup `93c0dba`.
 - Base SHA: `bfd36bd5e49a433dbd3657548019b18a4e2a0b58` (after AR-402 merge).
 - Evidence/status commit SHA: recorded in the final handoff message.
-- Remote branch: not pushed; branch-specific authorization is pending. The unpushed branch contains only AR-503 changes on top of the updated `origin/main`.
+- Remote branch: `origin/task/AR-503-portfolio-ui`, pushed; PR #54 opened against `main`. The branch contains only AR-503 changes on top of the updated `origin/main`.
 - Worktree: clean at final handoff.
 
 ## Assumptions and risks
 
 - CSV preview and commit use the same file hash, portfolio ID, captured-at timestamp, and server token. The server remains the final validator of preview token expiry and import schema.
-- Browser visual evidence now covers desktop and 320px; real API-backed import, valuation, and reconciliation flows still require an attached backend and hosted CI before merge.
+- Browser visual evidence covers desktop and 320px; hosted `task verify` and database migration verification passed. Local browser submissions used synthetic fixtures, not a connected API/PostgreSQL instance.
 - This branch was developed in the primary checkout rather than a sibling task worktree; later task work should return the primary checkout to clean `main` and use an isolated worktree as prescribed by the execution protocol.
