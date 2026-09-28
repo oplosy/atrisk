@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type {
   Account,
   Instrument,
@@ -40,6 +40,11 @@ interface DraftLine {
   account_id: string;
   instrument_id: string;
   quantity: string;
+}
+
+interface PortfolioContext {
+  id: string;
+  generation: number;
 }
 
 function displayLine(line: ValuationLine, currency: "native" | "TRY" | "USD") {
@@ -109,15 +114,28 @@ export function PortfolioRoute() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const portfolioContext = useRef<PortfolioContext>({ id: "", generation: 0 });
+
+  const isCurrentPortfolio = (context: PortfolioContext) => {
+    const current = portfolioContext.current;
+    return (
+      current.id === context.id && current.generation === context.generation
+    );
+  };
 
   useEffect(() => {
     Promise.all([portfolioApi.portfolios(), portfolioApi.instruments()])
       .then(([portfolioPage, instrumentPage]) => {
         setPortfolios(portfolioPage.items);
         setInstruments(instrumentPage.items);
-        setPortfolioId(
-          (current) => current || portfolioPage.items[0]?.id || "",
-        );
+        setPortfolioId((current) => {
+          if (current || !portfolioPage.items[0]?.id) return current;
+          portfolioContext.current = {
+            id: portfolioPage.items[0].id,
+            generation: portfolioContext.current.generation + 1,
+          };
+          return portfolioPage.items[0].id;
+        });
       })
       .catch((cause: unknown) => setError(String(cause)));
   }, []);
@@ -150,22 +168,28 @@ export function PortfolioRoute() {
     };
   }, [portfolioId]);
 
-  const run = async (label: string, action: () => Promise<void>) => {
+  const run = async (
+    label: string,
+    action: (context: PortfolioContext) => Promise<void>,
+  ) => {
+    const context = { ...portfolioContext.current };
     setBusy(label);
     setError("");
     setNotice("");
     try {
-      await action();
+      await action(context);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      if (isCurrentPortfolio(context)) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
     } finally {
-      setBusy("");
+      if (isCurrentPortfolio(context)) setBusy("");
     }
   };
 
   const createSnapshot = (event: FormEvent) => {
     event.preventDefault();
-    void run("snapshot", async () => {
+    void run("snapshot", async (context) => {
       if (
         !portfolioId ||
         draftLines.some(
@@ -183,6 +207,7 @@ export function PortfolioRoute() {
         captured_at: iso(capturedAt),
         lines: draftLines,
       });
+      if (!isCurrentPortfolio(context)) return;
       setSnapshots((current) => [snapshot, ...current]);
       setSnapshotId(snapshot.id);
       setNotice(`Snapshot ${snapshot.id} created.`);
@@ -190,7 +215,7 @@ export function PortfolioRoute() {
   };
 
   const previewCsv = () =>
-    void run("preview", async () => {
+    void run("preview", async (context) => {
       setPreviewLock(null);
       if (!file || !portfolioId)
         throw new Error("Choose a CSV file and portfolio.");
@@ -203,6 +228,7 @@ export function PortfolioRoute() {
           body: importBody(file, portfolioId, captured),
         },
       );
+      if (!isCurrentPortfolio(context)) return;
       if (preview.content_sha256 !== hash) {
         throw new Error(
           "Preview hash differs from the selected file. Commit remains locked.",
@@ -221,7 +247,7 @@ export function PortfolioRoute() {
     });
 
   const commitCsv = () =>
-    void run("commit", async () => {
+    void run("commit", async (context) => {
       if (
         !file ||
         !previewLock ||
@@ -252,9 +278,11 @@ export function PortfolioRoute() {
           body,
         },
       );
+      if (!isCurrentPortfolio(context)) return;
       if (result.content_sha256 !== hash)
         throw new Error("Committed hash differs from the previewed file.");
       const page = await portfolioApi.snapshots(portfolioId);
+      if (!isCurrentPortfolio(context)) return;
       setSnapshots(page.items);
       setSnapshotId(result.snapshot_id);
       setPreviewLock(null);
@@ -263,7 +291,7 @@ export function PortfolioRoute() {
 
   const createValuation = (event: FormEvent) => {
     event.preventDefault();
-    void run("valuation", async () => {
+    void run("valuation", async (context) => {
       if (!snapshotId) throw new Error("Choose a snapshot first.");
       const result = await portfolioApi.createValuation({
         snapshot_id: snapshotId,
@@ -273,6 +301,7 @@ export function PortfolioRoute() {
         price_max_age_seconds: Number(priceMaxAge),
         fx_max_age_seconds: Number(fxMaxAge),
       });
+      if (!isCurrentPortfolio(context)) return;
       setValuation(result);
       setReconciliation(null);
       setNotice(`Valuation ${result.id} recorded.`);
@@ -281,7 +310,7 @@ export function PortfolioRoute() {
 
   const createReconciliation = (event: FormEvent) => {
     event.preventDefault();
-    void run("reconciliation", async () => {
+    void run("reconciliation", async (context) => {
       if (!valuation || valuation.state !== "valid")
         throw new Error("A valid valuation is required for reconciliation.");
       if (
@@ -300,6 +329,7 @@ export function PortfolioRoute() {
         cutoff: valuation.cutoff,
         external_nav: externalNav,
       });
+      if (!isCurrentPortfolio(context)) return;
       setReconciliation(result);
       setNotice(`Reconciliation ${result.id} recorded.`);
     });
@@ -320,7 +350,13 @@ export function PortfolioRoute() {
         <select
           value={portfolioId}
           onChange={(event) => {
-            setPortfolioId(event.target.value);
+            const nextPortfolioId = event.target.value;
+            portfolioContext.current = {
+              id: nextPortfolioId,
+              generation: portfolioContext.current.generation + 1,
+            };
+            setPortfolioId(nextPortfolioId);
+            setBusy("");
             setPreviewLock(null);
             setValuation(null);
             setReconciliation(null);

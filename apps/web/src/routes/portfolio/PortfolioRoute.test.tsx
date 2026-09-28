@@ -32,9 +32,27 @@ const portfolio = {
   updated_at: "2026-01-01T00:00:00Z",
 };
 
+const secondaryPortfolio = {
+  ...portfolio,
+  id: "portfolio-2",
+  name: "Secondary",
+};
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(portfolioApi.portfolios).mockResolvedValue({ items: [portfolio] });
+  vi.mocked(portfolioApi.portfolios).mockResolvedValue({
+    items: [portfolio, secondaryPortfolio],
+  });
   vi.mocked(portfolioApi.accounts).mockResolvedValue({
     items: [
       {
@@ -156,6 +174,49 @@ it("sends all manual positions in one immutable snapshot", async () => {
   );
 });
 
+it("ignores a delayed snapshot result after switching portfolios", async () => {
+  const pending = deferred<{
+    id: string;
+    portfolio_id: string;
+    captured_at: string;
+    created_at: string;
+    lines: never[];
+  }>();
+  vi.mocked(portfolioApi.createSnapshot).mockReturnValueOnce(pending.promise);
+  render(<PortfolioRoute />);
+  await screen.findByRole("option", { name: "Primary" });
+  await waitFor(() => expect(portfolioApi.accounts).toHaveBeenCalled());
+  fireEvent.change(screen.getByLabelText("Instrument"), {
+    target: { value: "instrument-1" },
+  });
+  fireEvent.change(screen.getByLabelText("Quantity"), {
+    target: { value: "12.345" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Create snapshot" }));
+  await waitFor(() => expect(portfolioApi.createSnapshot).toHaveBeenCalled());
+
+  fireEvent.change(screen.getByLabelText("Portfolio"), {
+    target: { value: secondaryPortfolio.id },
+  });
+  await waitFor(() =>
+    expect(portfolioApi.accounts).toHaveBeenCalledWith(secondaryPortfolio.id),
+  );
+  pending.resolve({
+    id: "snapshot-old",
+    portfolio_id: portfolio.id,
+    captured_at: portfolio.created_at,
+    created_at: portfolio.created_at,
+    lines: [],
+  });
+
+  await waitFor(() =>
+    expect(
+      screen.queryByText("Snapshot snapshot-old created."),
+    ).not.toBeInTheDocument(),
+  );
+  expect(screen.getByLabelText("Portfolio")).toHaveValue(secondaryPortfolio.id);
+});
+
 it("keeps manual input after a recoverable server error", async () => {
   vi.mocked(portfolioApi.createSnapshot).mockRejectedValue(
     new Error("Temporary server error"),
@@ -174,6 +235,116 @@ it("keeps manual input after a recoverable server error", async () => {
     "Temporary server error",
   );
   expect(screen.getByLabelText("Quantity")).toHaveValue("12.345");
+});
+
+it("ignores a delayed valuation result after switching portfolios", async () => {
+  const valuation = deferred<{
+    id: string;
+    snapshot_id: string;
+    cutoff: string;
+    known_at: string;
+    knowledge_mode: "system_as_of";
+    price_max_age_seconds: number;
+    fx_max_age_seconds: number;
+    state: "blocked";
+    result_hash: string;
+    created_at: string;
+    totals: { try: null; usd: null };
+    lines: never[];
+  }>();
+  vi.mocked(portfolioApi.snapshots).mockResolvedValue({
+    items: [
+      {
+        id: "snapshot-1",
+        portfolio_id: portfolio.id,
+        captured_at: portfolio.created_at,
+        created_at: portfolio.created_at,
+        lines: [],
+      },
+    ],
+  });
+  vi.mocked(portfolioApi.createValuation).mockReturnValueOnce(
+    valuation.promise,
+  );
+  render(<PortfolioRoute />);
+  await waitFor(() =>
+    expect(screen.getByLabelText("Snapshot")).toHaveValue("snapshot-1"),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Record valuation" }));
+  await waitFor(() => expect(portfolioApi.createValuation).toHaveBeenCalled());
+
+  fireEvent.change(screen.getByLabelText("Portfolio"), {
+    target: { value: secondaryPortfolio.id },
+  });
+  await waitFor(() =>
+    expect(portfolioApi.accounts).toHaveBeenCalledWith(secondaryPortfolio.id),
+  );
+  valuation.resolve({
+    id: "valuation-old",
+    snapshot_id: "snapshot-1",
+    cutoff: portfolio.created_at,
+    known_at: portfolio.created_at,
+    knowledge_mode: "system_as_of",
+    price_max_age_seconds: 100,
+    fx_max_age_seconds: 100,
+    state: "blocked",
+    result_hash: "hash",
+    created_at: portfolio.created_at,
+    totals: { try: null, usd: null },
+    lines: [],
+  });
+
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("heading", { name: "Valuation result" }),
+    ).not.toBeInTheDocument(),
+  );
+  expect(screen.getByLabelText("Portfolio")).toHaveValue(secondaryPortfolio.id);
+});
+
+it("ignores a delayed CSV snapshot refresh after switching portfolios", async () => {
+  const refresh = deferred<{ items: never[] }>();
+  vi.mocked(portfolioApi.snapshots).mockReset();
+  vi.mocked(portfolioApi.snapshots)
+    .mockResolvedValueOnce({ items: [] })
+    .mockReturnValueOnce(refresh.promise)
+    .mockResolvedValue({ items: [] });
+  vi.mocked(api)
+    .mockResolvedValueOnce({
+      token: "preview-token",
+      content_sha256: "a".repeat(64),
+      valid: true,
+      row_count: 1,
+      diagnostics: [],
+    })
+    .mockResolvedValueOnce({
+      snapshot_id: "snapshot-old",
+      content_sha256: "a".repeat(64),
+    });
+  render(<PortfolioRoute />);
+  await screen.findByRole("option", { name: "Primary" });
+  fireEvent.change(screen.getByLabelText("CSV file"), {
+    target: { files: [new File(["x"], "positions.csv", { type: "text/csv" })] },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Preview CSV" }));
+  const commit = await screen.findByRole("button", {
+    name: "Commit previewed CSV",
+  });
+  await waitFor(() => expect(commit).toBeEnabled());
+  fireEvent.click(commit);
+  await waitFor(() => expect(portfolioApi.snapshots).toHaveBeenCalledTimes(2));
+
+  fireEvent.change(screen.getByLabelText("Portfolio"), {
+    target: { value: secondaryPortfolio.id },
+  });
+  refresh.resolve({ items: [] });
+
+  await waitFor(() =>
+    expect(
+      screen.queryByText("CSV committed as snapshot snapshot-old."),
+    ).not.toBeInTheDocument(),
+  );
+  expect(screen.getByLabelText("Portfolio")).toHaveValue(secondaryPortfolio.id);
 });
 
 it("shows blocked valuation without a full NAV and exposes ordered FX evidence", async () => {
