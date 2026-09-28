@@ -53,9 +53,9 @@
 ## Git state
 
 - Branch: `task/AR-305-risk-result-api`
-- Commit SHA: `42b63bf` (`fix(api): validate risk submission UUIDs [AR-305]`)
-- Remote branch: `task/AR-305-risk-result-api` (follow-up push pending)
-- Worktree: clean after the implementation commit; this report update is metadata-only
+- Commit SHA: `622c8d360179e7700d509252fea604cfbdbd5b23` (`docs(api): finalize AR-305 report state [AR-305]`)
+- Remote branch: `task/AR-305-risk-result-api` at the same SHA
+- Worktree: clean before this metadata-only correction
 
 ## Assumptions and risks
 
