@@ -16,16 +16,17 @@
 
 | Criterion | Evidence |
 |---|---|
-| AC-1 | `decisions_finalized_guard` rejects mutation of finalized content; reviews and amendments are separate immutable tables with append-only triggers. `Finalize` only transitions a draft once. |
+| AC-1 | `decisions_finalized_guard` rejects mutation of finalized content; reviews and amendments are separate immutable tables with append-only triggers. `Finalize` only transitions a draft once. Creation snapshots are stored separately from mutable lifecycle state. |
 | AC-2 | `decisions` stores `risk_budget_amount`, `risk_budget_currency`, `risk_budget_measure`, and `risk_budget_horizon`; request validation requires all four units. |
 | AC-3 | `invalidation_conditions` is required JSONB array with at least one structured condition and a non-blank `condition` field. |
 | AC-4 | Intended action is persisted as journal text only; no execution, broker, or external side-effect path exists. |
-| AC-5 | `Timeline` unions decision, review, and amendment events ordered by `created_at,id`, preserving author and source metadata; handler and contract routes expose `/decisions/{decision_id}/timeline`. |
+| AC-5 | `Timeline` reads decision and events in one PostgreSQL `REPEATABLE READ READ ONLY` transaction, orders by a shared `decision_timeline_sequence`, and preserves author/source metadata. The first event uses immutable `creation_snapshot`; integration coverage compares it before and after finalization. |
 
 ## Stop-condition check
 
 - Decision or scope conflict: none; ADR references agree with the decision-support-only and append-only boundaries.
 - Missing dependency, unsafe migration, or unavailable verification: no isolated test database URL is configured, so the real integration test fails closed before connecting. Docker was not started or modified. The orchestrator amended the packet to authorize API wiring, `test/integration/`, and `Taskfile.yml`; those paths are now covered.
+- Reviewer fixes applied: `NUMERIC(38,18)` bounds are rejected before persistence (20 integer / 18 fractional digits), evidence kind/reference are validated, creation payloads are immutable, and append ordering uses a shared sequence.
 
 ## Verification
 
@@ -38,6 +39,7 @@
 | `task test-contract` | unavailable: `task` executable is not installed; underlying sqlc generation and both contract test commands passed (11 source contract tests plus 3 job contract tests) |
 | `go test ./apps/api/handlers/journal ./internal/application/journal -count=1` | pass |
 | `go test ./apps/api/cmd/api ./test/integration -run 'TestDecisionJournalAPI|TestVersionFormat' -count=1` | pass; API wiring and integration test compiled (integration skipped without DB URL) |
+| `go test ./internal/application/journal -run 'TestDecisionJournal' -count=1` | pass; invalid evidence, exact numeric boundary, and overflow/precision tests executed |
 | `go test ./apps/... ./internal/... -run TestDecisionJournal -count=1` | pass; validation and handler tests executed |
 | `node -e "JSON.parse(require('fs').readFileSync('contracts/openapi/openapi.json','utf8'))"` | pass |
 | `node scripts/verify/check-generated.mjs` | pass after authorized sqlc regeneration |
@@ -46,13 +48,13 @@
 ## Change inventory
 
 - Files changed: journal domain model, application service/tests, HTTP handler/tests, API router wiring, migration, journal SQL query boundary, OpenAPI contract, generated database models, integration test, migration-version assertion, Taskfile verification selection, and this report.
-- Schema/API changes: draft/finalized decisions, append-only reviews/amendments, immutable finalization guard, and decision/timeline HTTP endpoints under `/api/v1/decisions`.
+- Schema/API changes: draft/finalized decisions, immutable creation snapshots, shared timeline ordering, append-only reviews/amendments, immutable finalization guard, and decision/timeline HTTP endpoints under `/api/v1/decisions`.
 - Generated artifacts: `internal/platform/database/models.go` from the repository sqlc generator.
 
 ## Git state
 
 - Branch: `task/AR-401-decision-journal`
-- Commit SHA: `176fc50`, `ef9df82`
+- Commit SHA: `176fc50`, `ef9df82`, `1678452`
 - Remote branch: not pushed; external push authorization is pending
 - Worktree: clean
 
