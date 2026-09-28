@@ -1,7 +1,7 @@
 ---
 id: AR-305
 title: Expose risk and stress results
-status: ready
+status: merged
 phase: 3
 depends_on: [AR-302, AR-304]
 branch: task/AR-305-risk-result-api
