@@ -1,7 +1,7 @@
 ---
 id: AR-306
 title: Seal risk run inputs and persist stress attribution
-status: review
+status: merged
 phase: 3
 depends_on: [AR-203, AR-302, AR-303, AR-304, AR-305]
 branch: task/AR-306-sealed-risk-inputs
