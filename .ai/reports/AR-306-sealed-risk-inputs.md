@@ -18,7 +18,7 @@
 |---|---|
 | AC-1 | `SubmitRequest` no longer contains client positions or pre-metrics; the risk handler rejects unknown body fields. `apps/api/handlers/risk/handler_test.go` covers the strict request boundary. |
 | AC-2 | `loadSealedValuation` checks account/snapshot ownership, valid valuation state/hash, every account snapshot line, and valid non-null valuation amounts. Migration `00012_sealed_risk_inputs.sql` adds the database valuation-binding trigger. |
-| AC-3 | Job payload contains server-selected `sealed_input`, valuation/snapshot identifiers, price/FX evidence paths, temporal cutoffs, scenario version, and canonical `input_hash`. |
+| AC-3 | Job payload contains server-selected `sealed_input`, valuation/snapshot identifiers, selected price/FX evidence paths including quote pairs, temporal cutoffs, scenario version, and canonical `input_hash`. |
 | AC-4 | Request fingerprint includes valuation binding and scenario inputs; the database job input hash is derived from canonical sealed inputs and the idempotency replay path rejects changed fingerprints. |
 | AC-5 | `handle_scenario_revaluation` invokes AR-304 attribution, emits factor/position rows and residuals, and downgrades a nominally valid result when attribution does not reconcile. PostgreSQL persistence is implemented in `risk-engine/src/atlasrisk/jobs/postgres.py`. |
 | AC-6 | Versioned schema/engine and data-quality fields remain in the job/result envelope; missing pre-shock inputs remain blocked and cannot be promoted to healthy. |
@@ -55,7 +55,7 @@
 ## Git state
 
 - Branch: `task/AR-306-sealed-risk-inputs`
-- Commit SHA: `21037dbfa07268363eecc943768baba1193e6586` (implementation commit; report-only follow-up is the final branch tip).
+- Commit SHA: `7e44f18277dbadd16df14a9a51a1ae136ec5f13d` (latest implementation commit; report-only follow-up is the final branch tip).
 - Remote branch: not pushed.
 - Worktree: clean after commit and generated-artifact verification.
 
