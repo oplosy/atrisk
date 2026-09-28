@@ -6,7 +6,7 @@ phase: 5
 depends_on: [AR-107]
 branch: task/AR-501-web-shell-quality
 base_sha: 7a562ff3d77fd60b6d60163ba28df30b3cb81396
-owned_paths: [apps/web/src/app/, apps/web/src/components/, apps/web/src/styles/, apps/web/src/routes/root/]
+owned_paths: [apps/web/src/App.tsx, apps/web/src/App.test.tsx, apps/web/src/app/, apps/web/src/components/, apps/web/src/routes/root/, apps/web/src/styles.css]
 shared_paths: [apps/web/package.json, apps/web/src/generated/]
 adrs: [ADR-001, ADR-009, ADR-011]
 ---
