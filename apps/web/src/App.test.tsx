@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { vi } from "vitest";
 
 import { App } from "./App";
 
@@ -41,5 +42,38 @@ describe("App", () => {
     expect(
       screen.getByRole("heading", { name: /write down what was knowable/i }),
     ).toBeInTheDocument();
+  });
+
+  it("keeps /timeline in navigation history and restores the previous route", async () => {
+    window.history.replaceState({}, "", "/");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url.startsWith("/api/v1/series?"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({ items: [], limit: 50, has_more: false }),
+              { status: 200 },
+            ),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify({ items: [] }), { status: 200 }),
+        );
+      }),
+    );
+    render(<App />);
+    fireEvent.click(
+      screen.getByRole("link", { name: /information timeline/i }),
+    );
+    expect(window.location.pathname).toBe("/timeline");
+    expect(
+      await screen.findByRole("heading", { name: "Series" }),
+    ).toBeInTheDocument();
+    window.history.pushState({}, "", "/");
+    fireEvent.popState(window);
+    expect(
+      screen.getByRole("heading", { name: /know what was knowable/i }),
+    ).toBeInTheDocument();
+    vi.unstubAllGlobals();
   });
 });

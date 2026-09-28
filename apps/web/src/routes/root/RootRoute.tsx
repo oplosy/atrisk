@@ -5,6 +5,8 @@ import { useApiResource, type ResourceState } from "../../app/useApiResource";
 import { QualityBadge, type QualityState } from "../../components/QualityBadge";
 import { StatusPanel } from "../../components/StatusPanel";
 import { PortfolioRoute } from "../portfolio/PortfolioRoute";
+import { TimelineRoute } from "../timeline/TimelineRoute";
+import type { Mode } from "../../features/timeline/api";
 import { RiskRoute } from "../risk/RiskRoute";
 import { DecisionJournalRoute } from "../decisions/DecisionsRoute";
 
@@ -65,7 +67,7 @@ interface RootRouteProps {
 }
 
 export function RootRoute({ route, onNavigate }: RootRouteProps) {
-  const [mode, setMode] = useState("latest");
+  const [mode, setMode] = useState<Mode>("latest");
   const [cutoff, setCutoff] = useState("");
   const loadPortfolios = useCallback(
     (signal: AbortSignal) => listPortfolios(signal),
@@ -104,13 +106,19 @@ export function RootRoute({ route, onNavigate }: RootRouteProps) {
           </span>
         </a>
         <div className="topbar__meta">
-          <QualityBadge state={quality}>
-            {quality === "valid"
-              ? "Data path ready"
-              : quality === "degraded"
-                ? "Review data quality"
-                : "Result blocked"}
-          </QualityBadge>
+          {route === "/timeline" ? (
+            <span className="connection">
+              Timeline quality shown with series
+            </span>
+          ) : (
+            <QualityBadge state={quality}>
+              {quality === "valid"
+                ? "Data path ready"
+                : quality === "degraded"
+                  ? "Review data quality"
+                  : "Result blocked"}
+            </QualityBadge>
+          )}
           <span className="connection">
             <span className="connection__dot" aria-hidden="true" /> self-hosted
           </span>
@@ -205,7 +213,7 @@ export function RootRoute({ route, onNavigate }: RootRouteProps) {
                 Knowledge mode
                 <select
                   value={mode}
-                  onChange={(event) => setMode(event.target.value)}
+                  onChange={(event) => setMode(event.target.value as Mode)}
                 >
                   <option value="latest">Latest</option>
                   <option value="source-as-of">Source as-of</option>
@@ -229,6 +237,8 @@ export function RootRoute({ route, onNavigate }: RootRouteProps) {
 
           {route === "/portfolio" ? (
             <PortfolioRoute />
+          ) : route === "/timeline" ? (
+            <TimelineRoute mode={mode} cutoff={cutoff} />
           ) : route === "/risk" ? (
             <RiskRoute />
           ) : route === "/decisions" ? (
