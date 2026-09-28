@@ -1,7 +1,7 @@
 ---
 id: AR-504
 title: Build risk and stress analysis UI
-status: blocked
+status: review
 phase: 5
 depends_on: [AR-305, AR-306, AR-501]
 branch: task/AR-504-risk-stress-ui
