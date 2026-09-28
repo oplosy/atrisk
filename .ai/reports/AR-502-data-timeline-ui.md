@@ -61,7 +61,7 @@
 - Review lifecycle: `9adcae4f6591110943e9f507a2eec3191a904da5`.
 - Rebased report: `710c0c67506e6a57fd071f0ac58c2240530e03b8`.
 - Latest route integration fix: `a2cbb2f4531d7629a8d3295650bb27575f242516`.
-- Remote branch is not pushed. Hosted `task verify` is pending.
+- Remote branch: `task/AR-502-data-timeline-ui` is published on `oplosy/atrisk`; [PR #56](https://github.com/oplosy/atrisk/pull/56) is open against `main`. Its content tree is sourced from reviewed local commit `a2cbb2f4531d7629a8d3295650bb27575f242516`, applied to remote `main` at `ac8a92d3b85bab739f612928657f3dea59083eaa`; the GitHub API produced nine per-file commits, so the remote commit graph differs from the local worktree history. The local worktree remains clean. Hosted PR verification is pending.
 - Worktree: clean after the report correction commit; no upstream tracking branch is configured.
 
 ## Assumptions and risks
