@@ -57,7 +57,7 @@
 ## Git state
 
 - Branch: `task/AR-306-sealed-risk-inputs`
-- Commit SHA: `8659200d8852e5b05eb2e57c7a75539396169454` (latest implementation commit; report update is included in this commit).
+- Implementation commit SHA: `f6139406c81dee6673052af13598cac39307ebb0`.
 - Remote branch: not pushed.
 - Worktree: clean after commit and generated-artifact verification.
 
