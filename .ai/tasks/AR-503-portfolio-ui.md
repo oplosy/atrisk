@@ -1,7 +1,7 @@
 ---
 id: AR-503
 title: Build portfolio valuation and reconciliation UI
-status: review
+status: merged
 phase: 5
 depends_on: [AR-204, AR-501]
 branch: task/AR-503-portfolio-ui

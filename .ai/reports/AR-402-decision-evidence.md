@@ -10,7 +10,7 @@
 
 ## Result
 
-`needs-review` (hosted isolated-PostgreSQL verification pending)
+`merged` (PR #52)
 
 ## Acceptance evidence
 
@@ -20,12 +20,12 @@
 | AC-2 | Manifest stores the exact snapshot, valuation/quote path, scenario version, risk job/result, and selected revision rows, not latest projections. Integration fixture inserts later snapshot and scenario version and compares bytes. |
 | AC-3 | Manifest includes contract version, every typed reference and its row data, scenario/engine/schema versions from the completed run, and a SHA-256 over canonical Go JSON bytes. UUID inputs are canonicalized to lowercase before manifest persistence/comparison, so case variants bind the same snapshot. The public `DecisionEvidence` response is generated in Go, TypeScript, and Python; contract regression coverage verifies all three targets. |
 | AC-4 | Reconstruction verifies the stored hash and every archived raw object by key and content hash; missing objects yield `EVIDENCE_INTEGRITY_FAILURE` rather than recomputation. |
-| AC-5 | `TestHistoricalDecisionReconstruction` compares exact manifest bytes and hash after later inserts; isolated PostgreSQL execution is pending hosted CI. |
+| AC-5 | `TestHistoricalDecisionReconstruction` compares exact manifest bytes and hash after later inserts. Hosted PR CI completed successfully on the reviewed head; local isolated-PostgreSQL execution was unavailable. |
 
 ## Stop-condition check
 
 - Decision or scope conflict: none. Referenced ADRs are accepted register entries; individual ADR-006/007/013/015 files do not exist.
-- Missing dependency or unavailable verification: `task` executable and isolated PostgreSQL URL are unavailable locally. Docker was not started or reconfigured. Hosted PR CI must run `task verify` with its isolated database.
+- Missing dependency or unavailable verification: `task` executable and isolated PostgreSQL URL are unavailable locally. Docker was not started or reconfigured. Hosted PR CI completed successfully for the reviewed commit.
 
 ## Verification
 
@@ -39,6 +39,7 @@
 | `git diff --check` | passed. |
 | `go test ./internal/application/evidence ./internal/application/journal ./apps/api/handlers/journal -count=1` | passed with workspace-local `GOCACHE`; default cache path was denied by the sandbox. |
 | `go test ./test/integration -run '^TestHistoricalDecisionReconstruction$' -count=1` | passed compilation and test process; database-backed test skipped because no isolated PostgreSQL URL was available. |
+| Hosted PR CI | pass: run 132 for PR #52 head `d65ef0b2daa31efed2c99efacfe862980c2fc89c`; PR is merged. |
 
 ## Change inventory
 
@@ -53,11 +54,11 @@
 - Previous report update commit SHA: `6a3a2d6`.
 - Repair commit SHA: `0cde993` (`fix(evidence): canonicalize evidence UUIDs [AR-402]`).
 - Report update commit SHA: recorded in the final handoff message.
-- Remote branch: `task/AR-402-decision-evidence` pushed to `origin`; [PR #52](https://github.com/oplosy/atrisk/pull/52) is open. Hosted `Verify` was pending when this report was prepared. The task branch contains eight commits not in `origin/main` after this status/report commit.
+- Remote branch: `task/AR-402-decision-evidence` was pushed to `origin`; [PR #52](https://github.com/oplosy/atrisk/pull/52) merged at `bfd36bd5e49a433dbd3657548019b18a4e2a0b58` after hosted CI run 132 succeeded.
 - Worktree: clean at final handoff.
 
 ## Assumptions and risks
 
 - Finalization requires exactly one account-linked portfolio snapshot, one completed valuation run, and one completed scenario/risk run on the same snapshot. Optional typed revision/raw-object references can bind additional market or macro evidence. This is stricter than AR-401 draft creation, which permits narrative references before finalization.
-- Without an archive adapter, a decision involving raw source evidence fails closed. Hosted CI must validate PostgreSQL queries, migration upgrade, and golden reconstruction; local compilation is not runtime proof.
+- Without an archive adapter, a decision involving raw source evidence fails closed. Local PostgreSQL execution was unavailable; hosted PR CI on the reviewed head completed successfully.
 - Evidence UUID validation accepts both lowercase and uppercase hexadecimal digits; canonical lowercase output is used for decision, account, and reference IDs. Unit regression coverage is in `internal/application/evidence/service_test.go`; the historical integration fixture also submits uppercase IDs and verifies byte-identical reconstruction.
