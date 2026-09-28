@@ -126,8 +126,16 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 		if state != "valid" || tryAmount == nil || usdAmount == nil {
 			return sealedValuation{}, ErrInvalidRequest
 		}
-		tryPath := fxPathMaps(tryIDs, tryDirections)
-		usdPath := fxPathMaps(usdIDs, usdDirections)
+		tryPairs, err := loadFXPairs(ctx, tx, tryIDs)
+		if err != nil {
+			return sealedValuation{}, fmt.Errorf("load TRY FX provenance: %w", err)
+		}
+		usdPairs, err := loadFXPairs(ctx, tx, usdIDs)
+		if err != nil {
+			return sealedValuation{}, fmt.Errorf("load USD FX provenance: %w", err)
+		}
+		tryPath := fxPathMaps(tryIDs, tryDirections, tryPairs)
+		usdPath := fxPathMaps(usdIDs, usdDirections, usdPairs)
 		position := map[string]any{
 			"snapshot_line_id": lineID, "instrument_id": instrumentID,
 			"instrument_type": instrumentType, "asset_class": assetClass(instrumentType),
@@ -144,7 +152,7 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 		provenanceLines = append(provenanceLines, map[string]any{
 			"snapshot_line_id": lineID, "price_method": priceMethod,
 			"price_revision_id": priceID, "price_quote_unit": quoteUnit,
-			"try_fx_path": fxEvidence(tryIDs, tryDirections), "usd_fx_path": fxEvidence(usdIDs, usdDirections),
+			"try_fx_path": fxEvidence(tryIDs, tryDirections, tryPairs), "usd_fx_path": fxEvidence(usdIDs, usdDirections, usdPairs),
 			"reason_codes": reasons,
 		})
 	}
@@ -177,7 +185,27 @@ func assetClass(instrumentType string) string {
 	}
 }
 
-func fxPathMaps(ids []pgtype.UUID, directions []string) []map[string]string {
+func loadFXPairs(ctx context.Context, tx pgx.Tx, ids []pgtype.UUID) (map[string]string, error) {
+	pairs := make(map[string]string, len(ids))
+	if len(ids) == 0 {
+		return pairs, nil
+	}
+	rows, err := tx.Query(ctx, `SELECT id::text, base_currency || '/' || quote_currency FROM fx_quote_revisions WHERE id = ANY($1::uuid[])`, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, pair string
+		if err := rows.Scan(&id, &pair); err != nil {
+			return nil, err
+		}
+		pairs[id] = pair
+	}
+	return pairs, rows.Err()
+}
+
+func fxPathMaps(ids []pgtype.UUID, directions []string, pairs map[string]string) []map[string]string {
 	path := make([]map[string]string, 0, len(ids))
 	for i, id := range ids {
 		if id.Valid && i < len(directions) {
@@ -187,17 +215,17 @@ func fxPathMaps(ids []pgtype.UUID, directions []string) []map[string]string {
 			} else if direction == "reverse" {
 				direction = "inverse"
 			}
-			path = append(path, map[string]string{"quote_revision_id": id.String(), "direction": direction})
+			path = append(path, map[string]string{"quote_revision_id": id.String(), "pair": pairs[id.String()], "direction": direction})
 		}
 	}
 	return path
 }
 
-func fxEvidence(ids []pgtype.UUID, directions []string) []map[string]string {
+func fxEvidence(ids []pgtype.UUID, directions []string, pairs map[string]string) []map[string]string {
 	path := make([]map[string]string, 0, len(ids))
 	for i, id := range ids {
 		if id.Valid && i < len(directions) {
-			path = append(path, map[string]string{"quote_revision_id": id.String(), "direction": directions[i]})
+			path = append(path, map[string]string{"quote_revision_id": id.String(), "pair": pairs[id.String()], "direction": directions[i]})
 		}
 	}
 	return path
