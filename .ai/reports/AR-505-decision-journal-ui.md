@@ -66,10 +66,10 @@
 - Implementation commit: `6340e69` (API-contract validation/evidence-lock fix)
 - Prior report commit: `da55def`
 - Current code HEAD: `fd3d9e3` (blank optional evidence omission and request-body regression test)
-- Remote branch: not pushed; remote publication is orchestrator-owned
+- Remote branch: published as `task/AR-505-decision-journal-ui` through the GitHub Contents API; the remote commit graph is a file-by-file transfer from the verified local task tree
 - Worktree: clean
 
 ## Assumptions and risks
 
 - Browser evidence is complete for desktop, keyboard navigation, draft recovery, finalization preview, and independent 320px no-overflow measurement. Mocked browser reconstruction/integrity-error screenshots remain unavailable because this worker browser surface has no page-mutation/mock injection API; deterministic Vitest fetch mocks cover both states.
-- Hosted CI and PostgreSQL-backed runtime verification remain orchestrator-owned.
+- Hosted CI and PostgreSQL-backed runtime verification are pending on the pull request. The local browser pass covered the rendered draft and preview, recovery, keyboard focus, and 320px overflow; reconstruction and integrity-block behavior have deterministic Vitest coverage but were not browser-tested against a live backend.
