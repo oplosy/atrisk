@@ -24,6 +24,7 @@ import (
 
 const testDatabaseEnv = "ATLASRISK_TEST_DATABASE_URL"
 const requireTestDatabaseEnv = "ATLASRISK_REQUIRE_TEST_DATABASE"
+const latestCoreMigrationVersion int64 = 10
 
 func isolatedTestDSN(t *testing.T) string {
 	t.Helper()
@@ -169,8 +170,8 @@ func TestCoreDatabaseMigrations(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&currentVersion); err != nil {
 		t.Fatalf("inspect migration version: %v", err)
 	}
-	if currentVersion != 10 {
-		t.Fatalf("expected latest migration version 10, got %d", currentVersion)
+	if currentVersion != latestCoreMigrationVersion {
+		t.Fatalf("expected latest migration version %d, got %d", latestCoreMigrationVersion, currentVersion)
 	}
 	var scenarioObjects int
 	if err := pool.QueryRow(ctx, `
@@ -518,8 +519,8 @@ func TestCoreDatabasePreviousVersionUpgrade(t *testing.T) {
 	if err := upgradedDB.QueryRowContext(ctx, "SELECT max(version_id) FROM "+schemaName+"."+goose.DefaultTablename).Scan(&version); err != nil {
 		t.Fatalf("inspect upgraded schema migration version: %v", err)
 	}
-	if version != 9 {
-		t.Fatalf("expected isolated schema at migration version 9, got %d", version)
+	if version != latestCoreMigrationVersion {
+		t.Fatalf("expected isolated schema at migration version %d, got %d", latestCoreMigrationVersion, version)
 	}
 	if err := upgradedDB.QueryRowContext(ctx, `
 		SELECT count(*)::int

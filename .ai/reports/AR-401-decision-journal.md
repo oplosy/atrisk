@@ -43,6 +43,8 @@
 | `go test ./apps/... ./internal/... -run TestDecisionJournal -count=1` | pass; validation and handler tests executed |
 | `node -e "JSON.parse(require('fs').readFileSync('contracts/openapi/openapi.json','utf8'))"` | pass |
 | `node scripts/verify/check-generated.mjs` | pass after authorized sqlc regeneration |
+| Hosted CI run `36393502934` | `task verify` failed in `TestCoreDatabasePreviousVersionUpgrade`: the test expected migration 9 after migration 10 was added. Both latest-version assertions now share `latestCoreMigrationVersion = 10`; follow-up CI result is tracked in PR #49. |
+| `go test ./test/integration -run 'TestCoreDatabasePreviousVersionUpgrade\|TestCoreDatabaseMigrations' -count=1 -v` | compiled with `GOCACHE` set to workspace-local `.gocache/ar401`; both tests skipped because no isolated PostgreSQL URL is configured locally |
 | `git diff --check` | pass |
 
 ## Change inventory
@@ -54,8 +56,8 @@
 ## Git state
 
 - Branch: `task/AR-401-decision-journal`
-- Commit SHA: `176fc50`, `ef9df82`, `1678452`, `3c25391` (current final HEAD before this report-only update)
-- Remote branch: not pushed; external push authorization is pending
+- Implementation commit SHA: `3c25391`; the migration-version test correction follows this commit in the task branch.
+- Remote branch: `origin/task/AR-401-decision-journal`; PR #49
 - Worktree: clean
 
 ## Assumptions and risks
