@@ -38,7 +38,9 @@ system, generated API integration, and explicit loading/empty/error/quality stat
 ## Required verification
 
 ```text
-task test-web
-task build-web
-task test-web-a11y
+npm test -- --run
+npm run typecheck
+npm run build
+npm run lint
+npm run format:check
 ```
