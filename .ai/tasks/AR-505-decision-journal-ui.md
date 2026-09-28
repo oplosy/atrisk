@@ -1,7 +1,7 @@
 ---
 id: AR-505
 title: Build the decision journal UI
-status: active
+status: merged
 phase: 5
 depends_on: [AR-402, AR-501]
 branch: task/AR-505-decision-journal-ui

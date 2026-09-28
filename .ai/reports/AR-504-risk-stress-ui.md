@@ -10,7 +10,7 @@
 
 ## Result
 
-`needs-review`
+`merged` (PR #57)
 
 ## Acceptance evidence
 
@@ -28,7 +28,7 @@
 ## Stop-condition check
 
 - Decision or scope conflict: none. The UI follows the sealed-input boundary and consumes server-generated attribution; no browser-side valuation or risk formulas were added.
-- Missing dependency or unavailable verification: AR-306 PR #53 and AR-503 PR #54 are merged and included in the rebase. API-backed browser submission and hosted `task verify` remain pending. The PostgreSQL service reports running, but its listener (`5432`), Garage listeners (`3900`/`3902`), and API listener (`8080`) are closed; no service or Docker container was started.
+- Missing dependency or unavailable verification: AR-306 PR #53 and AR-503 PR #54 are merged and included in the rebase. API-backed browser submission and hosted `task verify` passed in run 165; API-backed browser submission remains unverified because no local API/PostgreSQL/Garage services were started. The PostgreSQL service reports running, but its listener (`5432`), Garage listeners (`3900`/`3902`), and API listener (`8080`) are closed; no service or Docker container was started.
 
 ## Verification
 
@@ -60,11 +60,11 @@
 - Base SHA: `ee9a61994c9b6aef5440f7b89bd6fbebdfce50f2` (`main` after AR-306 PR #53 and AR-503 PR #54 merged).
 - Implementation commit: `5b5099aee129f3e22cfabf192a163f0b2b7415c5` (`feat(risk): add sealed scenario and attribution UI [AR-504]`).
 - Contract-fixture fix: `8579863b88d3d29ac501a7690966f5052823ca13` adds the now-required `valuation_id` to risk-run test fixtures.
-- Remote branch: `task/AR-504-risk-stress-ui` is published on `oplosy/atrisk`; [PR #57](https://github.com/oplosy/atrisk/pull/57) is open against `main`. Its content tree is sourced from reviewed local commit `adc012be3f9b1db1b8817f83c6e53cdc502021fa` and applied to remote `main` at `ac8a92d3b85bab739f612928657f3dea59083eaa`. GitHub API Contents commits were used because the local GitHub CLI token is invalid; the remote commit graph therefore differs from local worktree history. Web files were normalized to LF after hosted CI run 145 identified CRLF from the Windows transfer. The local worktree remains clean; the latest hosted verification and API-backed browser submission testing are pending.
+- Remote branch: `task/AR-504-risk-stress-ui` is published on `oplosy/atrisk`; [PR #57](https://github.com/oplosy/atrisk/pull/57) is open against `main`. Its content tree is sourced from reviewed local commit `adc012be3f9b1db1b8817f83c6e53cdc502021fa` and applied to remote `main` at `ac8a92d3b85bab739f612928657f3dea59083eaa`. GitHub API Contents commits were used because the local GitHub CLI token is invalid; the remote commit graph therefore differs from local worktree history. Web files were normalized to LF after hosted CI run 145 identified CRLF from the Windows transfer. The local worktree remains clean; the hosted CI run 165 succeeded and PR #57 merged at `91fb06a296555431a599ef90f5a5f17639b649b1`; API-backed browser submission testing remains unverified.
 - Worktree: clean after the review-fix commit; no upstream tracking branch is configured.
 
 ## Assumptions and risks
 
 - Template presets mirror the risk-engine's versioned template settings. The server-stored scenario content hash and version remain authoritative.
 - Unmapped instruments remain blocked and visible; no inferred mapping is created.
-- Before delivery: run API-backed submission/result browser checks when API/PostgreSQL/Garage are available and run hosted `task verify` after an authorized branch push/PR.
+- Remaining verification limit: API-backed browser submission/result checks were not run locally; Docker and local services were intentionally left untouched. Hosted CI run 165 passed task verify.
