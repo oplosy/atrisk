@@ -222,3 +222,69 @@ export interface ValuationRun {
   totals: ValuationTotals;
   created_at: string;
 }
+
+export interface RiskRunRequest {
+  account_id: string;
+  snapshot_id: string;
+  scenario_id?: string;
+  name: string;
+  template_key: "try_depreciation" | "rates_up" | "risk_off";
+  units: Record<string, unknown>;
+  shocks: Record<string, unknown>;
+  mappings: Record<string, unknown>;
+  assumptions: Record<string, unknown>;
+  positions: Record<string, unknown>[];
+  pre_metrics?: Record<string, unknown>;
+}
+
+export interface RiskRun {
+  id: string;
+  scenario_id: string;
+  scenario_version: number;
+  account_id: string;
+  snapshot_id: string;
+  job_id: string;
+  status: "queued" | "running" | "retryable" | "permanent" | "cancelled" | "completed";
+  data_quality: "healthy" | "degraded" | "blocked";
+  schema_version: string;
+  engine_version: string;
+  scenario_template: string;
+  scenario_content_sha256: string;
+  request_hash: string;
+  result_hash?: string;
+  input_snapshot_ids: string[];
+  reason_codes: string[];
+  result?: Record<string, unknown>;
+  created_at: string;
+  completed_at?: string | null;
+  error_code?: string;
+  error_message?: string;
+}
+
+export interface RiskPosition {
+  snapshot_line_id: string;
+  instrument_id: string;
+  state: "valid" | "blocked";
+  reason_codes: string[];
+  pre_value_try?: string | null;
+  post_value_try?: string | null;
+  pnl_try?: string | null;
+  pre_value_usd?: string | null;
+  post_value_usd?: string | null;
+  pnl_usd?: string | null;
+  price_return?: string | null;
+  yield_return?: string | null;
+  fx_multiplier_try?: string | null;
+  fx_multiplier_usd?: string | null;
+}
+
+export interface RiskPositionPage {
+  items: RiskPosition[];
+  limit: number;
+  next_cursor?: string;
+  has_more: boolean;
+}
+
+export interface CancelRiskRunRequest {
+  reason?: string;
+}

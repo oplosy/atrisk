@@ -15,11 +15,13 @@ import (
 	apiportfolio "github.com/oplosy/atrisk/apps/api/handlers/portfolio"
 	apiquality "github.com/oplosy/atrisk/apps/api/handlers/quality"
 	apireconciliation "github.com/oplosy/atrisk/apps/api/handlers/reconciliation"
+	apirisk "github.com/oplosy/atrisk/apps/api/handlers/risk"
 	"github.com/oplosy/atrisk/apps/api/handlers/timeline"
 	apivaluation "github.com/oplosy/atrisk/apps/api/handlers/valuation"
 	applicationportfolio "github.com/oplosy/atrisk/internal/application/portfolio"
 	appquality "github.com/oplosy/atrisk/internal/application/quality"
 	applicationreconciliation "github.com/oplosy/atrisk/internal/application/reconciliation"
+	applicationrisk "github.com/oplosy/atrisk/internal/application/risk"
 	application "github.com/oplosy/atrisk/internal/application/timeline"
 	appvaluation "github.com/oplosy/atrisk/internal/application/valuation"
 	"github.com/oplosy/atrisk/internal/archive"
@@ -58,6 +60,7 @@ func main() {
 	qualityHandler := apiquality.New(appquality.Service{Queries: queries})
 	valuationHandler := apivaluation.New(appvaluation.Service{Pool: pool})
 	reconciliationHandler := apireconciliation.New(applicationreconciliation.Service{Pool: pool})
+	riskHandler := apirisk.New(applicationrisk.Service{Pool: pool})
 	var importArchive archive.Store
 	if endpoint := os.Getenv("ATLASRISK_S3_ENDPOINT"); endpoint != "" {
 		store, storeErr := archive.NewS3StoreFromConfig(ctx, archive.ClientConfig{
@@ -99,6 +102,10 @@ func main() {
 	mux.Handle("/v1/valuations/", dispatchValuationReconciliation(valuationHandler, reconciliationHandler))
 	mux.Handle("/api/v1/reconciliations/", reconciliationHandler)
 	mux.Handle("/v1/reconciliations/", reconciliationHandler)
+	mux.Handle("/api/v1/risk/runs", riskHandler)
+	mux.Handle("/api/v1/risk/runs/", riskHandler)
+	mux.Handle("/v1/risk/runs", riskHandler)
+	mux.Handle("/v1/risk/runs/", riskHandler)
 	mux.Handle("/", timeline.New(application.Service{Queries: queries}))
 	handler := mux
 	server := &http.Server{Addr: *listen, Handler: handler, ReadHeaderTimeout: 5 * time.Second}

@@ -1,0 +1,13 @@
+{
+  "account_id": "00000000-0000-0000-0000-000000000003",
+  "snapshot_id": "00000000-0000-0000-0000-000000000004",
+  "name": "Risk off golden",
+  "template_key": "risk_off",
+  "units": {"reporting_currency": "TRY"},
+  "shocks": {"crypto_return": "-0.40"},
+  "mappings": {"BTC": "crypto"},
+  "assumptions": {"engine_version": "risk-engine-0.1.0"},
+  "positions": [
+    {"snapshot_line_id": "00000000-0000-0000-0000-000000000006", "instrument_id": "00000000-0000-0000-0000-000000000007"}
+  ]
+}

@@ -163,6 +163,11 @@ const apiModelNames = [
   "ValuationLine",
   "ValuationTotals",
   "ValuationRun",
+  "RiskRunRequest",
+  "RiskRun",
+  "RiskPosition",
+  "RiskPositionPage",
+  "CancelRiskRunRequest",
 ];
 const apiSchema = (name, seen = new Set()) => {
   if (seen.has(name)) throw new Error(`cyclic API schema composition: ${name}`);
@@ -191,6 +196,7 @@ const apiGoBaseType = (property, fieldName) => {
   if (property.type === "array") {
     const itemRef = apiRefName(property.items ?? {});
     if (itemRef) return `[]${itemRef}`;
+    if (property.items?.type === "object") return "[]map[string]any";
     return `[]${property.items?.type === "integer" ? "int" : property.items?.type === "number" ? "float64" : "string"}`;
   }
   if (Array.isArray(property.type) && property.type.includes("string")) return "string";
@@ -211,6 +217,7 @@ const apiTsType = (property) => {
   if (property.type === "array") {
     const itemRef = apiRefName(property.items ?? {});
     if (itemRef) return `${itemRef}[]`;
+    if (property.items?.type === "object") return "Record<string, unknown>[]";
     return `${property.items?.type === "integer" || property.items?.type === "number" ? "number" : "string"}[]`;
   }
   if (Array.isArray(property.type) && property.type.includes("string")) return "string | null";
@@ -225,6 +232,7 @@ const apiPyType = (property) => {
   if (property.type === "array") {
     const itemRef = apiRefName(property.items ?? {});
     if (itemRef) return `list[${itemRef}]`;
+    if (property.items?.type === "object") return "list[dict[str, Any]]";
     return `list[${property.items?.type === "integer" ? "int" : property.items?.type === "number" ? "float" : "str"}]`;
   }
   if (Array.isArray(property.type) && property.type.includes("string")) return "str | None";
