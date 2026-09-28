@@ -63,5 +63,28 @@ export async function requestJson<T>(
 }
 
 export function listPortfolios(signal?: AbortSignal) {
-  return requestJson<PortfolioPage>("/api/v1/portfolios", signal);
+  return requestJson<unknown>("/api/v1/portfolios", signal).then((payload) => {
+    if (
+      typeof payload !== "object" ||
+      payload === null ||
+      !("items" in payload) ||
+      !Array.isArray(payload.items) ||
+      !payload.items.every((item) => {
+        if (typeof item !== "object" || item === null) return false;
+        const record = item as Record<string, unknown>;
+        return (
+          typeof record.id === "string" &&
+          typeof record.name === "string" &&
+          (record.reporting_currency === "TRY" ||
+            record.reporting_currency === "USD")
+        );
+      })
+    ) {
+      throw new ApiRequestError(
+        "error",
+        "AtlasRisk API returned an invalid portfolio page.",
+      );
+    }
+    return payload as PortfolioPage;
+  });
 }

@@ -6,7 +6,7 @@
   text-rendering: optimizeLegibility;
   --ink: #18231f;
   --muted: #64716b;
-  --quiet: #8b9790;
+  --quiet: #5f6e65;
   --line: #dbe2db;
   --paper: #fbfcf9;
   --green: #17795b;
@@ -215,6 +215,7 @@ a {
 }
 .content {
   max-width: 1440px;
+  min-width: 0;
   padding: 4.4rem clamp(1.5rem, 5vw, 5.75rem) 5rem;
   width: 100%;
 }
@@ -239,6 +240,7 @@ h1 {
   line-height: 0.98;
   margin: 0.55rem 0 1rem;
   max-width: 730px;
+  overflow-wrap: anywhere;
 }
 h2 {
   font-size: 1rem;
@@ -255,6 +257,7 @@ h3 {
   line-height: 1.7;
   margin-bottom: 0;
   max-width: 580px;
+  overflow-wrap: anywhere;
 }
 .intro__stamp {
   border-left: 1px solid var(--line);
@@ -323,6 +326,8 @@ h3 {
   color: var(--ink);
   font-size: 0.75rem;
   min-height: 35px;
+  min-width: 0;
+  width: 100%;
   padding: 0.45rem 0.55rem;
   text-transform: none;
 }

@@ -298,7 +298,13 @@ export function RootRoute({ route, onNavigate }: RootRouteProps) {
                     This surface is ready for its domain task
                   </h2>
                 </div>
-                <QualityBadge state="valid">Shell valid</QualityBadge>
+                <QualityBadge state={quality}>
+                  {quality === "valid"
+                    ? "Data path ready"
+                    : quality === "degraded"
+                      ? "Review data quality"
+                      : "Result blocked"}
+                </QualityBadge>
               </div>
               <div className="route-note">
                 <span className="route-note__mark" aria-hidden="true">

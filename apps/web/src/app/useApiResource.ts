@@ -27,7 +27,10 @@ export function useApiResource<T>(
 
   useEffect(() => {
     const controller = new AbortController();
-    setResult({ state: "loading" });
+    setResult((previous) => ({
+      data: previous.data,
+      state: "loading",
+    }));
 
     void load(controller.signal)
       .then((data) => {
@@ -36,11 +39,12 @@ export function useApiResource<T>(
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
         const apiError = error instanceof ApiRequestError ? error : undefined;
-        setResult({
+        setResult((previous) => ({
+          data: previous.data,
           error:
             error instanceof Error ? error : new Error("Unknown API error"),
-          state: apiError?.kind ?? "error",
-        });
+          state: previous.data ? "stale" : (apiError?.kind ?? "error"),
+        }));
       });
 
     return () => controller.abort();
