@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/oplosy/atrisk/internal/archive"
@@ -48,5 +49,17 @@ func TestDecisionEvidenceUUIDValidation(t *testing.T) {
 		if validUUID(id) {
 			t.Fatalf("invalid id accepted: %q", id)
 		}
+	}
+}
+
+func TestCanonicalUUIDPreservesSnapshotBinding(t *testing.T) {
+	upper := "ABCDEFAB-CDEF-ABCD-EFAB-CDEFABCDEFAB"
+	canonical, ok := canonicalUUID(upper)
+	if !ok {
+		t.Fatal("uppercase hexadecimal id rejected")
+	}
+	lower, ok := canonicalUUID(strings.ToLower(upper))
+	if !ok || canonical != lower {
+		t.Fatalf("uppercase and lowercase UUIDs produced different bindings: %q vs %q", canonical, lower)
 	}
 }

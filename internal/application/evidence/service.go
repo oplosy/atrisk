@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -58,13 +59,25 @@ type Service struct {
 // Seal must run within the caller's decision-row transaction. Every required
 // artifact is checked before inserting the immutable manifest.
 func (s Service) Seal(ctx context.Context, tx pgx.Tx, decisionID, accountID string, refs []domain.EvidenceRef) error {
-	manifest := Manifest{SchemaVersion: "1", ContractVersion: ContractVersion, DecisionID: decisionID, AccountID: accountID, References: []Entry{}, RawObjects: []RawRef{}}
+	canonicalDecisionID, ok := canonicalUUID(decisionID)
+	if !ok {
+		return ErrIncomplete
+	}
+	canonicalAccountID, ok := canonicalUUID(accountID)
+	if !ok {
+		return ErrIncomplete
+	}
+	manifest := Manifest{SchemaVersion: "1", ContractVersion: ContractVersion, DecisionID: canonicalDecisionID, AccountID: canonicalAccountID, References: []Entry{}, RawObjects: []RawRef{}}
 	var snapshotID, valuationSnapshot, riskSnapshot, valuationID string
 	seen := map[string]bool{}
 	rawSeen := map[string]bool{}
 	for _, ref := range refs {
-		key := ref.Kind + ":" + ref.Reference
-		if seen[key] || !validUUID(ref.Reference) {
+		canonicalReference, ok := canonicalUUID(ref.Reference)
+		if !ok {
+			return ErrIncomplete
+		}
+		key := ref.Kind + ":" + canonicalReference
+		if seen[key] {
 			return ErrIncomplete
 		}
 		seen[key] = true
@@ -78,8 +91,8 @@ func (s Service) Seal(ctx context.Context, tx pgx.Tx, decisionID, accountID stri
 			err = tx.QueryRow(ctx, `SELECT jsonb_build_object('snapshot',to_jsonb(p),'lines',
 				(SELECT COALESCE(jsonb_agg(to_jsonb(l) ORDER BY l.id),'[]'::jsonb) FROM portfolio_snapshot_lines l WHERE l.snapshot_id=p.id))
 				FROM portfolio_snapshots p JOIN accounts a ON a.portfolio_id=p.portfolio_id
-				WHERE p.id=$1::uuid AND a.id=$2::uuid`, ref.Reference, accountID).Scan(&data)
-			snapshotID = ref.Reference
+				WHERE p.id=$1::uuid AND a.id=$2::uuid`, canonicalReference, canonicalAccountID).Scan(&data)
+			snapshotID = canonicalReference
 		case "valuation_run":
 			if valuationID != "" {
 				return ErrIncomplete
@@ -89,9 +102,9 @@ func (s Service) Seal(ctx context.Context, tx pgx.Tx, decisionID, accountID stri
 				(SELECT COALESCE(jsonb_agg(to_jsonb(l) ORDER BY l.id),'[]'::jsonb) FROM valuation_lines l WHERE l.run_id=v.id))
 				FROM valuation_runs v JOIN portfolio_snapshots p ON p.id=v.snapshot_id
 				JOIN accounts a ON a.portfolio_id=p.portfolio_id
-				WHERE v.id=$1::uuid AND a.id=$2::uuid AND v.state IN ('valid','degraded')`, ref.Reference, accountID).Scan(&data)
+				WHERE v.id=$1::uuid AND a.id=$2::uuid AND v.state IN ('valid','degraded')`, canonicalReference, canonicalAccountID).Scan(&data)
 			if err == nil {
-				err = tx.QueryRow(ctx, `SELECT snapshot_id::text FROM valuation_runs WHERE id=$1::uuid`, ref.Reference).Scan(&valuationSnapshot)
+				err = tx.QueryRow(ctx, `SELECT snapshot_id::text FROM valuation_runs WHERE id=$1::uuid`, canonicalReference).Scan(&valuationSnapshot)
 			}
 		case "risk_run":
 			if riskSnapshot != "" {
@@ -105,13 +118,13 @@ func (s Service) Seal(ctx context.Context, tx pgx.Tx, decisionID, accountID stri
 				WHERE r.id=$1::uuid AND r.account_id=$2::uuid AND r.state IN ('valid','degraded')
 				AND r.result IS NOT NULL AND r.result_hash IS NOT NULL AND r.completed_at IS NOT NULL
 				AND j.state='succeeded' AND j.result IS NOT NULL AND j.result_hash IS NOT NULL
-				AND NULLIF(j.result->>'engine_version','') IS NOT NULL`, ref.Reference, accountID).Scan(&data)
+				AND NULLIF(j.result->>'engine_version','') IS NOT NULL`, canonicalReference, canonicalAccountID).Scan(&data)
 			if err == nil {
-				err = tx.QueryRow(ctx, `SELECT snapshot_id::text FROM scenario_runs WHERE id=$1::uuid`, ref.Reference).Scan(&riskSnapshot)
+				err = tx.QueryRow(ctx, `SELECT snapshot_id::text FROM scenario_runs WHERE id=$1::uuid`, canonicalReference).Scan(&riskSnapshot)
 			}
 		case "raw_object":
 			var raw RawRef
-			err = tx.QueryRow(ctx, `SELECT id::text,object_key,btrim(content_sha256) FROM raw_objects WHERE id=$1::uuid`, ref.Reference).Scan(&raw.ID, &raw.Key, &raw.SHA256)
+			err = tx.QueryRow(ctx, `SELECT id::text,object_key,btrim(content_sha256) FROM raw_objects WHERE id=$1::uuid`, canonicalReference).Scan(&raw.ID, &raw.Key, &raw.SHA256)
 			if err == nil {
 				err = s.verifyRaw(ctx, raw)
 				if err == nil && !rawSeen[raw.ID] {
@@ -127,7 +140,7 @@ func (s Service) Seal(ctx context.Context, tx pgx.Tx, decisionID, accountID stri
 				"fx_quote_revision":    `SELECT to_jsonb(r),ro.id::text,ro.object_key,btrim(ro.content_sha256) FROM fx_quote_revisions r JOIN raw_objects ro ON ro.id=r.raw_object_id WHERE r.id=$1::uuid`,
 			}[ref.Kind]
 			var raw RawRef
-			err = tx.QueryRow(ctx, query, ref.Reference).Scan(&data, &raw.ID, &raw.Key, &raw.SHA256)
+			err = tx.QueryRow(ctx, query, canonicalReference).Scan(&data, &raw.ID, &raw.Key, &raw.SHA256)
 			if err == nil && !rawSeen[raw.ID] {
 				err = s.verifyRaw(ctx, raw)
 				if err == nil {
@@ -144,7 +157,7 @@ func (s Service) Seal(ctx context.Context, tx pgx.Tx, decisionID, accountID stri
 		if err != nil {
 			return fmt.Errorf("resolve %s evidence: %w", ref.Kind, err)
 		}
-		manifest.References = append(manifest.References, Entry{Kind: ref.Kind, Reference: ref.Reference, Description: ref.Description, Snapshot: data})
+		manifest.References = append(manifest.References, Entry{Kind: ref.Kind, Reference: canonicalReference, Description: ref.Description, Snapshot: data})
 	}
 	if snapshotID == "" || valuationSnapshot != snapshotID || riskSnapshot != snapshotID {
 		return ErrIncomplete
@@ -196,12 +209,13 @@ func (s Service) Seal(ctx context.Context, tx pgx.Tx, decisionID, accountID stri
 
 // Reconstruct returns the original bytes, never a latest-value projection.
 func (s Service) Reconstruct(ctx context.Context, decisionID string) (Sealed, error) {
-	if s.Pool == nil || !validUUID(decisionID) {
+	canonicalDecisionID, ok := canonicalUUID(decisionID)
+	if s.Pool == nil || !ok {
 		return Sealed{}, ErrIncomplete
 	}
 	var data []byte
 	var hash string
-	err := s.Pool.QueryRow(ctx, `SELECT manifest_bytes,btrim(manifest_sha256) FROM decision_evidence WHERE decision_id=$1::uuid`, decisionID).Scan(&data, &hash)
+	err := s.Pool.QueryRow(ctx, `SELECT manifest_bytes,btrim(manifest_sha256) FROM decision_evidence WHERE decision_id=$1::uuid`, canonicalDecisionID).Scan(&data, &hash)
 	if err != nil {
 		return Sealed{}, err
 	}
@@ -210,7 +224,7 @@ func (s Service) Reconstruct(ctx context.Context, decisionID string) (Sealed, er
 		return Sealed{}, ErrIntegrity
 	}
 	var manifest Manifest
-	if err := json.Unmarshal(data, &manifest); err != nil || manifest.DecisionID != decisionID {
+	if err := json.Unmarshal(data, &manifest); err != nil || manifest.DecisionID != canonicalDecisionID {
 		return Sealed{}, ErrIntegrity
 	}
 	for _, raw := range manifest.RawObjects {
@@ -237,20 +251,25 @@ func (s Service) verifyRaw(ctx context.Context, raw RawRef) error {
 	return nil
 }
 
-func validUUID(value string) bool {
+func canonicalUUID(value string) (string, bool) {
 	if len(value) != 36 {
-		return false
+		return "", false
 	}
 	for i, c := range value {
 		if i == 8 || i == 13 || i == 18 || i == 23 {
 			if c != '-' {
-				return false
+				return "", false
 			}
 			continue
 		}
 		if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
-			return false
+			return "", false
 		}
 	}
-	return true
+	return strings.ToLower(value), true
+}
+
+func validUUID(value string) bool {
+	_, ok := canonicalUUID(value)
+	return ok
 }

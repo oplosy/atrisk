@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io"
 	"strings"
@@ -79,8 +80,11 @@ func TestHistoricalDecisionReconstruction(t *testing.T) {
 		t.Fatal(err)
 	}
 	refs = append(refs, domain.EvidenceRef{Kind: "raw_object", Reference: rawID})
+	for i := range refs {
+		refs[i].Reference = strings.ToUpper(refs[i].Reference)
+	}
 	svc := applicationjournal.Service{Pool: pool, Archive: archiveStore}
-	request := domain.CreateRequest{AccountID: accountID, Thesis: "Historical fixture", EvidenceReferences: refs, InvalidationConditions: []domain.Invalidation{{Condition: "Rates change"}}, Horizon: domain.Horizon{Start: mustTime("2026-01-01T00:00:00Z"), End: mustTime("2027-01-01T00:00:00Z")}, RiskBudget: domain.RiskBudget{Amount: "100", Currency: "TRY", Measure: "loss", Horizon: "one_year"}, IntendedAction: "Hold", Author: "fixture"}
+	request := domain.CreateRequest{AccountID: strings.ToUpper(accountID), Thesis: "Historical fixture", EvidenceReferences: refs, InvalidationConditions: []domain.Invalidation{{Condition: "Rates change"}}, Horizon: domain.Horizon{Start: mustTime("2026-01-01T00:00:00Z"), End: mustTime("2027-01-01T00:00:00Z")}, RiskBudget: domain.RiskBudget{Amount: "100", Currency: "TRY", Measure: "loss", Horizon: "one_year"}, IntendedAction: "Hold", Author: "fixture"}
 	var queuedJobID, queuedRunID string
 	if err := pool.QueryRow(ctx, `INSERT INTO risk_jobs (kind,schema_version,idempotency_key,input_snapshot_ids,payload) VALUES ('scenario','1',gen_random_uuid()::text,ARRAY[$1]::text[],'{}') RETURNING id::text`, refs[0].Reference).Scan(&queuedJobID); err != nil {
 		t.Fatal(err)
@@ -120,6 +124,25 @@ func TestHistoricalDecisionReconstruction(t *testing.T) {
 	before, err := svc.Evidence(ctx, decision.ID)
 	if err != nil {
 		t.Fatal(err)
+	}
+	upper, err := svc.Evidence(ctx, strings.ToUpper(decision.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before.Manifest, upper.Manifest) || before.SHA256 != upper.SHA256 {
+		t.Fatal("uppercase decision id did not reconstruct the same manifest")
+	}
+	var manifest evidence.Manifest
+	if err := json.Unmarshal(before.Manifest, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if manifest.DecisionID != strings.ToLower(decision.ID) || manifest.AccountID != strings.ToLower(accountID) {
+		t.Fatalf("manifest identifiers were not canonicalized: %+v", manifest)
+	}
+	for _, ref := range manifest.References {
+		if ref.Reference != strings.ToLower(ref.Reference) {
+			t.Fatalf("manifest reference was not canonicalized: %q", ref.Reference)
+		}
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO portfolio_snapshots (portfolio_id,captured_at) VALUES ($1::uuid,clock_timestamp())`, portfolioID); err != nil {
 		t.Fatal(err)
