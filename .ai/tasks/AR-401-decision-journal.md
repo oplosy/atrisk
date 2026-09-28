@@ -5,8 +5,9 @@ status: ready
 phase: 4
 depends_on: [AR-201]
 branch: task/AR-401-decision-journal
+base_sha: 7a562ff3d77fd60b6d60163ba28df30b3cb81396
 owned_paths: [internal/domain/journal/, internal/application/journal/, db/queries/journal/, apps/api/handlers/journal/]
-shared_paths: [db/migrations/, contracts/openapi/]
+shared_paths: [db/migrations/, contracts/openapi/, internal/platform/database/, apps/api/cmd/api/, test/integration/, Taskfile.yml]
 adrs: [ADR-002, ADR-007, ADR-022]
 ---
 

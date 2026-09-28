@@ -12,12 +12,14 @@ import (
 	"time"
 
 	apiimports "github.com/oplosy/atrisk/apps/api/handlers/imports"
+	apijournal "github.com/oplosy/atrisk/apps/api/handlers/journal"
 	apiportfolio "github.com/oplosy/atrisk/apps/api/handlers/portfolio"
 	apiquality "github.com/oplosy/atrisk/apps/api/handlers/quality"
 	apireconciliation "github.com/oplosy/atrisk/apps/api/handlers/reconciliation"
 	apirisk "github.com/oplosy/atrisk/apps/api/handlers/risk"
 	"github.com/oplosy/atrisk/apps/api/handlers/timeline"
 	apivaluation "github.com/oplosy/atrisk/apps/api/handlers/valuation"
+	applicationjournal "github.com/oplosy/atrisk/internal/application/journal"
 	applicationportfolio "github.com/oplosy/atrisk/internal/application/portfolio"
 	appquality "github.com/oplosy/atrisk/internal/application/quality"
 	applicationreconciliation "github.com/oplosy/atrisk/internal/application/reconciliation"
@@ -75,6 +77,7 @@ func main() {
 		}
 	}
 	importHandler := apiimports.New(applicationimports.Service{Pool: pool, Archive: importArchive})
+	journalHandler := apijournal.New(applicationjournal.Service{Pool: pool})
 	mux := http.NewServeMux()
 	mux.Handle("/api/v1/instruments", portfolioHandler)
 	mux.Handle("/api/v1/instruments/", portfolioHandler)
@@ -106,6 +109,10 @@ func main() {
 	mux.Handle("/api/v1/risk/runs/", riskHandler)
 	mux.Handle("/v1/risk/runs", riskHandler)
 	mux.Handle("/v1/risk/runs/", riskHandler)
+	mux.Handle("/api/v1/decisions", journalHandler)
+	mux.Handle("/api/v1/decisions/", journalHandler)
+	mux.Handle("/v1/decisions", journalHandler)
+	mux.Handle("/v1/decisions/", journalHandler)
 	mux.Handle("/", timeline.New(application.Service{Queries: queries}))
 	handler := mux
 	server := &http.Server{Addr: *listen, Handler: handler, ReadHeaderTimeout: 5 * time.Second}

@@ -118,6 +118,9 @@ tasks:
       - task: test-integration
         vars:
           TEST: RiskEndToEnd
+      - task: test-integration
+        vars:
+          TEST: DecisionJournalAPI
       - task: build
       - task: check-generated
 
