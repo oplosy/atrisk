@@ -33,12 +33,16 @@ async function readError(response: Response): Promise<string> {
 export async function requestJson<T>(
   path: string,
   signal?: AbortSignal,
+  init?: RequestInit,
 ): Promise<T> {
   let response: Response;
 
   try {
+    const headers = new Headers(init?.headers);
+    headers.set("Accept", "application/json");
     response = await fetch(path, {
-      headers: { Accept: "application/json" },
+      ...init,
+      headers,
       signal,
     });
   } catch {
