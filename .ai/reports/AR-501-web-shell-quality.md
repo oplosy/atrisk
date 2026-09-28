@@ -46,8 +46,8 @@
 ## Git state
 
 - Branch: `task/AR-501-web-shell-quality`
-- Implementation fix SHA: `40b164a` (final viewport-fix commit)
-- Final report/branch HEAD: `9f72154`
+- Implementation SHA: `40b164a` (final viewport fix)
+- Report-only commits follow the implementation commit; they do not change runtime code.
 - Remote branch: not pushed; awaiting orchestrator push authorization
 - Worktree: clean after commit
 
