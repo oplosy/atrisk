@@ -10,7 +10,7 @@
 
 ## Result
 
-`needs-review`
+`merged` (PR #58)
 
 ## Acceptance evidence
 
@@ -52,7 +52,7 @@
 | `node --test contracts/jobs/contract.test.mjs` | pass; 4 tests |
 | `node scripts/verify/check-generated.mjs` | no content drift; generator reported only stale Git stat entries, cleared by refreshing the index |
 | `uv run --locked ruff format --check src tests` | unavailable; `ruff` executable not found |
-| `task verify` | unavailable; `task` executable not found |
+| `task verify` | unavailable locally; hosted PR CI run 167 passed `task verify`, including database migrations and integration gates |
 
 ## Change inventory
 
@@ -72,4 +72,4 @@
 ## Assumptions and risks
 
 - Browser evidence is complete for desktop, keyboard navigation, draft recovery, finalization preview, and independent 320px no-overflow measurement. Mocked browser reconstruction/integrity-error screenshots remain unavailable because this worker browser surface has no page-mutation/mock injection API; deterministic Vitest fetch mocks cover both states.
-- Hosted CI and PostgreSQL-backed runtime verification are pending on the pull request. The local browser pass covered the rendered draft and preview, recovery, keyboard focus, and 320px overflow; reconstruction and integrity-block behavior have deterministic Vitest coverage but were not browser-tested against a live backend.
+- Hosted CI and PostgreSQL-backed task verification passed in PR #58 run 167. Live-browser reconstruction/integrity-error screenshots were not captured; deterministic Vitest mocks cover those response paths. The local browser pass covered the rendered draft and preview, recovery, keyboard focus, and 320px overflow; reconstruction and integrity-block behavior have deterministic Vitest coverage but were not browser-tested against a live backend.
