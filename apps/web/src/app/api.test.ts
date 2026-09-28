@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApiRequestError, listPortfolios } from "./api";
+import { listPortfolios } from "./api";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -15,7 +15,7 @@ describe("portfolio API boundary", () => {
         ),
     );
 
-    await expect(listPortfolios()).rejects.toMatchObject<ApiRequestError>({
+    await expect(listPortfolios()).rejects.toMatchObject({
       kind: "error",
       message: "AtlasRisk API returned an invalid portfolio page.",
     });
