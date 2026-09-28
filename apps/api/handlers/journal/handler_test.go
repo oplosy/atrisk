@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/oplosy/atrisk/internal/application/evidence"
 	application "github.com/oplosy/atrisk/internal/application/journal"
 	domain "github.com/oplosy/atrisk/internal/domain/journal"
 )
@@ -25,6 +26,9 @@ func (f fakeService) Create(context.Context, domain.CreateRequest) (domain.Decis
 func (f fakeService) Get(context.Context, string) (domain.Decision, error) { return f.decision, f.err }
 func (f fakeService) Finalize(context.Context, string) (domain.Decision, error) {
 	return f.decision, f.err
+}
+func (f fakeService) Evidence(context.Context, string) (evidence.Sealed, error) {
+	return evidence.Sealed{}, f.err
 }
 func (f fakeService) AddReview(context.Context, string, domain.ReviewRequest) (domain.Review, error) {
 	return f.review, f.err

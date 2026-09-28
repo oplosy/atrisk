@@ -338,3 +338,8 @@ type RiskPositionPage struct {
 type CancelRiskRunRequest struct {
 	Reason *string `json:"reason,omitempty"`
 }
+
+type DecisionEvidence struct {
+	Manifest map[string]any `json:"manifest"`
+	SHA256   string         `json:"sha256"`
+}

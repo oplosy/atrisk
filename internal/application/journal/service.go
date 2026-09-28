@@ -13,6 +13,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/oplosy/atrisk/internal/application/evidence"
+	"github.com/oplosy/atrisk/internal/archive"
 	domain "github.com/oplosy/atrisk/internal/domain/journal"
 )
 
@@ -22,7 +24,10 @@ var (
 	ErrConflict       = errors.New("decision journal conflict")
 )
 
-type Service struct{ Pool *pgxpool.Pool }
+type Service struct {
+	Pool    *pgxpool.Pool
+	Archive archive.Store
+}
 
 type ConflictError struct {
 	Code    string
@@ -130,42 +135,54 @@ func (s Service) Finalize(ctx context.Context, rawID string) (domain.Decision, e
 	if err != nil || s.Pool == nil {
 		return domain.Decision{}, ErrInvalidRequest
 	}
-	var result domain.Decision
-	var alternativesJSON, evidenceJSON, invalidationJSON, sourceJSON []byte
-	err = s.Pool.QueryRow(ctx, `
-		UPDATE decisions
-		SET status='finalized', finalized_at=clock_timestamp()
-		WHERE id=$1::uuid AND status='draft'
-		RETURNING id::text, account_id::text, thesis, alternatives, evidence_references,
-		          invalidation_conditions, horizon_start, horizon_end,
-		          risk_budget_amount::text, risk_budget_currency, risk_budget_measure,
-		          risk_budget_horizon, intended_action, tags, status, author,
-		          source_metadata, created_at, finalized_at`, id,
-	).Scan(
-		&result.ID, &result.AccountID, &result.Thesis, &alternativesJSON, &evidenceJSON,
-		&invalidationJSON, &result.Horizon.Start, &result.Horizon.End,
-		&result.RiskBudget.Amount, &result.RiskBudget.Currency, &result.RiskBudget.Measure,
-		&result.RiskBudget.Horizon, &result.IntendedAction, &result.Tags, &result.Status,
-		&result.Author, &sourceJSON, &result.CreatedAt, &result.FinalizedAt,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		var status string
-		lookupErr := s.Pool.QueryRow(ctx, `SELECT status FROM decisions WHERE id=$1::uuid`, id).Scan(&status)
-		if errors.Is(lookupErr, pgx.ErrNoRows) {
-			return domain.Decision{}, ErrNotFound
-		}
-		if lookupErr != nil {
-			return domain.Decision{}, fmt.Errorf("check decision finalization: %w", lookupErr)
-		}
+	tx, err := s.Pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
+	if err != nil {
+		return domain.Decision{}, fmt.Errorf("begin decision finalization: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	var status string
+	if err := tx.QueryRow(ctx, `SELECT status FROM decisions WHERE id=$1::uuid FOR UPDATE`, id).Scan(&status); errors.Is(err, pgx.ErrNoRows) {
+		return domain.Decision{}, ErrNotFound
+	} else if err != nil {
+		return domain.Decision{}, fmt.Errorf("lock decision: %w", err)
+	}
+	if status != domain.StatusDraft {
 		return domain.Decision{}, &ConflictError{Code: "DECISION_IMMUTABLE", Message: "the decision is already finalized"}
 	}
+	decision, err := getDecision(ctx, tx, id)
 	if err != nil {
+		return domain.Decision{}, err
+	}
+	sealer := evidence.Service{Pool: s.Pool, Archive: s.Archive}
+	if err := sealer.Seal(ctx, tx, decision.ID, decision.AccountID, decision.EvidenceReferences); err != nil {
+		if errors.Is(err, evidence.ErrIncomplete) || errors.Is(err, evidence.ErrIntegrity) {
+			return domain.Decision{}, &ConflictError{Code: "EVIDENCE_INCOMPLETE", Message: "required decision evidence is unavailable or incomplete"}
+		}
+		return domain.Decision{}, fmt.Errorf("seal decision evidence: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `UPDATE decisions SET status='finalized',finalized_at=clock_timestamp() WHERE id=$1::uuid`, id); err != nil {
 		return domain.Decision{}, fmt.Errorf("finalize decision: %w", err)
 	}
-	if err := hydrateDecision(&result, alternativesJSON, evidenceJSON, invalidationJSON, sourceJSON); err != nil {
-		return domain.Decision{}, fmt.Errorf("decode finalized decision: %w", err)
+	result, err := getDecision(ctx, tx, id)
+	if err != nil {
+		return domain.Decision{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Decision{}, fmt.Errorf("commit decision finalization: %w", err)
 	}
 	return result, nil
+}
+
+func (s Service) Evidence(ctx context.Context, rawID string) (evidence.Sealed, error) {
+	id, err := parseUUID(rawID)
+	if err != nil || s.Pool == nil {
+		return evidence.Sealed{}, ErrInvalidRequest
+	}
+	sealed, err := (evidence.Service{Pool: s.Pool, Archive: s.Archive}).Reconstruct(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return evidence.Sealed{}, ErrNotFound
+	}
+	return sealed, err
 }
 
 func (s Service) AddReview(ctx context.Context, rawID string, request domain.ReviewRequest) (domain.Review, error) {

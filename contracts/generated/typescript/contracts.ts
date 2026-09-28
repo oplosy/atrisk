@@ -288,3 +288,8 @@ export interface RiskPositionPage {
 export interface CancelRiskRunRequest {
   reason?: string;
 }
+
+export interface DecisionEvidence {
+  manifest: Record<string, unknown>;
+  sha256: string;
+}
