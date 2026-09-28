@@ -1,7 +1,7 @@
 ---
 id: AR-501
 title: Build the web shell and quality language
-status: draft
+status: ready
 phase: 5
 depends_on: [AR-107]
 branch: task/AR-501-web-shell-quality
@@ -38,7 +38,9 @@ system, generated API integration, and explicit loading/empty/error/quality stat
 ## Required verification
 
 ```text
-task test-web
-task build-web
-task test-web-a11y
+npm test -- --run
+npm run typecheck
+npm run build
+npm run lint
+npm run format:check
 ```

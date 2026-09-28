@@ -1,7 +1,7 @@
 ---
 id: AR-401
 title: Implement the append-only decision journal
-status: draft
+status: ready
 phase: 4
 depends_on: [AR-201]
 branch: task/AR-401-decision-journal
