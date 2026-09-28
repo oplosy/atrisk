@@ -1,7 +1,7 @@
 ---
 id: AR-501
 title: Build the web shell and quality language
-status: draft
+status: ready
 phase: 5
 depends_on: [AR-107]
 branch: task/AR-501-web-shell-quality
