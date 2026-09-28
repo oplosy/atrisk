@@ -7,7 +7,7 @@ depends_on: [AR-302, AR-304]
 branch: task/AR-305-risk-result-api
 base_sha: 016ab9239071b2d77c863f865a2ceb7273ba016b
 owned_paths: [internal/application/risk/, apps/api/handlers/risk/, db/queries/risk/]
-shared_paths: [apps/api/cmd/api/main.go, contracts/openapi/, contracts/jobs/, contracts/generated/, scripts/generate/contract-models.mjs, apps/web/src/generated/, test/integration/]
+shared_paths: [apps/api/cmd/api/main.go, contracts/openapi/, contracts/jobs/, contracts/generated/, scripts/generate/contract-models.mjs, apps/web/src/generated/, test/integration/, Taskfile.yml]
 adrs: [ADR-009, ADR-011, ADR-013, ADR-014, ADR-015]
 ---
 

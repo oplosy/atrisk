@@ -115,6 +115,9 @@ tasks:
       - task: test-integration
         vars:
           TEST: RiskJobLifecycle
+      - task: test-integration
+        vars:
+          TEST: RiskEndToEnd
       - task: build
       - task: check-generated
 

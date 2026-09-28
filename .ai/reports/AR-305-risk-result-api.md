@@ -25,7 +25,7 @@
 ## Stop-condition check
 
 - Decision or scope conflict: none; the orchestrator amended the packet shared paths.
-- Missing dependency, unsafe migration, or unavailable verification: PostgreSQL-backed `RiskEndToEnd` is implemented in `test/integration/risk_result_api_test.go` but locally skipped because no test database URL is configured; Docker was not started or modified.
+- Missing dependency, unsafe migration, or unavailable verification: PostgreSQL-backed `RiskEndToEnd` is wired into `verify` but the local task runner and test database URL are unavailable; Docker was not started or modified.
 
 ## Verification
 
@@ -33,8 +33,10 @@
 |---|---|
 | `task test-go TEST=RiskAPI` | unavailable: `task` executable is not installed |
 | `go test ./apps/api/handlers/risk ./internal/application/risk -count=1` | pass; lifecycle and malformed submit UUID tests executed |
+| `task verify` | unavailable: `task` executable is not installed |
 | `task test-integration TEST=RiskEndToEnd` | unavailable: `task` executable is not installed |
-| `go test ./test/integration -run TestRiskEndToEnd -count=1 -v` | test compiled; skipped with `isolated database unavailable: test database URL is required` |
+| `ATLASRISK_REQUIRE_TEST_DATABASE=1 go test ./test/integration -run TestRiskEndToEnd -count=1 -v` | test compiled; failed closed with `isolated database validation failed: test database URL is required` |
+| `task --version` | unavailable: `task` executable is not installed; Verify YAML block was inspected and `git diff --check` passed |
 | `task test-contract` | unavailable: `task` executable is not installed |
 | `node --test contracts/jobs/contract.test.mjs test/contract/contract.test.mjs` | pass, 15 tests; generated Go round-trip executed by contract test |
 | `task check-generated` | unavailable: `task` executable is not installed |
@@ -46,14 +48,14 @@
 
 ## Change inventory
 
-- Files changed: risk application service/tests, risk HTTP handler/tests including submit UUID validation, real-DB `TestRiskEndToEnd`, API route wiring, OpenAPI source, contract generator object-array support and allow-list, generated contract models, risk request/result golden contracts, generated Go round-trip test, this report.
+- Files changed: risk application service/tests, risk HTTP handler/tests including submit UUID validation, real-DB `TestRiskEndToEnd`, Verify integration selection in `Taskfile.yml`, API route wiring, OpenAPI source, contract generator object-array support and allow-list, generated contract models, risk request/result golden contracts, generated Go round-trip test, this report.
 - Schema/API changes: submit, get/status, paginated positions, and cancel risk-run endpoints under `/api/v1/risk/runs`.
 - Generated artifacts: `contracts/generated/go/contracts.go`, `contracts/generated/typescript/contracts.ts`, `contracts/generated/python/contracts.py`, and Python package export.
 
 ## Git state
 
 - Branch: `task/AR-305-risk-result-api`
-- Implementation commits: `45842a1`, `42b63bf`; report metadata commit before final alignment: `622c8d3`
+- Implementation commits: `45842a1`, `42b63bf`; Verify integration selection is included in the final handoff
 - Remote branch: `task/AR-305-risk-result-api` includes all implementation and report updates
 - Worktree: clean at handoff
 
