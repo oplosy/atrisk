@@ -25,7 +25,7 @@
 ## Stop-condition check
 
 - Decision or scope conflict: none; the orchestrator amended the packet shared paths.
-- Missing dependency, unsafe migration, or unavailable verification: PostgreSQL-backed `RiskEndToEnd` has no matching test in this checkout and no test database URL is configured; Docker was not started or modified.
+- Missing dependency, unsafe migration, or unavailable verification: PostgreSQL-backed `RiskEndToEnd` is implemented in `test/integration/risk_result_api_test.go` but locally skipped because no test database URL is configured; Docker was not started or modified.
 
 ## Verification
 
@@ -34,7 +34,7 @@
 | `task test-go TEST=RiskAPI` | unavailable: `task` executable is not installed |
 | `go test ./apps/... ./internal/... -run TestRiskAPI -count=1` | pass; RiskAPI test executed |
 | `task test-integration TEST=RiskEndToEnd` | unavailable: `task` executable is not installed |
-| `go test ./test/integration -run TestRiskEndToEnd -count=1` | no matching test in checkout; no DB started |
+| `go test ./test/integration -run TestRiskEndToEnd -count=1 -v` | test compiled; skipped with `isolated database unavailable: test database URL is required` |
 | `task test-contract` | unavailable: `task` executable is not installed |
 | `node --test contracts/jobs/contract.test.mjs test/contract/contract.test.mjs` | pass, 15 tests; generated Go round-trip executed by contract test |
 | `task check-generated` | unavailable: `task` executable is not installed |
@@ -46,7 +46,7 @@
 
 ## Change inventory
 
-- Files changed: risk application service/tests, risk HTTP handler/tests, API route wiring, OpenAPI source, contract generator object-array support and allow-list, generated contract models, risk request/result golden contracts, generated Go round-trip test, this report.
+- Files changed: risk application service/tests, risk HTTP handler/tests, real-DB `TestRiskEndToEnd`, API route wiring, OpenAPI source, contract generator object-array support and allow-list, generated contract models, risk request/result golden contracts, generated Go round-trip test, this report.
 - Schema/API changes: submit, get/status, paginated positions, and cancel risk-run endpoints under `/api/v1/risk/runs`.
 - Generated artifacts: `contracts/generated/go/contracts.go`, `contracts/generated/typescript/contracts.ts`, `contracts/generated/python/contracts.py`, and Python package export.
 
