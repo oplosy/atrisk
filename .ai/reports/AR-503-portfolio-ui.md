@@ -10,7 +10,7 @@
 
 ## Result
 
-`needs-review`
+`merged` (PR #54)
 
 ## Acceptance evidence
 
@@ -21,12 +21,12 @@
 | Incomplete valuation is prominent and not full NAV | A non-valid run displays an alert and never renders the Complete NAV label; component test covers blocked state. |
 | Reconciliation displays tolerance and differences | Checkpoint comparison renders cutoff, absolute/relative difference, effective tolerance and version; checkpoint creation is limited to valid valuations. |
 | Forms preserve input on recoverable errors | Manual snapshot error test proves exact quantity remains after a rejected request. All forms keep controlled state after API errors. |
-| Portfolio context is isolated after switching | Three deferred-response tests prove delayed snapshot, valuation, and CSV snapshot-refresh results are ignored. Two more assertions verify existing error and success notices clear on switch. Implemented in `83be50a` and `93c0dba`; awaiting final independent review. |
+| Portfolio context is isolated after switching | Three deferred-response tests prove delayed snapshot, valuation, and CSV snapshot-refresh results are ignored. Two more assertions verify existing error and success notices clear on switch. Implemented in `83be50a` and `93c0dba`; included in the reviewed and merged PR. |
 
 ## Stop-condition check
 
 - Decision or scope conflict: none.
-- Missing dependency, unsafe migration, or unavailable verification: no local API/database fixture is connected to the Vite preview, so real API-backed form submissions remain unverified and show HTTP 404. Hosted `task verify` remains pending; the `task` CLI is unavailable locally.
+- Missing dependency, unsafe migration, or unavailable verification: no local API/database fixture is connected to the Vite preview, so real API-backed form submissions remain unverified and show HTTP 404. Hosted PR CI run 137 succeeded; the `task` CLI is unavailable locally.
 
 ## Verification
 
@@ -46,6 +46,7 @@
 | Desktop browser screenshot | [1280×900 Chrome capture](evidence/AR-503-portfolio-1280.png). The visual content viewport is 1265px because the desktop vertical scrollbar occupies 15px; horizontal scroll position is 0. |
 | 320px browser viewport and screenshot | [320×844 Chrome capture](evidence/AR-503-portfolio-320.png), captured with device metrics override. `visualViewport.width`, document client width, and body width were 320px; horizontal scroll position was 0. The portfolio heading and controls wrap without clipping. |
 | `task verify` | unavailable locally: `task` executable not found; hosted PR CI run 135 (`Verify`) passed, including database migration verification and `task verify`, for commit `2ba16f042bbcca041e7eda0f404985a2b2984f28` |
+| Final hosted PR CI | pass: run 137 for PR #54 head `ebf3f64c6f47a0b4b33a57a5e8808fb71f5b31b6`; PR is merged. |
 
 ## Change inventory
 
@@ -59,7 +60,7 @@
 - Implementation commits: `61eab655c0c1e7a262a2bd05a0a32c9c11104460`, stale-context guard `83be50a`, and portfolio-switch notice cleanup `93c0dba`.
 - Base SHA: `bfd36bd5e49a433dbd3657548019b18a4e2a0b58` (after AR-402 merge).
 - Evidence/status commit SHA: recorded in the final handoff message.
-- Remote branch: `origin/task/AR-503-portfolio-ui`, pushed; PR #54 opened against `main`. The branch contains only AR-503 changes on top of the updated `origin/main`.
+- Remote branch: `origin/task/AR-503-portfolio-ui`, pushed; [PR #54](https://github.com/oplosy/atrisk/pull/54) merged at `ee9a61994c9b6aef5440f7b89bd6fbebdfce50f2` after hosted CI passed.
 - Worktree: clean at final handoff.
 
 ## Assumptions and risks
