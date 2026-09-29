@@ -1,7 +1,7 @@
 ---
 id: AR-502
 title: Build the point-in-time data timeline
-status: review
+status: merged
 phase: 5
 depends_on: [AR-106, AR-501]
 branch: task/AR-502-data-timeline-ui
