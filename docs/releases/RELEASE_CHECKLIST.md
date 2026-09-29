@@ -6,8 +6,10 @@ or deploy a release.
 ## Candidate
 
 - Version: V1 (proposed tag `v1.0.0`)
-- Candidate commit: `0b767d4716b9d3a92651242ec12c8e331c2cd9c4` (`main`)
-- Evidence run: GitHub Actions CI run `36600398081` on the candidate commit
+- Candidate commit: `dfaf88c44013d9e6d39dced3bd221969e1335f53` (`main`), which
+  includes the decision-journal finalization race fix (#66) found while
+  verifying the first candidate `0b767d4`
+- Evidence run: GitHub Actions CI run `36616634842` on the candidate commit
   (job `Verify`, 38 steps, 0 failed)
 - Scope: all 31 V1 task packets are `merged`; the deferred roadmap in
   `docs/plans/MASTER_PLAN.md` is out of scope.
@@ -15,7 +17,7 @@ or deploy a release.
 ## Checks
 
 - [x] CI completed successfully on the candidate commit.
-      Run `36600398081`, conclusion `success`.
+      Run `36616634842`, conclusion `success`.
 - [x] AR-601 end-to-end journey completed, including sealed decision evidence.
       Step "Run complete end-to-end journey" passed.
 - [x] `task test-backup-restore` restored into empty PostgreSQL and Garage.
