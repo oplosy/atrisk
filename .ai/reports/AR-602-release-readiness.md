@@ -36,13 +36,14 @@
 | `python scripts/backup/manifest.py --help` | pass |
 | `task test-backup-restore` | pending hosted CI; local Task/PostgreSQL/Garage/AWS CLI unavailable |
 | `task test-migration` | pending hosted CI; local Task/PostgreSQL unavailable |
-| `task security-scan` | CI #190/#191 reached the scan gate after passing E2E/restore/migration; both runs exposed four overly broad `generic-api-key` fixture findings. The allowlist is now exact-rule, exact-path, exact-line-value and includes a negative probe for a different value; rerun pending. |
+| `task security-scan` | CI #190/#191 passed E2E/restore/migration and found four non-secret golden fixture keys. The rule-specific allowlist now requires both the exact secret value and one of three exact fixture paths; full scan rerun pending. |
+| `python scripts/backup/test-gitleaks-config.py` with pinned Gitleaks v8.28.0 | pass: known fixture values are ignored, a different key on the same line is detected, and the fixture value outside the three allowed paths is detected |
 | `task sbom` | pending hosted CI; pinned Syft container is used in workflow |
 | `task verify` | pending orchestrator/hosted CI |
 
 ## Change inventory
 
-- Files changed: backup/restore scripts and manifest, release scan/SBOM/gate scripts, runbook, release checklist, release infrastructure notes, Taskfile targets, CI workflow, this report.
+- Files changed: backup/restore scripts and manifest, release scan/SBOM/gate scripts and Gitleaks config, runbook, release checklist, release infrastructure notes, Taskfile targets, CI workflow/artifact upload, this report.
 - Schema/API changes: none.
 - Generated artifacts: none committed; CI SBOM is written to ignored `.task/release/`.
 
@@ -50,7 +51,7 @@
 
 - Branch: `task/AR-602-release-readiness`
 - Commit SHA: prior implementation `9683058`; follow-up scan fix commit recorded at handoff
-- Remote branch: not pushed; private-remote egress was denied during worker execution. Push/PR remains pending.
+- Remote branch: PR #63 is open; parent orchestrator owns pushing the current commits. Remote was at `29caa998` before these fixes.
 - Worktree: the orchestrator's pre-existing `.ai/tasks/AR-602-release-readiness.md` metadata edit remains outside this worker commit; implementation files are clean after commit.
 
 ## Assumptions and risks
@@ -59,3 +60,4 @@
 - The restore drill is intentionally limited to the loopback `atrisk_test` source and a fresh `atrisk_restore` target.
 - Backup encryption is provider/secret-store guidance rather than a new encryption implementation, because no accepted ADR defines a key-management provider.
 - Hosted CI evidence: runs `36537397696` (#190) and `36537897826` (#191) passed E2E, isolated restore with canonical evidence reconstruction, corruption/missing-object negatives, and previous-version migration; both stopped only on the now-narrowed Gitleaks fixture allowlist findings.
+- The restore drill now explicitly pre-creates an empty `atrisk-ci-restore` bucket and then exercises the existing-empty-bucket restore path with a one-page `KeyCount` probe.
