@@ -32,6 +32,8 @@ fi
 command -v pg_restore >/dev/null || { echo "pg_restore is required" >&2; exit 2; }
 command -v aws >/dev/null || { echo "aws CLI is required" >&2; exit 2; }
 command -v python3 >/dev/null || { echo "python3 is required" >&2; exit 2; }
+command -v psql >/dev/null || { echo "psql is required" >&2; exit 2; }
+command -v sha256sum >/dev/null || { echo "sha256sum is required" >&2; exit 2; }
 expected_major="${ATLASRISK_POSTGRES_MAJOR:-18}"
 restore_major="$(pg_restore --version | awk '{print $3}' | cut -d. -f1)"
 [[ "$restore_major" == "$expected_major" ]] || { echo "pg_restore major $restore_major does not match PostgreSQL $expected_major" >&2; exit 2; }
@@ -53,16 +55,17 @@ existing_tables="$(psql "$RESTORE_PG_DSN" -At -c "SELECT count(*) FROM pg_class 
 
 python3 "$(dirname "$0")/manifest.py" verify "$BACKUP_DIR"
 
-# pg_restore targets an explicitly provisioned empty database. It never drops
-# the source database and never uses --clean, which protects user data.
-pg_restore --exit-on-error --no-owner --no-acl --dbname "$RESTORE_PG_DSN" "$BACKUP_DIR/database.dump"
-
 if aws s3api head-bucket --bucket "$RESTORE_S3_BUCKET" --endpoint-url "$RESTORE_S3_ENDPOINT" --region "$RESTORE_S3_REGION" >/dev/null 2>&1; then
   target_object_count="$(aws s3api list-objects-v2 --bucket "$RESTORE_S3_BUCKET" --max-keys 1 --no-paginate --endpoint-url "$RESTORE_S3_ENDPOINT" --region "$RESTORE_S3_REGION" --query 'KeyCount' --output text)"
   [[ "$target_object_count" == "0" ]] || { echo "refusing restore into non-empty target bucket" >&2; exit 2; }
 else
   aws s3api create-bucket --bucket "$RESTORE_S3_BUCKET" --endpoint-url "$RESTORE_S3_ENDPOINT" --region "$RESTORE_S3_REGION" >/dev/null
 fi
+
+# pg_restore targets an explicitly provisioned empty database. It never drops
+# the source database and never uses --clean, which protects user data.
+pg_restore --exit-on-error --no-owner --no-acl --dbname "$RESTORE_PG_DSN" "$BACKUP_DIR/database.dump"
+
 aws s3 sync "$BACKUP_DIR/objects" "s3://$RESTORE_S3_BUCKET" \
   --endpoint-url "$RESTORE_S3_ENDPOINT" --region "$RESTORE_S3_REGION" --no-progress
 

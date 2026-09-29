@@ -36,12 +36,21 @@ automatically.
 
 ## Restore drill
 
-Provision an empty database and bucket with distinct names, export
+Provision an empty database and a bucket that differs from the source bucket,
+export `BACKUP_DIR` (the verified backup to restore), `ATLASRISK_S3_BUCKET`
+(the source bucket name, used only to refuse a same-bucket restore),
 `RESTORE_PG_DSN`, `RESTORE_S3_ENDPOINT`, `RESTORE_S3_BUCKET`,
-`RESTORE_S3_REGION`, `SOURCE_PG_DSN`, `ATLASRISK_ADMIN_DSN`,
-`SOURCE_DATABASE_NAME`, `RESTORE_DATABASE_NAME`, and
-`ATLASRISK_RESTORE_TARGET=isolated`, then run
-`bash scripts/backup/restore.sh`.
+`RESTORE_S3_REGION`, `SOURCE_PG_DSN`, `SOURCE_DATABASE_NAME`,
+`RESTORE_DATABASE_NAME`, and `ATLASRISK_RESTORE_TARGET=isolated`, then run
+`bash scripts/backup/restore.sh`. It needs `psql`, `pg_restore`, `aws`,
+`python3`, and `sha256sum` on the path. All target checks (isolation, empty
+database, empty bucket, manifest verification) run before the first write, so a
+refused restore leaves the target untouched. (`ATLASRISK_ADMIN_DSN` is needed
+only by the CI drill, which creates the empty database itself.)
+
+Manifest verification rejects a missing or changed member, an object under
+`objects/` that the manifest does not list, and a `sha256sums.txt` that
+differs from the manifest.
 
 For CI, `task test-backup-restore` runs `restore-drill.sh` against ephemeral
 PostgreSQL and Garage. It refuses to drop an existing restore database, uses a
