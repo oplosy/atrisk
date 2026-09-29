@@ -118,7 +118,7 @@ if aws s3api head-bucket --bucket "$RESTORE_S3_BUCKET" --endpoint-url "$RESTORE_
 else
   aws s3api create-bucket --bucket "$RESTORE_S3_BUCKET" --endpoint-url "$RESTORE_S3_ENDPOINT" --region "$RESTORE_S3_REGION" >/dev/null
 fi
-target_database_exists="$(psql "$ATLASRISK_ADMIN_DSN" -At -v target_db="$RESTORE_DATABASE_NAME" -c "SELECT count(*) FROM pg_database WHERE datname = :'target_db'")"
+target_database_exists="$(psql "$ATLASRISK_ADMIN_DSN" -At -c "SELECT count(*) FROM pg_database WHERE datname = 'atrisk_restore'")"
 [[ "$target_database_exists" == "0" ]] || {
   echo "refusing restore drill: isolated target database already exists; it will not be dropped" >&2
   exit 2
