@@ -13,7 +13,7 @@
 
 ## Result
 
-`needs-review`
+`complete`
 
 ## Acceptance evidence
 
@@ -59,9 +59,9 @@ All evidence is from hosted CI run `36545431960` on `8e750be` (36 steps, 0 faile
 ## Git state
 
 - Branch: `task/AR-602-release-readiness`
-- Commit SHA: verified implementation `8e750be`; this report is committed on top of it.
-- Remote branch: pushed; PR #63 open, mergeable, required check `Verify` green.
-- Worktree: clean after commit.
+- Commit SHA: verified head `400bd94`; squash-merged to `main` as `4c91a10`.
+- Remote branch: PR #63 merged after required check `Verify` passed on `400bd94`.
+- Worktree: clean.
 
 ## Assumptions and risks
 
