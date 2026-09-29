@@ -26,8 +26,16 @@ def relative_files(root: Path) -> list[Path]:
     return sorted(
         path.relative_to(root)
         for path in root.rglob("*")
-        if path.is_file() and path.name not in {"manifest.json", "sha256sums.txt"}
+        if path.is_file()
     )
+
+
+def checksum_text(manifest: dict) -> str:
+    lines = [
+        f"{manifest['database']['sha256']}  database.dump",
+        *[f"{item['sha256']}  objects/{item['key']}" for item in manifest["objects"]],
+    ]
+    return "\n".join(lines) + "\n"
 
 
 def create(root: Path) -> None:
@@ -58,11 +66,7 @@ def create(root: Path) -> None:
     (root / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
-    lines = [
-        f"{manifest['database']['sha256']}  database.dump",
-        *[f"{item['sha256']}  objects/{item['key']}" for item in objects],
-    ]
-    (root / "sha256sums.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (root / "sha256sums.txt").write_text(checksum_text(manifest), encoding="utf-8")
 
 
 def verify(root: Path) -> None:
@@ -82,6 +86,18 @@ def verify(root: Path) -> None:
                 f"integrity failure: checksum mismatch for {path} "
                 f"(expected {expected['sha256']}, got {actual_hash})"
             )
+    objects_root = root / "objects"
+    listed = {item["key"] for item in manifest["objects"]}
+    unlisted = sorted(
+        relative.as_posix()
+        for relative in (relative_files(objects_root) if objects_root.exists() else [])
+        if relative.as_posix() not in listed
+    )
+    if unlisted:
+        raise SystemExit(f"integrity failure: unlisted backup object(s): {', '.join(unlisted)}")
+    sums_path = root / "sha256sums.txt"
+    if not sums_path.is_file() or sums_path.read_text(encoding="utf-8") != checksum_text(manifest):
+        raise SystemExit("integrity failure: sha256sums.txt does not match manifest.json")
     print(f"backup integrity passed: {len(checks) - 1} object(s)")
 
 
