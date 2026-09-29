@@ -180,7 +180,7 @@ jobs:
         id: sbom
         run: |
           mkdir -p .task/release
-          docker run --rm --volume "$PWD:/src:ro" anchore/syft:v1.33.1 \
+          docker run --rm --volume "$PWD:/src:ro" anchore/syft:v1.33.0@sha256:f94e5d9fce1f2278491a8e3a63bd5f6ddb81fdfdbb8bf7a1637565c1d5344357 \
             dir:/src --output cyclonedx-json > .task/release/atlasrisk-sbom.json
           test -s .task/release/atlasrisk-sbom.json
           ATLASRISK_SBOM_PREBUILT=1 task sbom
