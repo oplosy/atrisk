@@ -1,7 +1,7 @@
 ---
 id: AR-602
 title: Establish backup restore and release gate
-status: active
+status: review
 phase: 6
 depends_on: [AR-601]
 branch: task/AR-602-release-readiness
@@ -38,11 +38,11 @@ and verified without losing point-in-time evidence or silently changing results.
 
 ## Acceptance criteria
 
-- [ ] Restore into empty infrastructure verifies database/object checksums and links.
-- [ ] A sealed decision reconstructs with the same canonical hashes after restore.
-- [ ] Missing object/database mismatch fails the integrity gate explicitly.
-- [ ] Release gate requires all CI, E2E, scan, migration, and restore checks to finish.
-- [ ] Runbook states recovery assumptions, RPO/RTO targets, and secret handling.
+- [x] Restore into empty infrastructure verifies database/object checksums and links.
+- [x] A sealed decision reconstructs with the same canonical hashes after restore.
+- [x] Missing object/database mismatch fails the integrity gate explicitly.
+- [x] Release gate requires all CI, E2E, scan, migration, and restore checks to finish.
+- [x] Runbook states recovery assumptions, RPO/RTO targets, and secret handling.
 
 ## Required verification
 

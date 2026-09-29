@@ -6,7 +6,10 @@
 - Packet status at start: `active` (orchestrator readiness metadata)
 - Referenced ADRs: ADR-001, ADR-005, ADR-017, ADR-018
 - Owned paths: `scripts/backup/`, `docs/runbooks/`, `docs/releases/`, `infra/release/`
-- Shared paths changed and justification: `.github/workflows/` and `Taskfile.yml`; required to run the isolated restore, migration, scan, SBOM, and fail-closed release gate in hosted CI.
+- Shared paths changed and justification: `.github/workflows/` and `Taskfile.yml`
+  run the isolated restore, migration, scan, SBOM, and release gate in hosted CI;
+  `risk-engine/pyproject.toml` and `risk-engine/uv.lock` pin the test-only pytest
+  9.0.3 to clear PYSEC-2026-1845, as scoped by the packet. No runtime dependency changed.
 
 ## Result
 
@@ -14,50 +17,61 @@
 
 ## Acceptance evidence
 
+All evidence is from hosted CI run `36545431960` on `8e750be` (36 steps, 0 failed).
+
 | Criterion | Evidence |
 |---|---|
-| Empty restore and checksums | `scripts/backup/backup.sh`, `restore.sh`, `manifest.py`, and `restore-drill.sh` dump PostgreSQL, sync Garage objects, verify SHA-256, restore into a distinct empty database/bucket, and verify `raw_objects` links. |
-| Sealed evidence continuity | `restore-drill.sh` captures the source `decision_evidence.manifest_sha256`, then `reconstruct-evidence.go` calls the production evidence service against the restored PostgreSQL/Garage pair; the drill fails unless the reconstructed canonical hash is identical. |
-| Negative integrity cases | `restore-drill.sh` expects both a tampered database dump and a removed object to fail manifest verification. |
-| Release gate | `Taskfile.yml`, `.github/workflows/ci.yml`, `scripts/backup/release-gate.sh`, and `docs/releases/RELEASE_CHECKLIST.md` require CI, E2E, scan, migration, restore, and SBOM markers. |
-| Recovery operations | `docs/runbooks/BACKUP_RESTORE.md` defines RPO 24 hours, RTO 4 hours, retention, encryption, secret handling, isolated targets, and failure handling. |
+| Restore into empty infrastructure verifies database/object checksums and links | `restore-drill.sh` backs up PostgreSQL and Garage, restores into a freshly created `atrisk_restore` database and an empty `atrisk-ci-restore` bucket, re-verifies every object checksum, and checks every `raw_objects.object_key`/`content_sha256` against the restored archive. `restore.sh` runs every target guard (isolation, empty database, empty bucket, manifest) before its first write. |
+| A sealed decision reconstructs with the same canonical hashes after restore | The drill reads the source `decision_evidence` id and `manifest_sha256`, then `reconstruct-evidence.go` reconstructs that same decision through the production evidence service against the restored PostgreSQL/Garage pair; the hashes must be identical. |
+| Missing object/database mismatch fails the integrity gate explicitly | The drill requires a tampered dump and a removed object to fail `manifest.py verify`. Verify also rejects objects not listed in the manifest and a `sha256sums.txt` that differs from the manifest (checked locally with create/verify negative cases). |
+| Release gate requires all CI, E2E, scan, migration, and restore checks to finish | `release-gate.sh` requires `passed` for CI, E2E, scan, migration, restore, and SBOM. CI derives each marker from the real `steps.<id>.outcome`, so a skipped or failed step blocks the gate. |
+| Runbook states recovery assumptions, RPO/RTO targets, and secret handling | `docs/runbooks/BACKUP_RESTORE.md`: RPO 24 h, RTO 4 h, retention, encryption, secret-store handling, the full restore environment, required tools, and failure handling. |
 
 ## Stop-condition check
 
 - Decision or scope conflict: none.
-- Missing dependency, unsafe migration, or unavailable verification: Git Bash launch failed with Windows `CreateFileMapping` error 5; PostgreSQL client, AWS CLI, and Task are unavailable. Python manifest CLI help passed. Live restore/migration/scan/SBOM verification is intentionally delegated to hosted CI ephemeral services. No Docker Desktop, WSL, or shared workstation setting was changed.
+- Missing dependency, unsafe migration, or unavailable verification: none in hosted CI.
+  PostgreSQL/Garage restore paths are verified only in CI; they were not run on the
+  Windows workstation.
 
 ## Verification
 
 | Command | Result |
 |---|---|
-| `git diff --check` | pass |
-| `bash -n scripts/backup/*.sh` | unavailable: Git Bash launch failed with Windows `CreateFileMapping` error 5 |
-| `python scripts/backup/manifest.py --help` | pass |
-| `task test-backup-restore` | pending hosted CI; local Task/PostgreSQL/Garage/AWS CLI unavailable |
-| `task test-migration` | pending hosted CI; local Task/PostgreSQL unavailable |
-| `task security-scan` | CI #190/#191 passed E2E/restore/migration and found four non-secret golden fixture keys. The rule-specific allowlist now requires both the exact secret value and one of three exact fixture paths; full scan rerun pending. |
-| `python scripts/backup/test-gitleaks-config.py` with pinned Gitleaks v8.28.0 | pass: known fixture values are ignored, a different key on the same line is detected, and the fixture value outside the three allowed paths is detected |
-| `task sbom` | pending hosted CI; pinned Syft container is used in workflow |
-| `task verify` | pending orchestrator/hosted CI |
+| `task test-backup-restore` | pass (CI run `36545431960`) |
+| `task test-migration` | pass (CI) |
+| `task security-scan` | pass (CI): Gitleaks over full history, allowlist probes, `go vet`, `npm audit`, `govulncheck` v1.8.0, `pip-audit --strict`, `ruff` |
+| `task sbom` | pass (CI): Syft v1.33.0 (digest-pinned) CycloneDX with a non-empty component list, uploaded as `atlasrisk-sbom` |
+| `task verify` | pass (CI) |
+| `task release-gate` | pass (CI), markers from step outcomes |
+| `uv run --locked pytest` (risk-engine, pytest 9.0.3) | pass locally, 47 tests |
+| `python scripts/backup/test-gitleaks-config.py` (Gitleaks v8.28.0) | pass locally |
 
 ## Change inventory
 
-- Files changed: backup/restore scripts and manifest, release scan/SBOM/gate scripts and Gitleaks config, runbook, release checklist, release infrastructure notes, Taskfile targets, CI workflow/artifact upload, this report.
+- Files changed: backup/restore scripts and manifest, evidence reconstruction helper,
+  release scan/SBOM/gate scripts, Gitleaks config and probe test, runbook, release
+  checklist, release infrastructure notes, Taskfile targets, CI workflow, risk-engine
+  pytest pin and lockfile, this report.
 - Schema/API changes: none.
-- Generated artifacts: none committed; CI SBOM is written to ignored `.task/release/`.
+- Generated artifacts: none committed; the CI SBOM is written to ignored `.task/release/`.
 
 ## Git state
 
 - Branch: `task/AR-602-release-readiness`
-- Commit SHA: prior implementation `9683058`; follow-up scan fix commit recorded at handoff
-- Remote branch: PR #63 is open; parent orchestrator owns pushing the current commits. Remote was at `29caa998` before these fixes.
-- Worktree: the orchestrator's pre-existing `.ai/tasks/AR-602-release-readiness.md` metadata edit remains outside this worker commit; implementation files are clean after commit.
+- Commit SHA: verified implementation `8e750be`; this report is committed on top of it.
+- Remote branch: pushed; PR #63 open, mergeable, required check `Verify` green.
+- Worktree: clean after commit.
 
 ## Assumptions and risks
 
-- Hosted CI provides the existing PostgreSQL and Garage services, AWS CLI, and Docker runtime; the workflow installs PostgreSQL client, `pip-audit`, and `govulncheck` and uses a pinned Syft image.
-- The restore drill is intentionally limited to the loopback `atrisk_test` source and a fresh `atrisk_restore` target.
-- Backup encryption is provider/secret-store guidance rather than a new encryption implementation, because no accepted ADR defines a key-management provider.
-- Hosted CI evidence: runs `36537397696` (#190) and `36537897826` (#191) passed E2E, isolated restore with canonical evidence reconstruction, corruption/missing-object negatives, and previous-version migration; both stopped only on the now-narrowed Gitleaks fixture allowlist findings.
-- The restore drill now explicitly pre-creates an empty `atrisk-ci-restore` bucket and then exercises the existing-empty-bucket restore path with a one-page `KeyCount` probe.
+- Full-history Gitleaks surfaced a local single-node Garage `rpc_secret` committed in
+  `c3e229b` (AR-004) and removed in `04b323f`. It is allowlisted only for that commit
+  and path, as approved by the owner; the value remains in `main` history. Rotation
+  is unnecessary for the disposable local stack but should be tracked if that value
+  was ever reused.
+- Two probe fixtures (`golden-risk-002`) from this task's own history (`0f22a07`,
+  `2c4b054`) are allowlisted by exact commit, path, and value.
+- `pg_dump` still receives `PG_DSN` on its command line; the CI DSN is a test credential.
+- Backup encryption is provider/secret-store guidance; no accepted ADR defines a
+  key-management provider.
