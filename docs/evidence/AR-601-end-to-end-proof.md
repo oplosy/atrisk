@@ -19,12 +19,14 @@ window required for valid pre-stress volatility metrics.
 
 ## Cross-cutting regression proofs
 
-`task test-e2e` also runs point-in-time revision, quality gating, valuation lineage,
-risk result, decision sealing/reconstruction, and route-level UI tests. The UI route
-tests use Testing Library with controlled API responses; they verify interaction and
-failure-state rendering, but are not a live-browser test against the database-backed
-journey. The HTTP journey invokes API handlers through `httptest`; it does not launch
-the production API executable.
+`task test-e2e` also runs route-level UI tests. The existing CI steps and `task verify`
+run point-in-time revision, quality gating, valuation lineage, risk result, and
+decision sealing/reconstruction integration tests separately against the same CI
+database, so they are not duplicated by this target. UI route tests use Testing
+Library with controlled API responses; they verify interaction and failure-state
+rendering, but are not a live-browser test against the database-backed journey. The
+HTTP journey invokes API handlers through `httptest`; it does not launch the
+production API executable.
 
 When the end-to-end step fails in GitHub Actions, its console output is captured at
 `.task/ci-failure/e2e.log` and uploaded with the CI failure diagnostics artifact.

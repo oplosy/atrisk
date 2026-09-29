@@ -6,7 +6,7 @@
 - Packet status at start: `ready` (merged readiness PR #60)
 - Referenced ADRs: ADR-006, ADR-007, ADR-011, ADR-012, ADR-013, ADR-014 in `docs/decisions/README.md`
 - Owned paths: `test/e2e/`, `test/fixtures/system/`, `docs/evidence/`
-- Shared paths changed and justification: `.github/workflows/ci.yml` and `Taskfile.yml` add the task-scoped hosted E2E gate and capture its failure log.
+- Shared paths changed and justification: `.github/workflows/ci.yml` and `Taskfile.yml` add the task-scoped hosted E2E gate and capture its failure log; `risk-engine/` adds the locked Psycopg dependency for the production queue adapter; `internal/application/scenarios/service.go` now closes the valuation-lines cursor before issuing FX/price lineage queries, fixing the `pgx: conn busy` failure exposed by this end-to-end path.
 
 ## Result
 
@@ -33,6 +33,7 @@
 | Command | Result |
 |---|---|
 | `go test ./test/e2e -run '^$'` | pass; package compiles. |
+| `go test ./internal/application/scenarios ./internal/application/risk ./apps/api/handlers/risk` | pass. |
 | `go test ./test/e2e -count=1 -v` | test safely skipped: `ATLASRISK_TEST_DATABASE_URL` is not set. |
 | `uv run --locked pytest -q` (from `risk-engine/`) | pass; 47 tests. |
 | `npm test -- --run apps/web/src/routes` | pass; 4 files / 25 tests. Initial sandbox attempt hit `spawn EPERM`; elevated rerun passed. |
@@ -45,8 +46,8 @@
 
 ## Change inventory
 
-- Files changed: `test/e2e/journey_test.go`, `test/fixtures/system/journey.json`, `docs/evidence/AR-601-end-to-end-proof.md`, `Taskfile.yml`, `.github/workflows/ci.yml`, `risk-engine/pyproject.toml`, `risk-engine/uv.lock`, this report.
-- Schema/API changes: none; the E2E invokes existing handlers and queue persistence adapter.
+- Files changed: `test/e2e/journey_test.go`, `test/fixtures/system/journey.json`, `docs/evidence/AR-601-end-to-end-proof.md`, `Taskfile.yml`, `.github/workflows/ci.yml`, `risk-engine/pyproject.toml`, `risk-engine/uv.lock`, `internal/application/scenarios/service.go`, this report.
+- Schema/API changes: none; the E2E invokes existing handlers and queue persistence adapter. One cursor-lifecycle bug in the scenario application service was fixed as a direct E2E finding.
 - Generated artifacts: none.
 
 ## Git state
