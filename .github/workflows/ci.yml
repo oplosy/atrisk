@@ -124,6 +124,12 @@ jobs:
           go install github.com/go-task/task/v3/cmd/task@v3.44.1
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
+      - name: Run complete end-to-end journey
+        run: |
+          set -o pipefail
+          mkdir -p .task/ci-failure
+          task test-e2e 2>&1 | tee .task/ci-failure/e2e.log
+
       - name: Run raw archive integration
         run: task test-go-integration TEST=RawArchive
 

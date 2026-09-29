@@ -1,0 +1,9 @@
+{
+  "cutoff": "2026-06-30T15:00:00Z",
+  "business_day_observations": 64,
+  "base_price": 100,
+  "daily_increment": 1,
+  "usd_try": "40",
+  "asset_class": "equity",
+  "stress_return": "-0.10"
+}

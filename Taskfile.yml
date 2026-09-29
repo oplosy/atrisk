@@ -73,6 +73,15 @@ tasks:
     cmds:
       - go test ./test/integration -run "Test{{.TEST}}" -count=1
 
+  test-e2e:
+    desc: Prove the complete portfolio-to-decision journey against isolated dependencies
+    env:
+      ATLASRISK_REQUIRE_TEST_DATABASE: "1"
+    cmds:
+      - go test ./test/e2e -count=1
+      - go test ./test/integration -run '^(TestPointInTimeAPI|TestQualityAPI|TestValuationAPI|TestRiskEndToEnd|TestDecisionJournalAPI|TestHistoricalDecisionReconstruction)$' -count=1
+      - npm test -- --run apps/web/src/routes
+
   migrate-test:
     desc: Apply migrations to an explicitly isolated test database and verify schema
     env:
