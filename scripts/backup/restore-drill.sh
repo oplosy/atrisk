@@ -13,7 +13,7 @@ set -Eeuo pipefail
 : "${ATLASRISK_ADMIN_DSN:?ATLASRISK_ADMIN_DSN is required}"
 : "${SOURCE_DATABASE_NAME:?SOURCE_DATABASE_NAME is required}"
 : "${RESTORE_DATABASE_NAME:?RESTORE_DATABASE_NAME is required}"
-: "${ATLASRISK_RESTORE_TARGET:=isolated}"
+: "${ATLASRISK_RESTORE_TARGET:?ATLASRISK_RESTORE_TARGET=isolated is required}"
 : "${BACKUP_DIR:?BACKUP_DIR is required}"
 [[ "$ATLASRISK_RESTORE_TARGET" == "isolated" ]] || { echo "restore drill requires ATLASRISK_RESTORE_TARGET=isolated" >&2; exit 2; }
 [[ "$SOURCE_DATABASE_NAME" == "atrisk_test" ]] || { echo "restore drill source database name must be atrisk_test" >&2; exit 2; }
@@ -128,12 +128,14 @@ bash "$(dirname "$0")/restore.sh"
 marker="$(psql "$RESTORE_PG_DSN" -At -c "SELECT marker FROM release_backup_probe WHERE id = 1")"
 [[ "$marker" == "ar602-fixture" ]] || { echo "restore probe row mismatch" >&2; exit 1; }
 
-source_evidence_hash="$(psql "$PG_DSN" -At -c "SELECT btrim(manifest_sha256) FROM decision_evidence ORDER BY decision_id LIMIT 1")"
+source_evidence="$(psql "$PG_DSN" -At -F '|' -c "SELECT decision_id::text, btrim(manifest_sha256) FROM decision_evidence ORDER BY decision_id LIMIT 1")"
+source_decision_id="${source_evidence%%|*}"
+source_evidence_hash="${source_evidence#*|}"
 [[ "$source_evidence_hash" =~ ^[0-9a-f]{64}$ ]] || {
   echo "restore drill requires one sealed decision from the preceding E2E journey" >&2
   exit 1
 }
-restored_evidence_hash="$(go run ./scripts/backup/reconstruct-evidence.go)"
+restored_evidence_hash="$(RESTORE_DECISION_ID="$source_decision_id" go run ./scripts/backup/reconstruct-evidence.go)"
 [[ "$restored_evidence_hash" == "$source_evidence_hash" ]] || {
   echo "sealed evidence hash changed across restore" >&2
   exit 1

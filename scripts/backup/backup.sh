@@ -22,7 +22,6 @@ if [[ -e "$BACKUP_DIR" && -n "$(find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 -prin
   exit 2
 fi
 mkdir -p "$BACKUP_DIR/objects"
-rm -f "$BACKUP_DIR/database.dump" "$BACKUP_DIR/manifest.json" "$BACKUP_DIR/sha256sums.txt"
 
 pg_dump --format=custom --no-owner --no-acl --file "$BACKUP_DIR/database.dump" "$PG_DSN"
 aws s3 sync "s3://$ATLASRISK_S3_BUCKET" "$BACKUP_DIR/objects" \
