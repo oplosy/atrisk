@@ -36,7 +36,7 @@
 | `python scripts/backup/manifest.py --help` | pass |
 | `task test-backup-restore` | pending hosted CI; local Task/PostgreSQL/Garage/AWS CLI unavailable |
 | `task test-migration` | pending hosted CI; local Task/PostgreSQL unavailable |
-| `task security-scan` | pending hosted CI; pinned scan tools are installed in workflow |
+| `task security-scan` | CI #190/#191 reached the scan gate after passing E2E/restore/migration; both runs exposed four overly broad `generic-api-key` fixture findings. The allowlist is now exact-rule, exact-path, exact-line-value and includes a negative probe for a different value; rerun pending. |
 | `task sbom` | pending hosted CI; pinned Syft container is used in workflow |
 | `task verify` | pending orchestrator/hosted CI |
 
@@ -49,7 +49,7 @@
 ## Git state
 
 - Branch: `task/AR-602-release-readiness`
-- Commit SHA: `9683058` (implementation commit; report metadata is finalized in the follow-up handoff commit)
+- Commit SHA: prior implementation `9683058`; follow-up scan fix commit recorded at handoff
 - Remote branch: not pushed; private-remote egress was denied during worker execution. Push/PR remains pending.
 - Worktree: the orchestrator's pre-existing `.ai/tasks/AR-602-release-readiness.md` metadata edit remains outside this worker commit; implementation files are clean after commit.
 
@@ -58,3 +58,4 @@
 - Hosted CI provides the existing PostgreSQL and Garage services, AWS CLI, and Docker runtime; the workflow installs PostgreSQL client, `pip-audit`, and `govulncheck` and uses a pinned Syft image.
 - The restore drill is intentionally limited to the loopback `atrisk_test` source and a fresh `atrisk_restore` target.
 - Backup encryption is provider/secret-store guidance rather than a new encryption implementation, because no accepted ADR defines a key-management provider.
+- Hosted CI evidence: runs `36537397696` (#190) and `36537897826` (#191) passed E2E, isolated restore with canonical evidence reconstruction, corruption/missing-object negatives, and previous-version migration; both stopped only on the now-narrowed Gitleaks fixture allowlist findings.

@@ -1,0 +1,15 @@
+title = "AtlasRisk release secret scan"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Ignore only the deterministic generic-api-key findings for the four golden-risk-001 fixture lines."
+targetRules = ["generic-api-key"]
+regexTarget = "line"
+paths = [
+  '''^internal/jobs/queue_test\.go$''',
+  '''^risk-engine/tests/test_jobs\.py$''',
+  '''^test/fixtures/risk/golden-job\.json$''',
+]
+regexes = ['''"idempotency_key"\s*:\s*"golden-risk-001"''']

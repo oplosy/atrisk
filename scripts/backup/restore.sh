@@ -58,7 +58,7 @@ python3 "$(dirname "$0")/manifest.py" verify "$BACKUP_DIR"
 pg_restore --exit-on-error --no-owner --no-acl --dbname "$RESTORE_PG_DSN" "$BACKUP_DIR/database.dump"
 
 if aws s3api head-bucket --bucket "$RESTORE_S3_BUCKET" --endpoint-url "$RESTORE_S3_ENDPOINT" --region "$RESTORE_S3_REGION" >/dev/null 2>&1; then
-  target_object_count="$(aws s3api list-objects-v2 --bucket "$RESTORE_S3_BUCKET" --endpoint-url "$RESTORE_S3_ENDPOINT" --region "$RESTORE_S3_REGION" --query 'KeyCount' --output text)"
+  target_object_count="$(aws s3api list-objects-v2 --bucket "$RESTORE_S3_BUCKET" --max-keys 1 --no-paginate --endpoint-url "$RESTORE_S3_ENDPOINT" --region "$RESTORE_S3_REGION" --query 'KeyCount' --output text)"
   [[ "$target_object_count" == "0" ]] || { echo "refusing restore into non-empty target bucket" >&2; exit 2; }
 else
   aws s3api create-bucket --bucket "$RESTORE_S3_BUCKET" --endpoint-url "$RESTORE_S3_ENDPOINT" --region "$RESTORE_S3_REGION" >/dev/null
