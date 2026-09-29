@@ -175,7 +175,27 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 	if err != nil {
 		return sealedValuation{}, fmt.Errorf("load sealed valuation lines: %w", err)
 	}
-	defer rows.Close()
+	type sealedValuationLine struct {
+		lineID, instrumentID, instrumentType, nativeCurrency, state, priceMethod, quantity string
+		duration, convexity, tryAmount, usdAmount, priceID, quoteUnit                      *string
+		reasonsRaw                                                                         []byte
+		tryIDs, usdIDs                                                                     []pgtype.UUID
+		tryDirections, usdDirections                                                       []string
+	}
+	valuationLines := make([]sealedValuationLine, 0, expectedLines)
+	for rows.Next() {
+		var line sealedValuationLine
+		if err := rows.Scan(&line.lineID, &line.instrumentID, &line.instrumentType, &line.nativeCurrency, &line.quantity, &line.duration, &line.convexity, &line.tryAmount, &line.usdAmount, &line.state, &line.reasonsRaw, &line.priceMethod, &line.priceID, &line.quoteUnit, &line.tryIDs, &line.tryDirections, &line.usdIDs, &line.usdDirections); err != nil {
+			rows.Close()
+			return sealedValuation{}, fmt.Errorf("scan sealed valuation line: %w", err)
+		}
+		valuationLines = append(valuationLines, line)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return sealedValuation{}, fmt.Errorf("read sealed valuation lines: %w", err)
+	}
+	rows.Close()
 	positions := make([]map[string]any, 0)
 	provenanceLines := make([]map[string]any, 0)
 	metricPrices := make(map[string]map[string]string)
@@ -185,15 +205,11 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 	metricExposures := make(map[string]string)
 	metricCalendar := "crypto_daily"
 	metricInputsAvailable := true
-	for rows.Next() {
-		var lineID, instrumentID, instrumentType, nativeCurrency, state, priceMethod, quantity string
-		var duration, convexity, tryAmount, usdAmount, priceID, quoteUnit *string
-		var reasonsRaw []byte
-		var tryIDs, usdIDs []pgtype.UUID
-		var tryDirections, usdDirections []string
-		if err := rows.Scan(&lineID, &instrumentID, &instrumentType, &nativeCurrency, &quantity, &duration, &convexity, &tryAmount, &usdAmount, &state, &reasonsRaw, &priceMethod, &priceID, &quoteUnit, &tryIDs, &tryDirections, &usdIDs, &usdDirections); err != nil {
-			return sealedValuation{}, fmt.Errorf("scan sealed valuation line: %w", err)
-		}
+	for _, line := range valuationLines {
+		lineID, instrumentID, instrumentType, nativeCurrency, state, priceMethod, quantity := line.lineID, line.instrumentID, line.instrumentType, line.nativeCurrency, line.state, line.priceMethod, line.quantity
+		duration, convexity, tryAmount, usdAmount, priceID, quoteUnit := line.duration, line.convexity, line.tryAmount, line.usdAmount, line.priceID, line.quoteUnit
+		reasonsRaw, tryIDs, usdIDs := line.reasonsRaw, line.tryIDs, line.usdIDs
+		tryDirections, usdDirections := line.tryDirections, line.usdDirections
 		var reasons []string
 		if len(reasonsRaw) > 0 && string(reasonsRaw) != "null" {
 			if err := json.Unmarshal(reasonsRaw, &reasons); err != nil {
@@ -292,9 +308,6 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 			"try_fx_path": tryEvidence, "usd_fx_path": usdEvidence,
 			"reason_codes": reasons,
 		})
-	}
-	if err := rows.Err(); err != nil {
-		return sealedValuation{}, fmt.Errorf("read sealed valuation lines: %w", err)
 	}
 	if len(positions) == 0 || len(positions) != expectedLines {
 		return sealedValuation{}, ErrInvalidRequest
