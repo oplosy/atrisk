@@ -132,7 +132,7 @@ func TestAtlasRiskJourney(t *testing.T) {
 		Mappings:    map[string]any{"instrument_asset_classes": map[string]any{instrument.ID: fixture.AssetClass}},
 		Assumptions: map[string]any{"coverage_policy": "block", "pnl_tolerance": "0.00000001"},
 	}
-	riskRun := apiJSONWithHeader[applicationrisk.Run](t, api.Client(), http.MethodPost, api.URL+"/api/v1/risk/runs", riskRequest, "Idempotency-Key", "ar601-journey-risk-"+runID, http.StatusAccepted)
+	riskRun := submitRiskRunAPI(t, api, pool, riskRequest, "ar601-journey-risk-"+runID)
 	if !runRiskEngineWorker(t, root) {
 		t.Fatal("risk worker did not claim and complete the queued run")
 	}
@@ -291,6 +291,36 @@ func apiJSONWithHeader[T any](t *testing.T, client *http.Client, method, url str
 	var result T
 	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
 		t.Fatalf("decode %s %s response: %v", method, url, err)
+	}
+	return result
+}
+
+func submitRiskRunAPI(t *testing.T, api *httptest.Server, pool *pgxpool.Pool, body applicationrisk.SubmitRequest, idempotencyKey string) applicationrisk.Run {
+	t.Helper()
+	var encoded bytes.Buffer
+	if err := json.NewEncoder(&encoded).Encode(body); err != nil {
+		t.Fatal(err)
+	}
+	request, err := http.NewRequest(http.MethodPost, api.URL+"/api/v1/risk/runs", &encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Idempotency-Key", idempotencyKey)
+	response, err := api.Client().Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusAccepted {
+		data, _ := io.ReadAll(response.Body)
+		body.IdempotencyKey = idempotencyKey
+		_, diagnosticErr := (applicationrisk.Service{Pool: pool}).Submit(context.Background(), body)
+		t.Fatalf("POST %s status=%d want=%d body=%s; direct service diagnostic=%v", request.URL, response.StatusCode, http.StatusAccepted, data, diagnosticErr)
+	}
+	var result applicationrisk.Run
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		t.Fatalf("decode risk submit response: %v", err)
 	}
 	return result
 }
