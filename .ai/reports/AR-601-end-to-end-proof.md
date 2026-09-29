@@ -42,7 +42,11 @@
 | `npm run lint` | pass. |
 | `npm run format:check` | pass. |
 | `git diff --check` | pass. |
-| `task test-e2e`, `task verify` | hosted CI pending. |
+| `task test-e2e`, `task verify` | passed in hosted Verify run `36531178087`. |
+
+Hosted completion evidence: GitHub Actions run `36531178087` passed. The new
+`TestAtlasRiskJourney` ran against PostgreSQL 18 and ephemeral Garage; all dedicated
+integration steps and `task verify` also passed.
 
 ## Change inventory
 
@@ -53,9 +57,10 @@
 ## Git state
 
 - Branch: `task/AR-601-end-to-end-proof`
-- Commit SHA: pending.
-- Remote branch: pending.
-- Worktree: dirty; implementation and review in progress.
+- Task branch head before squash: `1e86cfa9f3a8a32844d459dfbd51c6b2d45e9d46`.
+- Merge commit: `90dba53b4c40411965457746d39ad9a2880deee0` (PR #61).
+- Remote branch: merged; deleted after merge.
+- Worktree: clean after merge.
 
 ## Assumptions and risks
 

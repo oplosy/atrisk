@@ -1,10 +1,11 @@
 ---
 id: AR-602
 title: Establish backup restore and release gate
-status: draft
+status: ready
 phase: 6
 depends_on: [AR-601]
 branch: task/AR-602-release-readiness
+base_sha: 90dba53b4c40411965457746d39ad9a2880deee0
 owned_paths: [scripts/backup/, docs/runbooks/, docs/releases/, infra/release/]
 shared_paths: [.github/workflows/, Taskfile.yml, SECURITY.md]
 adrs: [ADR-001, ADR-005, ADR-017, ADR-018]
@@ -26,6 +27,12 @@ and verified without losing point-in-time evidence or silently changing results.
 ## Out of scope
 
 - Cloud deployment, paid backup provider, automatic production retention, or release publishing.
+
+## Execution guardrails
+
+- Restore drills use a fresh, isolated test database and bucket; never restore over the backup source or a user installation.
+- CI may start ephemeral PostgreSQL and Garage services. Do not change Docker Desktop, WSL, or shared workstation settings.
+- Backups and CI artifacts must not include `.env` files, credentials, or personal portfolio payloads.
 
 ## Acceptance criteria
 
