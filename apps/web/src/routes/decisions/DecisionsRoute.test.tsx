@@ -204,6 +204,57 @@ describe("DecisionJournalRoute", () => {
     );
   });
 
+  it("does not reload a just-created draft over a later finalization", async () => {
+    let resolveStaleLoad: (response: Response) => void = () => {};
+    const staleLoad = new Promise<Response>((resolve) => {
+      resolveStaleLoad = resolve;
+    });
+    const fetchMock = vi
+      .spyOn(window, "fetch")
+      .mockImplementation((input, init) => {
+        const path = String(input);
+        if (path.endsWith("/decisions") && init?.method === "POST")
+          return jsonResponse(decision, 201);
+        if (path.endsWith("/timeline")) return jsonResponse(timeline);
+        // A slow re-read of the draft must never land after finalization.
+        if (path.endsWith("/decisions/decision-1")) return staleLoad;
+        if (path.endsWith("/finalize"))
+          return jsonResponse({ ...decision, status: "finalized" }, 200);
+        if (path.endsWith("/evidence"))
+          return jsonResponse({
+            manifest: {
+              snapshot_id: "snapshot-1",
+              valuation_id: "valuation-1",
+              risk_id: "risk-1",
+              engine_version: "risk-v1",
+            },
+            sha256: "a".repeat(64),
+          });
+        return jsonResponse({}, 404);
+      });
+    render(<DecisionJournalRoute />);
+    fillDraft();
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await screen.findByText(/Draft decision-1 saved/i);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Finalize decision" }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Finalize decision" }));
+    await screen.findByText("Sealed evidence reconstruction");
+    resolveStaleLoad(await jsonResponse({ ...decision, status: "draft" }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(
+      screen.getByRole("button", { name: "Finalize decision" }),
+    ).toBeDisabled();
+    expect(
+      fetchMock.mock.calls.filter(([input]) =>
+        String(input).endsWith("/decisions/decision-1"),
+      ),
+    ).toHaveLength(0);
+  });
+
   it("treats an evidence integrity response as a blocking state", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input);
