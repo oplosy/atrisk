@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import {
   appendDecisionAmendment,
@@ -268,6 +268,9 @@ export function DecisionJournalRoute() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [integrityBlocked, setIntegrityBlocked] = useState(false);
+  // ID of a decision this page just created: its server response is already in
+  // state, and re-reading it would race (and could overwrite) a finalization.
+  const createdIDRef = useRef("");
 
   useEffect(() => {
     try {
@@ -278,7 +281,7 @@ export function DecisionJournalRoute() {
   }, [draft]);
 
   useEffect(() => {
-    if (!decisionID) return;
+    if (!decisionID || decisionID === createdIDRef.current) return;
     let active = true;
     setBusy("load");
     setError("");
@@ -376,6 +379,7 @@ export function DecisionJournalRoute() {
     setNotice("");
     void createDecision(toRequest(draft))
       .then((created) => {
+        createdIDRef.current = created.id;
         setDecision(created);
         setDecisionID(created.id);
         setLookupID(created.id);
@@ -395,6 +399,7 @@ export function DecisionJournalRoute() {
       setError("Enter a decision ID to reconstruct its historical record.");
       return;
     }
+    createdIDRef.current = "";
     setDecisionID(id);
     window.localStorage.setItem(DECISION_KEY, id);
   };
