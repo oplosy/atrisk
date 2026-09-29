@@ -52,5 +52,8 @@ with tempfile.TemporaryDirectory(prefix="atlasrisk-gitleaks-") as temporary:
     other_value = "0123456789" + "abcdef" * 3
     scan({fixture_paths[0]: {"idempotency_key": fixture_value, "api_key": other_value}}, [fixture_paths[0]])
     scan({"outside.json": {"idempotency_key": fixture_value}}, ["outside.json"])
+    # The historical-commit allowlists are commit-scoped: the same paths in a new commit still fail.
+    scan({"infra/compose/garage.toml": {"api_key": other_value}}, ["infra/compose/garage.toml"])
+    scan({"scripts/backup/security-scan.sh": {"idempotency_key": "golden-risk-002"}}, ["scripts/backup/security-scan.sh"])
 
-print("Gitleaks allowlist probes passed: exact fixtures, same-line secret, outside path")
+print("Gitleaks allowlist probes passed: exact fixtures, same-line secret, outside path, commit-scoped history")

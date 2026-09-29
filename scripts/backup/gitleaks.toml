@@ -16,3 +16,17 @@ paths = [
   '''^test/fixtures/risk/golden-job\.json$''',
 ]
 regexes = ['''^golden-risk-001$''']
+
+[[rules.allowlists]]
+description = "AR-004 removed its local single-node Garage rpc_secret in 04b323f; ignore only that historical commit and path."
+condition = "AND"
+commits = ["c3e229b9b099c413f1b0a1d577b32a639ff91bdd"]
+paths = ['''^infra/compose/garage\.toml$''']
+
+[[rules.allowlists]]
+description = "Ignore the golden-risk-002 probe fixture in this task's own superseded scan script."
+condition = "AND"
+commits = ["0f22a07bfaa73afaad4fa8a6b7ef4e688dc3a3e1"]
+paths = ['''^scripts/backup/security-scan\.sh$''']
+regexTarget = "secret"
+regexes = ['''^golden-risk-002$''']
