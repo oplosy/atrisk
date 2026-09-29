@@ -49,7 +49,7 @@
 ## Git state
 
 - Branch: `task/AR-602-release-readiness`
-- Commit SHA: `2f37939` (implementation); final fix commit follows
+- Commit SHA: `9683058` (implementation commit; report metadata is finalized in the follow-up handoff commit)
 - Remote branch: pushed by this worker after verification; no PR opened
 - Worktree: the orchestrator's pre-existing `.ai/tasks/AR-602-release-readiness.md` metadata edit remains outside this worker commit; implementation files are clean after commit.
 
