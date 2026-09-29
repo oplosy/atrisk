@@ -2,12 +2,12 @@
 set -Eeuo pipefail
 
 echo "running repository secret and dependency checks"
-if command -v gitleaks >/dev/null 2>&1; then
-  gitleaks_report="$(mktemp)"
-  if gitleaks detect --no-banner --redact --source . --config scripts/backup/gitleaks.toml --report-format json --report-path "$gitleaks_report"; then
-    rm -f "$gitleaks_report"
-  else
-    python3 - "$gitleaks_report" <<'PY'
+command -v gitleaks >/dev/null 2>&1 || { echo "gitleaks is required for secret scanning" >&2; exit 2; }
+gitleaks_report="$(mktemp)"
+if gitleaks detect --no-banner --redact --source . --config scripts/backup/gitleaks.toml --report-format json --report-path "$gitleaks_report"; then
+  rm -f "$gitleaks_report"
+else
+  python3 - "$gitleaks_report" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -25,17 +25,10 @@ for finding in findings:
         f"commit={finding.get('Commit', '<unknown>')}"
     )
 PY
-    rm -f "$gitleaks_report"
-    exit 1
-  fi
-  python3 scripts/backup/test-gitleaks-config.py
-else
-  if git grep -nI -E '-----BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY-----|AKIA[0-9A-Z]{16}' -- . ':!*.lock' ':!docs/**'; then
-    echo "secret scan found a high-confidence credential pattern" >&2
-    exit 1
-  fi
-  echo "gitleaks unavailable; high-confidence repository secret fallback passed"
+  rm -f "$gitleaks_report"
+  exit 1
 fi
+python3 scripts/backup/test-gitleaks-config.py
 
 go vet ./apps/... ./internal/...
 npm audit --audit-level=high

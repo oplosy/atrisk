@@ -11,7 +11,7 @@ or deploy a release.
 - [ ] `task test-migration` upgraded the previous schema without losing the
       sentinel row.
 - [ ] `task security-scan` found no high-severity dependency or secret result.
-- [ ] `task sbom` produced a CycloneDX SBOM from locked dependencies.
+- [ ] `task sbom` produced a CycloneDX SBOM with a non-empty component list.
 - [ ] RPO/RTO, retention, encryption, and secret handling were reviewed in
       `docs/runbooks/BACKUP_RESTORE.md`.
 - [ ] No `.env`, credentials, personal portfolio data, or production payloads
