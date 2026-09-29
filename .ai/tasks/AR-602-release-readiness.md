@@ -1,7 +1,7 @@
 ---
 id: AR-602
 title: Establish backup restore and release gate
-status: review
+status: merged
 phase: 6
 depends_on: [AR-601]
 branch: task/AR-602-release-readiness
