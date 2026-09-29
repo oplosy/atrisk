@@ -81,6 +81,33 @@ tasks:
       - go test ./test/e2e -count=1
       - npm test -- --run apps/web/src/routes
 
+  test-backup-restore:
+    desc: Restore a backup into isolated PostgreSQL and Garage targets
+    cmds:
+      - bash scripts/backup/restore-drill.sh
+
+  test-migration:
+    desc: Verify migration from a previous schema release
+    cmds:
+      - bash scripts/backup/test-migration.sh
+
+  security-scan:
+    desc: Run secret and dependency vulnerability checks
+    cmds:
+      - bash scripts/backup/security-scan.sh
+
+  sbom:
+    desc: Generate the release candidate CycloneDX SBOM
+    env:
+      SBOM_OUTPUT: .task/release/atlasrisk-sbom.json
+    cmds:
+      - bash scripts/backup/sbom.sh
+
+  release-gate:
+    desc: Fail closed unless every release-readiness check passed
+    cmds:
+      - bash scripts/backup/release-gate.sh
+
   migrate-test:
     desc: Apply migrations to an explicitly isolated test database and verify schema
     env:
