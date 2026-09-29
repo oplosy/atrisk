@@ -178,6 +178,13 @@ jobs:
           test -s .task/release/atlasrisk-sbom.json
           ATLASRISK_SBOM_PREBUILT=1 task sbom
 
+      - name: Upload release SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: atlasrisk-sbom
+          path: .task/release/atlasrisk-sbom.json
+          if-no-files-found: error
+
       - name: Run raw archive integration
         run: task test-go-integration TEST=RawArchive
 
