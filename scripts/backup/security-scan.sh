@@ -21,7 +21,11 @@ else
   exit 2
 fi
 if command -v pip-audit >/dev/null 2>&1; then
-  (cd risk-engine && pip-audit --strict)
+  audit_requirements="$(mktemp)"
+  trap 'rm -f "$audit_requirements"' EXIT
+  uv export --locked --project risk-engine --no-emit-project --all-extras --all-groups \
+    --format requirements.txt --output-file "$audit_requirements"
+  pip-audit --strict --requirement "$audit_requirements"
 else
   echo "pip-audit is required for Python vulnerability scanning" >&2
   exit 2

@@ -26,7 +26,7 @@ rm -f "$BACKUP_DIR/database.dump" "$BACKUP_DIR/manifest.json" "$BACKUP_DIR/sha25
 
 pg_dump --format=custom --no-owner --no-acl --file "$BACKUP_DIR/database.dump" "$PG_DSN"
 aws s3 sync "s3://$ATLASRISK_S3_BUCKET" "$BACKUP_DIR/objects" \
-  --endpoint-url "$ATLASRISK_S3_ENDPOINT" --no-progress
+  --endpoint-url "$ATLASRISK_S3_ENDPOINT" --region "$ATLASRISK_S3_REGION" --no-progress
 python3 "$(dirname "$0")/manifest.py" create "$BACKUP_DIR"
 python3 "$(dirname "$0")/manifest.py" verify "$BACKUP_DIR"
 echo "backup created: $BACKUP_DIR"

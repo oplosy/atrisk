@@ -88,6 +88,8 @@ tasks:
 
   test-migration:
     desc: Verify migration from a previous schema release
+    env:
+      ATLASRISK_REQUIRE_TEST_DATABASE: "1"
     cmds:
       - bash scripts/backup/test-migration.sh
 

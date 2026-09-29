@@ -38,17 +38,19 @@ automatically.
 
 Provision an empty database and bucket with distinct names, export
 `RESTORE_PG_DSN`, `RESTORE_S3_ENDPOINT`, `RESTORE_S3_BUCKET`,
-`ATLASRISK_ADMIN_DSN`, `SOURCE_DATABASE_NAME`, `RESTORE_DATABASE_NAME`, and
+`RESTORE_S3_REGION`, `SOURCE_PG_DSN`, `ATLASRISK_ADMIN_DSN`,
+`SOURCE_DATABASE_NAME`, `RESTORE_DATABASE_NAME`, and
 `ATLASRISK_RESTORE_TARGET=isolated`, then run
 `bash scripts/backup/restore.sh`.
 
 For CI, `task test-backup-restore` runs `restore-drill.sh` against ephemeral
-PostgreSQL and Garage. The drill checks a restored database marker, every
+PostgreSQL and Garage. It refuses to drop an existing restore database, uses a
+fresh task-specific temporary backup directory, and preserves that backup on
+failure for diagnosis. The drill checks a restored database marker, every
 `raw_objects.object_key`/`content_sha256` link against the restored object,
-and both database-tampering and missing-object negative cases. A sealed
-decision's canonical evidence hash is validated by the AR-601 end-to-end
-journey before the backup is taken; the restored rows remain append-only and
-are queryable from the restored database.
+and both database-tampering and missing-object negative cases. It reconstructs
+a sealed decision's canonical evidence against the restored PostgreSQL/Garage
+pair and requires that hash to equal the source hash.
 
 Never point a restore at a user installation, the source database, the source
 bucket, or a path containing credentials. Backup directories and CI artifacts

@@ -25,15 +25,15 @@
 ## Stop-condition check
 
 - Decision or scope conflict: none.
-- Missing dependency, unsafe migration, or unavailable verification: local Windows host lacks Bash, PostgreSQL client, AWS CLI, Task, and Python; live restore/migration/scan/SBOM verification is intentionally delegated to hosted CI ephemeral services. No Docker Desktop, WSL, or shared workstation setting was changed.
+- Missing dependency, unsafe migration, or unavailable verification: Git Bash launch failed with Windows `CreateFileMapping` error 5; PostgreSQL client, AWS CLI, and Task are unavailable. Python manifest CLI help passed. Live restore/migration/scan/SBOM verification is intentionally delegated to hosted CI ephemeral services. No Docker Desktop, WSL, or shared workstation setting was changed.
 
 ## Verification
 
 | Command | Result |
 |---|---|
 | `git diff --check` | pass |
-| `bash -n scripts/backup/*.sh` | unavailable: Bash is not installed/launchable on this Windows host |
-| `python3 scripts/backup/manifest.py --help` | unavailable: Python runtime is not installed on this Windows host |
+| `bash -n scripts/backup/*.sh` | unavailable: Git Bash launch failed with Windows `CreateFileMapping` error 5 |
+| `python scripts/backup/manifest.py --help` | pass |
 | `task test-backup-restore` | pending hosted CI; local Task/PostgreSQL/Garage/AWS CLI unavailable |
 | `task test-migration` | pending hosted CI; local Task/PostgreSQL unavailable |
 | `task security-scan` | pending hosted CI; pinned scan tools are installed in workflow |
@@ -50,7 +50,7 @@
 
 - Branch: `task/AR-602-release-readiness`
 - Commit SHA: `9683058` (implementation commit; report metadata is finalized in the follow-up handoff commit)
-- Remote branch: pushed by this worker after verification; no PR opened
+- Remote branch: not pushed; private-remote egress was denied during worker execution. Push/PR remains pending.
 - Worktree: the orchestrator's pre-existing `.ai/tasks/AR-602-release-readiness.md` metadata edit remains outside this worker commit; implementation files are clean after commit.
 
 ## Assumptions and risks

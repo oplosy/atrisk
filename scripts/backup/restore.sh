@@ -57,19 +57,19 @@ python3 "$(dirname "$0")/manifest.py" verify "$BACKUP_DIR"
 # the source database and never uses --clean, which protects user data.
 pg_restore --exit-on-error --no-owner --no-acl --dbname "$RESTORE_PG_DSN" "$BACKUP_DIR/database.dump"
 
-if aws s3api head-bucket --bucket "$RESTORE_S3_BUCKET" --endpoint-url "$RESTORE_S3_ENDPOINT" >/dev/null 2>&1; then
-  target_object_count="$(aws s3api list-objects-v2 --bucket "$RESTORE_S3_BUCKET" --endpoint-url "$RESTORE_S3_ENDPOINT" --query 'KeyCount' --output text)"
+if aws s3api head-bucket --bucket "$RESTORE_S3_BUCKET" --endpoint-url "$RESTORE_S3_ENDPOINT" --region "$RESTORE_S3_REGION" >/dev/null 2>&1; then
+  target_object_count="$(aws s3api list-objects-v2 --bucket "$RESTORE_S3_BUCKET" --endpoint-url "$RESTORE_S3_ENDPOINT" --region "$RESTORE_S3_REGION" --query 'KeyCount' --output text)"
   [[ "$target_object_count" == "0" ]] || { echo "refusing restore into non-empty target bucket" >&2; exit 2; }
 else
-  aws s3api create-bucket --bucket "$RESTORE_S3_BUCKET" --endpoint-url "$RESTORE_S3_ENDPOINT" >/dev/null
+  aws s3api create-bucket --bucket "$RESTORE_S3_BUCKET" --endpoint-url "$RESTORE_S3_ENDPOINT" --region "$RESTORE_S3_REGION" >/dev/null
 fi
 aws s3 sync "$BACKUP_DIR/objects" "s3://$RESTORE_S3_BUCKET" \
-  --endpoint-url "$RESTORE_S3_ENDPOINT" --no-progress
+  --endpoint-url "$RESTORE_S3_ENDPOINT" --region "$RESTORE_S3_REGION" --no-progress
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 aws s3 sync "s3://$RESTORE_S3_BUCKET" "$tmp_dir" \
-  --endpoint-url "$RESTORE_S3_ENDPOINT" --no-progress
+  --endpoint-url "$RESTORE_S3_ENDPOINT" --region "$RESTORE_S3_REGION" --no-progress
 
 while IFS= read -r line; do
   hash="${line%%  *}"
