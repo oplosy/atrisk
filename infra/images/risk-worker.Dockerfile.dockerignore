@@ -1,0 +1,7 @@
+# Allowlist: the worker image needs only the locked risk-engine package.
+*
+!risk-engine/pyproject.toml
+!risk-engine/uv.lock
+!risk-engine/README.md
+!risk-engine/src/
+**/__pycache__/
