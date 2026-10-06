@@ -1,7 +1,8 @@
 # AtlasRisk release checklist
 
 Release candidates are review artifacts only; this checklist does not publish
-or deploy a release.
+or deploy a release. Publishing an approved candidate is described in
+`PUBLISHING.md`.
 
 ## Candidate
 
