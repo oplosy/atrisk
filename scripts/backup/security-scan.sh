@@ -31,7 +31,13 @@ fi
 python3 scripts/backup/test-gitleaks-config.py
 
 go vet ./apps/... ./internal/...
-npm audit --audit-level=high
+# Only runtime web dependencies ship in the release bundle; they must be clean.
+npm audit --omit=dev --audit-level=high
+# Development tooling (lint, build, test) never ships. Report its advisories so
+# they are fixed in a dependency update, without blocking unrelated changes.
+if ! npm audit --audit-level=high; then
+  echo "::warning::development npm dependencies have high-severity advisories (report above)"
+fi
 if command -v govulncheck >/dev/null 2>&1; then
   govulncheck ./...
 else
