@@ -1,7 +1,7 @@
 ---
 id: AR-701
 title: Package release images and web bundle
-status: active
+status: merged
 phase: 7
 depends_on: [AR-602]
 branch: task/AR-701-release-packaging
@@ -60,14 +60,14 @@ the risk worker exists only as a library (`JobWorker.run_claimed_once`).
 
 ## Acceptance criteria
 
-- [ ] `migrate` without `ATLASRISK_DATABASE_URL` exits 2; with it, it applies all
+- [x] `migrate` without `ATLASRISK_DATABASE_URL` exits 2; with it, it applies all
       migrations and a second run is a no-op.
-- [ ] `database.Migrate` still refuses non-isolated targets.
-- [ ] The worker processes queued jobs, waits when the queue is empty,
+- [x] `database.Migrate` still refuses non-isolated targets.
+- [x] The worker processes queued jobs, waits when the queue is empty,
       reconnects after a connection failure, and exits 0 on SIGTERM.
-- [ ] Both images run as a non-root user and pin every base image by digest.
-- [ ] CI builds both images and proves migrate and worker start against PostgreSQL.
-- [ ] A release tag publishes both images and a release with the web bundle,
+- [x] Both images run as a non-root user and pin every base image by digest.
+- [x] CI builds both images and proves migrate and worker start against PostgreSQL.
+- [x] A release tag publishes both images and a release with the web bundle,
       a SHA-256 checksum, and the image digests; tags not on `main` fail.
 
 ## Required verification
