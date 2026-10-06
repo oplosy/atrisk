@@ -11,6 +11,9 @@ analytics = [
     "pydantic==2.12.5",
     "scipy==1.16.1",
 ]
+worker = [
+    "psycopg[binary]==3.3.6",
+]
 
 [dependency-groups]
 dev = [
@@ -22,6 +25,7 @@ dev = [
 
 [project.scripts]
 atlasrisk-risk-engine = "atlasrisk:main"
+atlasrisk-risk-worker = "atlasrisk.jobs.runner:main"
 
 [build-system]
 requires = ["hatchling==1.27.0"]
