@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -35,6 +36,9 @@ import (
 var version = "dev"
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "migrate" {
+		os.Exit(runMigrate(os.Args[2:], os.Getenv, os.Stdout, os.Stderr))
+	}
 	showVersion := flag.Bool("version", false, "print the API build information")
 	listen := flag.String("listen", ":8080", "HTTP listen address")
 	flag.Parse()
@@ -120,6 +124,36 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
+}
+
+// runMigrate applies the forward-only migrations to ATLASRISK_DATABASE_URL and
+// returns the process exit code. Release installations run it before starting
+// a new API version; the image ships the migrations under db/migrations.
+func runMigrate(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("migrate", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	dir := flags.String("dir", "db/migrations", "directory containing the Goose SQL migrations")
+	timeout := flags.Duration("timeout", 10*time.Minute, "maximum time for the whole migration run")
+	if err := flags.Parse(args); err != nil {
+		return 2
+	}
+	if flags.NArg() > 0 {
+		fmt.Fprintf(stderr, "unexpected argument %q\n", flags.Arg(0))
+		return 2
+	}
+	dsn := getenv("ATLASRISK_DATABASE_URL")
+	if dsn == "" {
+		fmt.Fprintln(stderr, "ATLASRISK_DATABASE_URL is required")
+		return 2
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
+	defer cancel()
+	if err := database.ApplyMigrations(ctx, dsn, *dir); err != nil {
+		fmt.Fprintf(stderr, "migrate: %v\n", err)
+		return 1
+	}
+	fmt.Fprintln(stdout, "atlasrisk migrations applied")
+	return 0
 }
 
 func dispatchPortfolioReconciliation(primary, reconciliation http.Handler) http.Handler {

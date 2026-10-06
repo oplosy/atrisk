@@ -1,0 +1,8 @@
+# Allowlist: the API image needs only the Go module, its packages, and migrations.
+*
+!go.mod
+!go.sum
+!apps/api/
+!internal/
+!db/migrations/
+**/*_test.go

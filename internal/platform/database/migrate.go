@@ -13,6 +13,16 @@ import (
 // Migrate applies forward-only Goose SQL migrations from migrationsDir. The
 // caller must supply an explicitly isolated database URL for test migrations.
 func Migrate(ctx context.Context, databaseURL, migrationsDir string) error {
+	if err := ValidateIsolatedTestDatabaseURL(databaseURL); err != nil {
+		return fmt.Errorf("refusing migration target: %w", err)
+	}
+	return migrate(ctx, databaseURL, migrationsDir, "")
+}
+
+// ApplyMigrations applies forward-only Goose SQL migrations to an installation
+// database. It backs the release `atlasrisk-api migrate` command only; tests
+// must use Migrate, which refuses anything but the isolated test database.
+func ApplyMigrations(ctx context.Context, databaseURL, migrationsDir string) error {
 	return migrate(ctx, databaseURL, migrationsDir, "")
 }
 
@@ -20,6 +30,9 @@ func Migrate(ctx context.Context, databaseURL, migrationsDir string) error {
 // It exists for previous-version upgrade tests that must leave other schemas
 // in the isolated database untouched; normal migrations use Migrate.
 func MigrateInSchema(ctx context.Context, databaseURL, migrationsDir, schemaName string) error {
+	if err := ValidateIsolatedTestDatabaseURL(databaseURL); err != nil {
+		return fmt.Errorf("refusing migration target: %w", err)
+	}
 	quotedSchema, err := quoteMigrationSchema(schemaName)
 	if err != nil {
 		return err
@@ -30,9 +43,6 @@ func MigrateInSchema(ctx context.Context, databaseURL, migrationsDir, schemaName
 }
 
 func migrate(ctx context.Context, databaseURL, migrationsDir, quotedSchema string) error {
-	if err := ValidateIsolatedTestDatabaseURL(databaseURL); err != nil {
-		return fmt.Errorf("refusing migration target: %w", err)
-	}
 	if migrationsDir == "" {
 		return fmt.Errorf("migrations directory is required")
 	}
