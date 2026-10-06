@@ -1,7 +1,7 @@
 ---
 id: AR-702
 title: Restore the dependency scan gate
-status: active
+status: merged
 phase: 7
 depends_on: [AR-602]
 branch: task/AR-702-dependency-audit
