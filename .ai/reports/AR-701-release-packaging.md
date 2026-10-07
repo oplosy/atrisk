@@ -28,7 +28,7 @@
 | Worker processes jobs, waits when empty, reconnects, exits 0 on SIGTERM | `tests/test_runner.py` (18 tests: drain-then-wait, reconnect after connect and loop failures, no payload or password in logs, signal handling, invalid settings); CI `Images` starts the worker, then `docker stop` must exit 0 and log `worker stopped`. |
 | Both images run non-root and pin base images by digest | `infra/images/*.Dockerfile` (users 65532 and 10001; every `FROM` has `@sha256`); CI `Images` fails on a root user. |
 | CI builds both images and proves migrate and worker start | `Images` job: builds, then `scripts/release/smoke-images.sh` with read-only root FS, `--cap-drop ALL`, `no-new-privileges`, and an API `GET /api/v1/instruments` returning 200. |
-| A release tag publishes images, bundle, checksum, digests; non-main tags fail | `.github/workflows/release.yml` and `scripts/release/publish-images.sh` (tag format check, `merge-base --is-ancestor` check, digest from `docker push`). Not exercised until the first tag. |
+| A release tag publishes images, bundle, checksum, digests; non-main tags fail | `.github/workflows/release.yml` and `scripts/release/publish-images.sh` (tag format check, `merge-base --is-ancestor` check, digest from `docker push`). Positive path proven by tag `v1.0.1` (Release run `37668160469`: both images, web bundle, checksum, `images.txt`). The non-main rejection was not exercised. |
 
 ## Stop-condition check
 
