@@ -1,7 +1,6 @@
 package imports
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oplosy/atrisk/apps/api/handlers/httpx"
 	application "github.com/oplosy/atrisk/internal/imports"
 )
 
@@ -74,7 +74,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeImportError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, response)
+		httpx.WriteJSON(w, http.StatusOK, response)
 		return
 	}
 	key := r.Header.Get("Idempotency-Key")
@@ -83,7 +83,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeImportError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, response)
+	httpx.WriteJSON(w, http.StatusCreated, response)
 }
 
 func writeImportError(w http.ResponseWriter, err error) {
@@ -101,10 +101,5 @@ func writeImportError(w http.ResponseWriter, err error) {
 	}
 }
 func writeError(w http.ResponseWriter, status int, code, message string) {
-	writeJSON(w, status, map[string]string{"code": code, "message": message, "request_id": fmt.Sprintf("import-%d", time.Now().UTC().UnixNano())})
-}
-func writeJSON(w http.ResponseWriter, status int, value any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
+	httpx.WriteJSON(w, status, map[string]string{"code": code, "message": message, "request_id": fmt.Sprintf("import-%d", time.Now().UTC().UnixNano())})
 }

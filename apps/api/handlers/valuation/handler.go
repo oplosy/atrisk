@@ -2,14 +2,13 @@ package valuation
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/oplosy/atrisk/apps/api/handlers/httpx"
 	application "github.com/oplosy/atrisk/internal/application/valuation"
 	domain "github.com/oplosy/atrisk/internal/domain/valuation"
 )
@@ -44,7 +43,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.writeServiceError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusCreated, result)
+		httpx.WriteJSON(w, http.StatusCreated, result)
 		return
 	}
 	parts := strings.Split(path, "/")
@@ -54,24 +53,16 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.writeServiceError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, result)
+		httpx.WriteJSON(w, http.StatusOK, result)
 		return
 	}
 	writeError(w, http.StatusNotFound, "NOT_FOUND", "valuation route not found")
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, target any) bool {
-	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2<<20))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "request body must be valid JSON")
-		return false
-	}
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "request body must contain one JSON object")
-		return false
-	}
-	return true
+	return httpx.DecodeJSON(w, r, target, 2<<20, func(code, message string) {
+		writeError(w, http.StatusBadRequest, code, message)
+	})
 }
 
 func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
@@ -86,11 +77,5 @@ func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string) {
-	writeJSON(w, status, map[string]any{"code": code, "message": message, "request_id": "valuation-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10)})
-}
-
-func writeJSON(w http.ResponseWriter, status int, value any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
+	httpx.WriteJSON(w, status, map[string]any{"code": code, "message": message, "request_id": "valuation-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10)})
 }

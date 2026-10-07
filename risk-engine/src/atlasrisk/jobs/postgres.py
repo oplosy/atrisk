@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from .canonical import sha256_json
+from .canonical import canonical_json, sha256_json
 
 
 class PostgresQueueClient:
@@ -178,8 +178,6 @@ class PostgresQueueClient:
 
     @staticmethod
     def _json(value: Mapping[str, Any]) -> str:
-        from .canonical import canonical_json
-
         return canonical_json(value).decode("utf-8")
 
     def _persist_scenario_result(

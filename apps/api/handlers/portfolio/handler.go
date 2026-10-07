@@ -2,14 +2,13 @@ package portfolio
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/oplosy/atrisk/apps/api/handlers/httpx"
 	application "github.com/oplosy/atrisk/internal/application/portfolio"
 	domain "github.com/oplosy/atrisk/internal/domain/portfolio"
 )
@@ -55,7 +54,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.writeServiceError(w, err)
 				return
 			}
-			writeJSON(w, http.StatusOK, map[string]any{"items": items})
+			httpx.WriteJSON(w, http.StatusOK, map[string]any{"items": items})
 		case http.MethodPost:
 			var request application.CreateInstrumentRequest
 			if !decodeJSON(w, r, &request) {
@@ -66,7 +65,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.writeServiceError(w, err)
 				return
 			}
-			writeJSON(w, http.StatusCreated, item)
+			httpx.WriteJSON(w, http.StatusCreated, item)
 		default:
 			writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "method is not supported for instruments")
 		}
@@ -80,7 +79,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.writeServiceError(w, err)
 				return
 			}
-			writeJSON(w, http.StatusOK, map[string]any{"items": items})
+			httpx.WriteJSON(w, http.StatusOK, map[string]any{"items": items})
 		case http.MethodPost:
 			var request application.CreatePortfolioRequest
 			if !decodeJSON(w, r, &request) {
@@ -91,7 +90,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.writeServiceError(w, err)
 				return
 			}
-			writeJSON(w, http.StatusCreated, item)
+			httpx.WriteJSON(w, http.StatusCreated, item)
 		default:
 			writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "method is not supported for portfolios")
 		}
@@ -108,7 +107,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.writeServiceError(w, err)
 				return
 			}
-			writeJSON(w, http.StatusOK, item)
+			httpx.WriteJSON(w, http.StatusOK, item)
 			return
 		}
 		if len(parts) == 3 && parts[2] == "status" && r.Method == http.MethodPatch {
@@ -123,7 +122,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.writeServiceError(w, err)
 				return
 			}
-			writeJSON(w, http.StatusOK, item)
+			httpx.WriteJSON(w, http.StatusOK, item)
 			return
 		}
 		writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "instrument identity is immutable; only status may change")
@@ -139,7 +138,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					h.writeServiceError(w, err)
 					return
 				}
-				writeJSON(w, http.StatusOK, item)
+				httpx.WriteJSON(w, http.StatusOK, item)
 			case http.MethodPatch:
 				var request application.UpdatePortfolioRequest
 				if !decodeJSON(w, r, &request) {
@@ -150,7 +149,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					h.writeServiceError(w, err)
 					return
 				}
-				writeJSON(w, http.StatusOK, item)
+				httpx.WriteJSON(w, http.StatusOK, item)
 			case http.MethodDelete:
 				err := h.Service.DeletePortfolio(r.Context(), portfolioID)
 				if err != nil {
@@ -173,7 +172,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						h.writeServiceError(w, err)
 						return
 					}
-					writeJSON(w, http.StatusOK, map[string]any{"items": items})
+					httpx.WriteJSON(w, http.StatusOK, map[string]any{"items": items})
 					return
 				}
 				items, err := h.Service.ListSnapshots(r.Context(), portfolioID)
@@ -181,7 +180,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					h.writeServiceError(w, err)
 					return
 				}
-				writeJSON(w, http.StatusOK, map[string]any{"items": items})
+				httpx.WriteJSON(w, http.StatusOK, map[string]any{"items": items})
 			case http.MethodPost:
 				if resource == "accounts" {
 					var request application.CreateAccountRequest
@@ -193,7 +192,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						h.writeServiceError(w, err)
 						return
 					}
-					writeJSON(w, http.StatusCreated, item)
+					httpx.WriteJSON(w, http.StatusCreated, item)
 					return
 				}
 				var request application.CreateSnapshotRequest
@@ -205,7 +204,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					h.writeServiceError(w, err)
 					return
 				}
-				writeJSON(w, http.StatusCreated, item)
+				httpx.WriteJSON(w, http.StatusCreated, item)
 			default:
 				writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "unsupported portfolio resource method")
 			}
@@ -224,7 +223,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.writeServiceError(w, err)
 				return
 			}
-			writeJSON(w, http.StatusOK, item)
+			httpx.WriteJSON(w, http.StatusOK, item)
 		case http.MethodPatch:
 			var request application.UpdateAccountRequest
 			if !decodeJSON(w, r, &request) {
@@ -235,7 +234,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.writeServiceError(w, err)
 				return
 			}
-			writeJSON(w, http.StatusOK, item)
+			httpx.WriteJSON(w, http.StatusOK, item)
 		case http.MethodDelete:
 			if err := h.Service.DeleteAccount(r.Context(), parts[1]); err != nil {
 				h.writeServiceError(w, err)
@@ -257,24 +256,16 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.writeServiceError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, item)
+		httpx.WriteJSON(w, http.StatusOK, item)
 		return
 	}
 	writeError(w, http.StatusNotFound, "NOT_FOUND", "portfolio route not found")
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, target any) bool {
-	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2<<20))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "request body must be valid JSON")
-		return false
-	}
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "request body must contain one JSON object")
-		return false
-	}
-	return true
+	return httpx.DecodeJSON(w, r, target, 2<<20, func(code, message string) {
+		writeError(w, http.StatusBadRequest, code, message)
+	})
 }
 
 func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
@@ -293,10 +284,5 @@ func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string) {
-	writeJSON(w, status, map[string]any{"code": code, "message": message, "request_id": "portfolio-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10)})
-}
-func writeJSON(w http.ResponseWriter, status int, value any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
+	httpx.WriteJSON(w, status, map[string]any{"code": code, "message": message, "request_id": "portfolio-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10)})
 }

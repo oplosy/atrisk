@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oplosy/atrisk/apps/api/handlers/httpx"
 	application "github.com/oplosy/atrisk/internal/application/quality"
 )
 
@@ -77,7 +78,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	writeJSON(w, http.StatusOK, result)
+	httpx.WriteJSON(w, http.StatusOK, result)
 }
 
 func isQualityPath(path string) bool {
@@ -90,10 +91,4 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]string{"code": code, "message": message, "request_id": fmt.Sprintf("quality-%d", time.Now().UTC().UnixNano())})
-}
-
-func writeJSON(w http.ResponseWriter, status int, value any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
 }

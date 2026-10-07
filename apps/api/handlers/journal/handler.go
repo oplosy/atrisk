@@ -2,14 +2,13 @@ package journal
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/oplosy/atrisk/apps/api/handlers/httpx"
 	"github.com/oplosy/atrisk/internal/application/evidence"
 	application "github.com/oplosy/atrisk/internal/application/journal"
 	domain "github.com/oplosy/atrisk/internal/domain/journal"
@@ -52,7 +51,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.writeServiceError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusCreated, result)
+		httpx.WriteJSON(w, http.StatusCreated, result)
 		return
 	}
 	if len(parts) == 2 && parts[0] == "decisions" {
@@ -65,7 +64,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.writeServiceError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, result)
+		httpx.WriteJSON(w, http.StatusOK, result)
 		return
 	}
 	if len(parts) == 3 && parts[0] == "decisions" {
@@ -81,7 +80,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.writeServiceError(w, err)
 				return
 			}
-			writeJSON(w, http.StatusOK, result)
+			httpx.WriteJSON(w, http.StatusOK, result)
 		case "evidence":
 			if r.Method != http.MethodGet {
 				writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "only GET is supported for decision evidence")
@@ -92,7 +91,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.writeServiceError(w, err)
 				return
 			}
-			writeJSON(w, http.StatusOK, result)
+			httpx.WriteJSON(w, http.StatusOK, result)
 		case "reviews":
 			if r.Method != http.MethodPost {
 				writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "only POST is supported for reviews")
@@ -107,7 +106,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.writeServiceError(w, err)
 				return
 			}
-			writeJSON(w, http.StatusCreated, result)
+			httpx.WriteJSON(w, http.StatusCreated, result)
 		case "amendments":
 			if r.Method != http.MethodPost {
 				writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "only POST is supported for amendments")
@@ -122,7 +121,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.writeServiceError(w, err)
 				return
 			}
-			writeJSON(w, http.StatusCreated, result)
+			httpx.WriteJSON(w, http.StatusCreated, result)
 		case "timeline":
 			if r.Method != http.MethodGet {
 				writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "only GET is supported for the decision timeline")
@@ -133,7 +132,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.writeServiceError(w, err)
 				return
 			}
-			writeJSON(w, http.StatusOK, result)
+			httpx.WriteJSON(w, http.StatusOK, result)
 		default:
 			writeError(w, http.StatusNotFound, "NOT_FOUND", "decision journal route not found")
 		}
@@ -143,17 +142,9 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, target any) bool {
-	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2<<20))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "request body must be valid JSON")
-		return false
-	}
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "request body must contain one JSON object")
-		return false
-	}
-	return true
+	return httpx.DecodeJSON(w, r, target, 2<<20, func(code, message string) {
+		writeError(w, http.StatusBadRequest, code, message)
+	})
 }
 
 func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
@@ -173,11 +164,5 @@ func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string) {
-	writeJSON(w, status, map[string]any{"code": code, "message": message, "request_id": "journal-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10)})
-}
-
-func writeJSON(w http.ResponseWriter, status int, value any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
+	httpx.WriteJSON(w, status, map[string]any{"code": code, "message": message, "request_id": "journal-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10)})
 }
