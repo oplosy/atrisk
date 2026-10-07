@@ -20,9 +20,10 @@ import (
 )
 
 var (
-	ErrInvalidRequest = errors.New("invalid valuation request")
-	ErrNotFound       = errors.New("valuation resource not found")
-	ErrDatabase       = errors.New("valuation database unavailable")
+	errNonPositiveFXRate = errors.New("FX rate must be positive")
+	ErrInvalidRequest    = errors.New("invalid valuation request")
+	ErrNotFound          = errors.New("valuation resource not found")
+	ErrDatabase          = errors.New("valuation database unavailable")
 )
 
 const maxAgeSeconds int64 = 9223372036
@@ -336,7 +337,7 @@ func pathFor(source, target string, quotes []fxRevision) (*selectedPath, error) 
 		})
 		q := direct[0]
 		if q.rate == nil || q.rate.Sign() <= 0 {
-			return nil, errors.New("FX rate must be positive")
+			return nil, errNonPositiveFXRate
 		}
 		direction := "forward"
 		if q.base == target {
@@ -389,7 +390,7 @@ func isFiatCode(code string) bool {
 }
 
 func fxReason(target string, err error) domain.Reason {
-	if err != nil && strings.Contains(err.Error(), "positive") {
+	if err != nil && errors.Is(err, errNonPositiveFXRate) {
 		return domain.Reason{Code: "FX_INVALID_RATE", Message: "eligible FX quote has a non-positive rate for " + target}
 	}
 	return domain.Reason{Code: "FX_" + target + "_MISSING_OR_STALE", Message: "no explicit eligible conversion path to " + target}

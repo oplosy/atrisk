@@ -1,13 +1,13 @@
 package timeline
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/oplosy/atrisk/apps/api/handlers/httpx"
 	application "github.com/oplosy/atrisk/internal/application/timeline"
 )
 
@@ -36,7 +36,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.writeServiceError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, page)
+		httpx.WriteJSON(w, http.StatusOK, page)
 		return
 	}
 	if path == "timeline" {
@@ -51,7 +51,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.writeServiceError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, page)
+		httpx.WriteJSON(w, http.StatusOK, page)
 		return
 	}
 	if len(parts) < 2 || parts[0] != "series" {
@@ -65,7 +65,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.writeServiceError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, series)
+		httpx.WriteJSON(w, http.StatusOK, series)
 		return
 	}
 	if len(parts) != 3 || (parts[2] != "observations" && parts[2] != "revisions") {
@@ -82,7 +82,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.writeServiceError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, page)
+	httpx.WriteJSON(w, http.StatusOK, page)
 }
 
 func parseObservationRequest(r *http.Request, route string) (application.ObservationRequest, error) {
@@ -168,12 +168,7 @@ func writeErrorDetails(w http.ResponseWriter, status int, code, message string, 
 	if details != nil {
 		body["details"] = details
 	}
-	writeJSON(w, status, body)
+	httpx.WriteJSON(w, status, body)
 }
 
 func requestID() string { return "timeline-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10) }
-func writeJSON(w http.ResponseWriter, status int, value any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
-}

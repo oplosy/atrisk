@@ -279,7 +279,7 @@ func (c *Client) FetchObservationPages(ctx context.Context, request ObservationR
 	if err != nil {
 		return nil, err
 	}
-	pages := make([]ObservationPage, 0, minInt(c.maxPages, 8))
+	pages := make([]ObservationPage, 0, min(c.maxPages, 8))
 	for page := 0; page < c.maxPages; page++ {
 		response, fetched, err := c.FetchObservationPage(ctx, normalized)
 		if err != nil {
@@ -296,13 +296,6 @@ func (c *Client) FetchObservationPages(ctx context.Context, request ObservationR
 		normalized.Offset = nextOffset
 	}
 	return nil, ErrPageLimit
-}
-
-func minInt(left, right int) int {
-	if left < right {
-		return left
-	}
-	return right
 }
 
 type ObservationPage struct {

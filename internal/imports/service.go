@@ -180,7 +180,7 @@ func (s Service) Commit(ctx context.Context, req CommitRequest) (map[string]any,
 	}
 	var result map[string]any
 	if req.Kind == KindPositions {
-		result, err = s.commitPositions(ctx, tx, target, capturedAt, parsed, rawID, contentHash)
+		result, err = s.commitPositions(ctx, tx, target, capturedAt, parsed, contentHash)
 	} else {
 		result, err = s.commitPrices(ctx, tx, parsed, rawID, contentHash)
 	}
@@ -192,13 +192,12 @@ func (s Service) Commit(ctx context.Context, req CommitRequest) (map[string]any,
 	result["schema_version"] = req.SchemaVersion
 	result["content_sha256"] = contentHash
 	result["row_count"] = parsed.RowCount
-	resultBytes, _ := json.Marshal(result)
 	resultID, err := newUUID()
 	if err != nil {
 		return nil, err
 	}
 	result["import_result_id"] = resultID
-	resultBytes, _ = json.Marshal(result)
+	resultBytes, _ := json.Marshal(result)
 	err = tx.QueryRow(ctx, `INSERT INTO import_results (id,import_kind,idempotency_key,target_id,captured_at,schema_version,content_sha256,row_count,raw_object_id,response) VALUES ($1::uuid,$2,$3,$4::uuid,$5,$6,$7,$8,$9::uuid,$10) ON CONFLICT (import_kind,idempotency_key) DO NOTHING RETURNING id::text`, resultID, req.Kind, req.IdempotencyKey, target, capturedAtForKind(req.Kind, capturedAt), req.SchemaVersion, contentHash, parsed.RowCount, rawID, resultBytes).Scan(&resultID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		var target, schema, hash string
@@ -278,31 +277,31 @@ func validateDomainRows(ctx context.Context, tx pgx.Tx, kind, target string, par
 	return nil
 }
 
-func (s Service) commitPositions(ctx context.Context, tx pgx.Tx, target string, capturedAt time.Time, parsed Result, rawID, hash string) (map[string]any, error) {
+func (s Service) commitPositions(ctx context.Context, tx pgx.Tx, target string, capturedAt time.Time, parsed Result, hash string) (map[string]any, error) {
 	var snapshotID string
 	err := tx.QueryRow(ctx, `INSERT INTO portfolio_snapshots (portfolio_id,captured_at) VALUES ($1::uuid,$2) RETURNING id::text`, target, capturedAt).Scan(&snapshotID)
 	if err != nil {
 		return nil, ErrInvalidRequest
 	}
 	for _, row := range parsed.Positions {
-		var cost any
-		if row.TotalCostBasis != "" {
-			cost = row.TotalCostBasis
-		}
-		var duration any
-		if row.ModifiedDurationYears != "" {
-			duration = row.ModifiedDurationYears
-		}
-		var convexity any
-		if row.ConvexityYearsSquared != "" {
-			convexity = row.ConvexityYearsSquared
-		}
+		cost := nullIfEmpty(row.TotalCostBasis)
+		duration := nullIfEmpty(row.ModifiedDurationYears)
+		convexity := nullIfEmpty(row.ConvexityYearsSquared)
 		if _, err := tx.Exec(ctx, `INSERT INTO portfolio_snapshot_lines (portfolio_id,snapshot_id,account_id,instrument_id,quantity,total_cost_basis,modified_duration_years,convexity_years_squared) VALUES ($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,$6,$7,$8)`, target, snapshotID, row.AccountID, row.InstrumentID, row.Quantity, cost, duration, convexity); err != nil {
 			return nil, ErrInvalidRequest
 		}
 	}
 	return map[string]any{"snapshot_id": snapshotID, "raw_object_sha256": hash}, nil
 }
+
+// nullIfEmpty maps an empty optional field to SQL NULL.
+func nullIfEmpty(value string) any {
+	if value == "" {
+		return nil
+	}
+	return value
+}
+
 func (s Service) commitPrices(ctx context.Context, tx pgx.Tx, parsed Result, rawID, hash string) (map[string]any, error) {
 	for _, row := range parsed.Prices {
 		basis := "first_observed_by_system"
