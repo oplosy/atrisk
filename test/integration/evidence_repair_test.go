@@ -64,6 +64,35 @@ func TestDecisionJournalAPIRepairRejectsNullRiskValuation(t *testing.T) {
 	}
 }
 
+func TestDecisionJournalAPIRepairRejectsExplicitNullMetricProvenance(t *testing.T) {
+	migrateTestDatabase(t)
+	_, pool := testDatabase(t)
+	defer pool.Close()
+	ctx := context.Background()
+	portfolioID, accountID := repairPortfolio(t, pool)
+	for _, provenance := range []string{
+		`{"metric_inputs":null}`,
+		`{"metric_inputs":{"price_history":null}}`,
+		`{"metric_inputs":{"price_revision_history":null}}`,
+	} {
+		_, refs := decisionEvidenceFixture(t, pool, portfolioID, accountID)
+		riskID := insertRepairRiskRun(t, pool, refs[0].Reference, accountID, refs[0].Reference, refs[1].Reference, provenance)
+		refs[2].Reference = riskID
+		service := applicationjournal.Service{Pool: pool, Archive: &evidenceArchive{objects: map[string][]byte{}}}
+		decision, err := service.Create(ctx, repairDecision(accountID, refs))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.Finalize(ctx, decision.ID); !errors.Is(err, applicationjournal.ErrConflict) {
+			t.Fatalf("explicit malformed provenance finalized (%s): %v", provenance, err)
+		}
+		current, err := service.Get(ctx, decision.ID)
+		if err != nil || current.Status != domain.StatusDraft {
+			t.Fatalf("explicit malformed provenance changed draft (%s): status=%q err=%v", provenance, current.Status, err)
+		}
+	}
+}
+
 func TestDecisionJournalAPIRepairClosesHistoricalMetricRawDependencies(t *testing.T) {
 	migrateTestDatabase(t)
 	_, pool := testDatabase(t)
@@ -90,7 +119,7 @@ func TestDecisionJournalAPIRepairClosesHistoricalMetricRawDependencies(t *testin
 		t.Fatal(err)
 	}
 	provenance, err := json.Marshal(map[string]any{"metric_inputs": map[string]any{
-		"price_history": map[string]any{instrumentID: map[string]string{"2026-01-01": "100"}},
+		"price_history": map[string]any{instrumentID: map[string]string{"2026-01-01": "100.000000000000000000"}},
 		"price_revision_history": map[string]any{instrumentID: []map[string]any{{
 			"id": priceID, "observation_time": observationAt.UTC().Format(time.RFC3339Nano), "price": "100.000000000000000000", "price_quote_currency": "USD",
 			"usd_price": "100.000000000000000000", "source_known_at": nil, "system_known_at": systemKnownAt.UTC().Format(time.RFC3339Nano),

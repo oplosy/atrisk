@@ -17,13 +17,13 @@
 | Criterion | Evidence |
 |---|---|
 | AC-1 | `TestDecisionJournalAPIRepairRejectsRiskValuationMismatch` and `TestDecisionJournalAPIRepairRejectsNullRiskValuation` prove finalization rejects mismatch/NULL atomically and leaves the decision draft. |
-| AC-2 | The existing `TestHistoricalDecisionReconstruction` plus the consistent path in `TestDecisionJournalAPIRepairClosesHistoricalMetricRawDependencies` pass. |
+| AC-2 | The existing `TestHistoricalDecisionReconstruction` plus the consistent path in `TestDecisionJournalAPIRepairClosesHistoricalMetricRawDependencies` pass; historical price/FX provenance now requires a semantically matching native-currency-to-USD path and exact raw closure. |
 | AC-3 | `TestDecisionJournalAPIRepairClosesHistoricalMetricRawDependencies` removes the historical raw source before sealing, restores it, seals, corrupts it during reconstruction, and confirms the original manifest bytes remain unchanged after recovery. |
 
 ## Stop-condition check
 
 - Decision or scope conflict: none.
-- Missing dependency, unsafe migration, or unavailable verification: local `task` executable is unavailable; hosted `task verify` remains required. The local e2e test also fails before the decision flow because the isolated Garage-backed manual price import returns HTTP 500.
+- Missing dependency, unsafe migration, or unavailable verification: hosted `task verify` remains required. The workspace Task executable is installed at `C:\Users\mesut\Desktop\workspace\A-projects\atrisk\.task\bin\task.exe`; the parent also completed a fresh clean PostgreSQL/Garage e2e run successfully on the isolated handoff fixture.
 
 ## Verification
 
@@ -32,13 +32,13 @@
 | `go test ./internal/application/evidence -count=1` | pass |
 | `go test ./test/integration -run 'TestDecisionEvidence|TestHistoricalDecision|TestEvidenceRepair|TestDecisionJournalAPIRepair' -count=1` | pass |
 | `go test ./internal/application/... ./apps/api/... -count=1` | pass |
-| `go test ./test/e2e -count=1` | fail: isolated Garage-backed manual price import returned HTTP 500 (`journey_test.go:97`) |
-| `task verify` | unavailable: `task` executable is not installed in the worker environment |
+| `go test ./test/e2e -count=1` | pass in parent fresh clean PostgreSQL/Garage handoff fixture (Garage endpoint configured with `ATLASRISK_S3_ENDPOINT`, region `garage`, bucket `atlasrisk-raw`) |
+| `task verify` | pending hosted CI gate; executable installed at `C:\Users\mesut\Desktop\workspace\A-projects\atrisk\.task\bin\task.exe` |
 | `git diff --check` | pass |
 
 ## Change inventory
 
-- Files changed: `internal/application/evidence/service.go`, `test/integration/decision_evidence_test.go`, `test/integration/evidence_repair_test.go`, this report.
+- Files changed: `internal/application/evidence/service.go`, `internal/application/evidence/service_test.go`, `test/integration/decision_evidence_test.go`, `test/integration/evidence_repair_test.go`, this report.
 - Schema/API changes: none.
 - Generated artifacts: none.
 
@@ -52,4 +52,4 @@
 ## Assumptions and risks
 
 - The sealed risk provenance shape includes `metric_inputs.price_revision_history` and AR-706 `metric_inputs.cash_revision_history`; UUID-backed price/FX revisions must match persisted identity fields and archive bytes. Synthetic `cash-constant:<instrument-id>:<date>` entries are validated as deterministic generated inputs and have no raw object dependency.
-- Hosted `task verify` and the Garage-backed e2e import failure require orchestrator follow-up before marking the packet complete.
+- Hosted `task verify` remains an orchestrator gate before marking the packet complete.

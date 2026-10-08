@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"sort"
 	"strings"
 	"time"
@@ -235,8 +236,11 @@ func (s Service) addMetricDependencies(ctx context.Context, tx pgx.Tx, riskSnaps
 		return ErrIncomplete
 	}
 	metricInputsRaw, ok := provenance["metric_inputs"]
-	if !ok || string(metricInputsRaw) == "null" {
+	if !ok {
 		return nil
+	}
+	if string(metricInputsRaw) == "null" {
+		return ErrIncomplete
 	}
 	var metricInputs map[string]json.RawMessage
 	if err := json.Unmarshal(metricInputsRaw, &metricInputs); err != nil {
@@ -253,6 +257,7 @@ func (s Service) addMetricDependencies(ctx context.Context, tx pgx.Tx, riskSnaps
 		}
 	}
 	coveredInstruments := make(map[string]bool)
+	expectedHistories := make(map[string]map[string]string)
 	for _, group := range []struct {
 		key       string
 		cashGroup bool
@@ -261,11 +266,14 @@ func (s Service) addMetricDependencies(ctx context.Context, tx pgx.Tx, riskSnaps
 		{key: "cash_revision_history", cashGroup: true},
 	} {
 		historyRaw, present := metricInputs[group.key]
-		if !present || emptyJSONObject(historyRaw) {
+		if !present {
 			continue
 		}
 		if string(historyRaw) == "null" {
 			return ErrIncomplete
+		}
+		if emptyJSONObject(historyRaw) {
+			continue
 		}
 		var histories map[string][]map[string]any
 		if err := json.Unmarshal(historyRaw, &histories); err != nil {
@@ -284,12 +292,21 @@ func (s Service) addMetricDependencies(ctx context.Context, tx pgx.Tx, riskSnaps
 			if len(revisions) == 0 {
 				return ErrIncomplete
 			}
+			if _, exists := expectedHistories[instrumentID]; exists {
+				return ErrIncomplete
+			}
+			expectedHistory := make(map[string]string, len(revisions))
 			coveredInstruments[instrumentID] = true
 			for _, revision := range revisions {
 				if group.cashGroup && strings.HasPrefix(metricString(revision, "id"), "cash-constant:") {
 					if !validConstantCashRevision(instrumentID, revision) {
 						return ErrIncomplete
 					}
+					day, ok := metricObservationDay(revision)
+					if !ok {
+						return ErrIncomplete
+					}
+					expectedHistory[day] = metricString(revision, "usd_price")
 					continue
 				}
 				raw, err := s.verifyMetricPriceRevision(ctx, tx, instrumentID, revision)
@@ -311,6 +328,9 @@ func (s Service) addMetricDependencies(ctx context.Context, tx pgx.Tx, riskSnaps
 				if err := json.Unmarshal(fxPathBytes, &fxRevisions); err != nil {
 					return ErrIncomplete
 				}
+				if err := validateMetricUSDConversion(revision, fxRevisions); err != nil {
+					return err
+				}
 				for _, fxRevision := range fxRevisions {
 					fxRaw, err := s.verifyMetricFXRevision(ctx, tx, fxRevision)
 					if err != nil {
@@ -320,7 +340,13 @@ func (s Service) addMetricDependencies(ctx context.Context, tx pgx.Tx, riskSnaps
 						return fmt.Errorf("archive metric FX dependency: %w", err)
 					}
 				}
+				day, ok := metricObservationDay(revision)
+				if !ok {
+					return ErrIncomplete
+				}
+				expectedHistory[day] = metricString(revision, "usd_price")
 			}
+			expectedHistories[instrumentID] = expectedHistory
 		}
 	}
 	if len(coveredInstruments) == 0 {
@@ -337,12 +363,100 @@ func (s Service) addMetricDependencies(ctx context.Context, tx pgx.Tx, riskSnaps
 			return ErrIncomplete
 		}
 	}
+	for instrumentID, expected := range expectedHistories {
+		actual, ok := prices[instrumentID]
+		if !ok || len(actual) != len(expected) {
+			return ErrIncomplete
+		}
+		for day, value := range expected {
+			actualValue, ok := actual[day].(string)
+			if !ok || actualValue != value {
+				return ErrIncomplete
+			}
+		}
+	}
 	return nil
 }
 
 func emptyJSONObject(raw json.RawMessage) bool {
 	var value map[string]any
 	return json.Unmarshal(raw, &value) == nil && len(value) == 0
+}
+
+func metricObservationDay(entry map[string]any) (string, bool) {
+	observation, ok := entry["observation_time"].(string)
+	if !ok {
+		return "", false
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, observation)
+	if err != nil {
+		return "", false
+	}
+	return parsed.UTC().Format("2006-01-02"), true
+}
+
+func validateMetricUSDConversion(entry map[string]any, fxRevisions []map[string]any) error {
+	price, ok := new(big.Rat).SetString(metricString(entry, "price"))
+	if !ok || price.Sign() <= 0 {
+		return ErrIncomplete
+	}
+	usdPrice, ok := new(big.Rat).SetString(metricString(entry, "usd_price"))
+	if !ok || usdPrice.Sign() <= 0 {
+		return ErrIncomplete
+	}
+	currency := strings.ToUpper(metricString(entry, "price_quote_currency"))
+	if currency == "" {
+		return ErrIncomplete
+	}
+	expected := new(big.Rat).Set(price)
+	if currency != "USD" {
+		if len(fxRevisions) == 0 {
+			return ErrIncomplete
+		}
+		current := currency
+		for _, revision := range fxRevisions {
+			from, to, ok := metricFXStep(revision)
+			if !ok || from != current {
+				return ErrIncomplete
+			}
+			rate, ok := new(big.Rat).SetString(metricString(revision, "rate"))
+			if !ok || rate.Sign() <= 0 {
+				return ErrIncomplete
+			}
+			if metricString(revision, "direction") == "direct" {
+				expected.Mul(expected, rate)
+			} else {
+				expected.Quo(expected, rate)
+			}
+			current = to
+		}
+		if current != "USD" {
+			return ErrIncomplete
+		}
+	} else if len(fxRevisions) != 0 {
+		return ErrIncomplete
+	}
+	roundedExpected, ok := new(big.Rat).SetString(expected.FloatString(18))
+	if !ok || roundedExpected.Cmp(usdPrice) != 0 {
+		return ErrIncomplete
+	}
+	return nil
+}
+
+func metricFXStep(entry map[string]any) (string, string, bool) {
+	parts := strings.Split(metricString(entry, "pair"), "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", false
+	}
+	base, quote := strings.ToUpper(strings.TrimSpace(parts[0])), strings.ToUpper(strings.TrimSpace(parts[1]))
+	switch metricString(entry, "direction") {
+	case "direct":
+		return base, quote, true
+	case "inverse":
+		return quote, base, true
+	default:
+		return "", "", false
+	}
 }
 
 func validConstantCashRevision(instrumentID string, entry map[string]any) bool {
