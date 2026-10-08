@@ -46,7 +46,7 @@
 ## Git state
 
 - Branch: `task/AR-706-risk-repair`
-- Commit SHA: `9348b31`
+- Commit SHA: `b8ee60a` (implementation commit)
 - Remote branch: pending parent task-branch synchronization
 - Worktree: clean after commit
 
