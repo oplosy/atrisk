@@ -6,7 +6,7 @@
 - Packet status at start: `ready`
 - Referenced ADRs: ADR-008, ADR-009, ADR-010, ADR-011, ADR-012, ADR-013, ADR-015
 - Owned paths: `internal/application/scenarios/`, `internal/jobs/`, `risk-engine/src/atlasrisk/jobs/`, `risk-engine/src/atlasrisk/metrics/`, `risk-engine/src/atlasrisk/scenarios/`, `risk-engine/tests/`, `.ai/reports/AR-706-risk-repair.md`
-- Shared paths changed and justification: `test/integration/risk_repair_test.go` was explicitly serialized for the required lifecycle, atomic shock, and cash metric regressions. Contract sources were explicitly serialized for the public shock contract; generated contract targets were regenerated and unchanged.
+- Shared paths changed and justification: `test/integration/risk_repair_test.go` was explicitly serialized for the required lifecycle, atomic shock, cash metric regressions, and fixture cleanup. Contract sources were explicitly serialized for the public shock contract; generated contract targets were regenerated and unchanged.
 
 ## Result
 
@@ -40,14 +40,14 @@
 
 ## Change inventory
 
-- Files changed: queue lifecycle and worker renewal/recovery, scenario service cash history and shock validation, Python scenario execution and metrics, focused tests, public schemas.
+- Files changed: queue lifecycle and worker renewal/recovery, scenario service cash history and shock validation, Python scenario execution and metrics, persisted attribution quantization, focused tests, public schemas.
 - Schema/API changes: fixed shock field/object shapes and bounded decimal-string leaves; cash revision provenance fields in scenario metric inputs.
 - Generated artifacts: `node scripts/generate/contract-models.mjs` passed; generated files had no diff.
 
 ## Git state
 
 - Branch: `task/AR-706-risk-repair`
-- Commit SHA: `5f8720ed177d87b7b40468068e32b3ab901e40b6` (attribution storage quantization and queue recovery capability repair; this report is committed separately on the same task branch)
+- Commit SHA: `5f8720ed177d87b7b40468068e32b3ab901e40b6` (attribution storage quantization and queue recovery capability repair) and `11a0966bd44f6bde1618e068845fdc0de8ac075b` (cash fixture isolation; this report is committed separately on the same task branch)
 - Remote branch: pending parent task-branch synchronization
 - Worktree: clean after commit
 
