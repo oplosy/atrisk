@@ -98,6 +98,18 @@ def _storage_text(value: Decimal) -> str:
     return text or "0"
 
 
+def quantize_storage(value: Decimal, field: str = "value") -> Decimal:
+    """Round a persisted decimal exactly as PostgreSQL NUMERIC does."""
+
+    return _quantize_storage(value, field)
+
+
+def storage_text(value: Decimal, field: str = "value") -> str:
+    """Return a quantized decimal in canonical non-exponent form."""
+
+    return _storage_text(_quantize_storage(value, field))
+
+
 def _validate_shocks(shocks: dict[str, Any]) -> None:
     for field, value in shocks.items():
         map_field = field in {

@@ -63,7 +63,7 @@ def serve(
             queue = queue_factory(connection)
             while not stop.is_set():
                 recover_expired = getattr(queue, "recover_expired", None)
-                if callable(recover_expired) and callable(getattr(connection, "cursor", None)):
+                if callable(recover_expired):
                     recover_expired()
                 if not worker.run_claimed_once(queue, worker_id, lease_seconds):
                     stop.wait(poll_seconds)

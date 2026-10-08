@@ -9,6 +9,8 @@ from atlasrisk.scenarios import (
     ScenarioValidationError,
     create_template_version,
     evaluate_scenario,
+    quantize_storage,
+    storage_text,
 )
 
 
@@ -98,6 +100,16 @@ def test_position_outputs_are_quantized_to_database_scale() -> None:
         line["pre_value_try"]
     )
     assert Decimal(result["portfolio_pnl_try"]) == Decimal(line["pnl_try"])
+
+
+def test_storage_quantization_matches_postgres_numeric_rounding() -> None:
+    assert storage_text(Decimal("1.0000000000000000005")) == "1.000000000000000001"
+    assert storage_text(Decimal("-1.0000000000000000005")) == "-1.000000000000000001"
+    assert storage_text(Decimal("0.1234567890123456789")) == "0.123456789012345679"
+    assert storage_text(Decimal("-0.1234567890123456789")) == "-0.123456789012345679"
+    assert quantize_storage(Decimal("1.000000000000000000")) == Decimal(
+        "1.000000000000000000"
+    )
 
 
 def test_try_depreciation_revalues_usd_asset_but_not_try_value() -> None:
