@@ -7,7 +7,7 @@ depends_on: [AR-702]
 branch: task/AR-707-ingestion-repair
 base_sha: a4a060559e40c0773fe7eb7475b8f08b313ec1bc
 owned_paths: [apps/collector/, internal/collector/, internal/ingestion/, internal/sources/, .ai/reports/AR-707-ingestion-repair.md]
-shared_paths: [db/migrations/, db/queries/core/, internal/platform/database/models.go, docs/architecture/SYSTEM_ARCHITECTURE.md, docs/architecture/DATA_AND_RISK_MODEL.md, docs/releases/PUBLISHING.md, infra/images/collector.Dockerfile, scripts/release/, .github/workflows/ci.yml, test/integration/core_database_test.go, test/integration/raw_archive_integration_test.go, test/integration/fred_vintage_test.go, test/integration/collector_repair_test.go, test/fixtures/http/]
+shared_paths: [db/migrations/, db/queries/core/, internal/platform/database/, docs/architecture/SYSTEM_ARCHITECTURE.md, docs/architecture/DATA_AND_RISK_MODEL.md, docs/releases/PUBLISHING.md, infra/images/collector.Dockerfile, scripts/release/, .github/workflows/ci.yml, test/integration/core_database_test.go, test/integration/raw_archive_integration_test.go, test/integration/fred_vintage_test.go, test/integration/collector_repair_test.go, test/fixtures/http/]
 adrs: [ADR-003, ADR-005, ADR-006, ADR-007, ADR-008, ADR-017, ADR-023]
 ---
 
@@ -61,6 +61,7 @@ Local isolated test DB: postgres://atrisk:atlasrisk-local-only@127.0.0.1:50358/a
 ## Handoff evidence
 
 Use .ai/REPORT_TEMPLATE.md. Report acceptance mapping, changed paths, commands/results, SHA, pushed branch and clean worktree. Writer must not delegate. Orchestrator independently reviews and integrates; do not claim provider production/live acceptance.
+
 
 
 
