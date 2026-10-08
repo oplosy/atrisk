@@ -6,7 +6,7 @@ phase: 7
 depends_on: [AR-702]
 branch: task/AR-704-api-import-repair
 base_sha: a4a060559e40c0773fe7eb7475b8f08b313ec1bc
-owned_paths: [apps/api/cmd/api/, internal/imports/]
+owned_paths: [apps/api/cmd/api/, internal/imports/, .ai/reports/AR-704-api-import-repair.md]
 shared_paths: [docs/releases/PUBLISHING.md, infra/images/api.Dockerfile, test/integration/api_import_repair_test.go]
 adrs: [ADR-001, ADR-009, ADR-010, ADR-016]
 ---
