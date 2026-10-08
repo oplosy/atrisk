@@ -71,7 +71,7 @@ func validateDecimalShock(value string) (*big.Rat, bool) {
 		return nil, false
 	}
 	parts := strings.Split(unsigned, ".")
-	if len(parts) > 2 || len(parts[0]) == 0 || len(parts[0]) > 20 || (len(parts) == 2 && len(parts[1]) > 18) {
+	if len(parts) > 2 || len(parts[0]) == 0 || len(parts[0]) > 20 || (len(parts) == 2 && (len(parts[1]) == 0 || len(parts[1]) > 18)) {
 		return nil, false
 	}
 	if len(parts[0]) > 1 && parts[0][0] == '0' {
@@ -124,6 +124,11 @@ func validateShocks(values map[string]any) bool {
 					if parsed.Sign() < 0 {
 						return false
 					}
+				}
+			}
+			for key := range nested {
+				if strings.TrimSpace(key) == "" {
+					return false
 				}
 			}
 			continue

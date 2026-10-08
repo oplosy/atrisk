@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from copy import deepcopy
-from decimal import Decimal, InvalidOperation, localcontext
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation, localcontext
 from typing import Any
 
 SCENARIO_ENGINE_VERSION = "1.1.0"
@@ -62,6 +62,7 @@ class ScenarioValidationError(ValueError):
 
 
 _DECIMAL_SHOCK = re.compile(r"^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$")
+_STORAGE_QUANTUM = Decimal("0.000000000000000001")
 
 
 def _shock_decimal(value: Any, field: str) -> Decimal:
@@ -80,6 +81,21 @@ def _shock_decimal(value: Any, field: str) -> Decimal:
 def _storage_safe(value: Decimal) -> bool:
     """Keep values written to NUMERIC(38,18) below its 20-digit integer bound."""
     return value.is_finite() and (value == 0 or value.adjusted() < 20)
+
+
+def _quantize_storage(value: Decimal, field: str) -> Decimal:
+    try:
+        quantized = value.quantize(_STORAGE_QUANTUM, rounding=ROUND_HALF_UP)
+    except InvalidOperation as error:
+        raise ScenarioValidationError(f"{field} cannot be stored as NUMERIC(38,18)") from error
+    if not _storage_safe(quantized):
+        raise ScenarioValidationError(f"{field} cannot be stored as NUMERIC(38,18)")
+    return quantized
+
+
+def _storage_text(value: Decimal) -> str:
+    text = format(value, "f").rstrip("0").rstrip(".")
+    return text or "0"
 
 
 def _validate_shocks(shocks: dict[str, Any]) -> None:
@@ -103,6 +119,8 @@ def _validate_shocks(shocks: dict[str, Any]) -> None:
             if not map_field:
                 raise ScenarioValidationError(f"{field} must be a decimal string")
             for key, item in value.items():
+                if not isinstance(key, str) or not key.strip():
+                    raise ScenarioValidationError(f"{field} keys must be non-empty strings")
                 parsed = _shock_decimal(item, f"{field}.{key}")
                 if field == "fx_pair_changes" and parsed <= -1:
                     raise ScenarioValidationError(f"{field}.{key} must be greater than minus one")
@@ -198,8 +216,8 @@ def _position_result(
         return {}, "UNMAPPED_FACTOR"
 
     try:
-        pre_try = _decimal(position.get("value_try"), "value_try")
-        pre_usd = _decimal(position.get("value_usd"), "value_usd")
+        pre_try = _quantize_storage(_decimal(position.get("value_try"), "value_try"), "value_try")
+        pre_usd = _quantize_storage(_decimal(position.get("value_usd"), "value_usd"), "value_usd")
         price_return = _shock_decimal(price_shock or "0", "asset_class_return")
         price_multiplier = Decimal(1) + price_return
         if price_multiplier < 0:
@@ -256,9 +274,19 @@ def _position_result(
         post_usd = pre_usd * price_multiplier * usd_fx
         pnl_try = post_try - pre_try
         pnl_usd = post_usd - pre_usd
-        if not all(_storage_safe(value) for value in (post_try, post_usd, pnl_try, pnl_usd)):
+        post_try = _quantize_storage(post_try, "post_value_try")
+        post_usd = _quantize_storage(post_usd, "post_value_usd")
+        pnl_try = post_try - pre_try
+        pnl_usd = post_usd - pre_usd
+        price_return = _quantize_storage(price_return, "price_return")
+        yield_return = _quantize_storage(yield_return, "yield_return")
+        try_fx = _quantize_storage(try_fx, "fx_multiplier_try")
+        usd_fx = _quantize_storage(usd_fx, "fx_multiplier_usd")
+    except ScenarioValidationError as error:
+        if "cannot be stored" in str(error):
             return {}, "SCENARIO_OUTPUT_OUT_OF_BOUNDS"
-    except (KeyError, TypeError, ScenarioValidationError):
+        return {}, "INVALID_SCENARIO_INPUT"
+    except (KeyError, TypeError):
         return {}, "INVALID_SCENARIO_INPUT"
 
     return {
@@ -266,16 +294,16 @@ def _position_result(
         "instrument_id": instrument_id,
         "state": "valid",
         "reason_codes": [],
-        "pre_value_try": str(pre_try),
-        "post_value_try": str(post_try),
-        "pnl_try": str(pnl_try),
-        "pre_value_usd": str(pre_usd),
-        "post_value_usd": str(post_usd),
-        "pnl_usd": str(pnl_usd),
-        "price_return": str(price_return),
-        "yield_return": str(yield_return),
-        "fx_multiplier_try": str(try_fx),
-        "fx_multiplier_usd": str(usd_fx),
+        "pre_value_try": _storage_text(pre_try),
+        "post_value_try": _storage_text(post_try),
+        "pnl_try": _storage_text(pnl_try),
+        "pre_value_usd": _storage_text(pre_usd),
+        "post_value_usd": _storage_text(post_usd),
+        "pnl_usd": _storage_text(pnl_usd),
+        "price_return": _storage_text(price_return),
+        "yield_return": _storage_text(yield_return),
+        "fx_multiplier_try": _storage_text(try_fx),
+        "fx_multiplier_usd": _storage_text(usd_fx),
     }, None
 
 
@@ -480,8 +508,16 @@ def evaluate_scenario(payload: dict[str, Any]) -> dict[str, Any]:
         ),
         "unmapped_instruments": sorted(unmapped, key=lambda item: item["instrument_id"]),
         "positions": results,
-        "portfolio_pnl_try": str(pnl_try) if state != "blocked" else None,
-        "portfolio_pnl_usd": str(pnl_usd) if state != "blocked" else None,
+        "portfolio_pnl_try": (
+            _storage_text(_quantize_storage(pnl_try, "portfolio_pnl_try"))
+            if state != "blocked"
+            else None
+        ),
+        "portfolio_pnl_usd": (
+            _storage_text(_quantize_storage(pnl_usd, "portfolio_pnl_usd"))
+            if state != "blocked"
+            else None
+        ),
         "pnl_tolerance": version.get("assumptions", {}).get("pnl_tolerance", "0.00000001"),
         "pre_metrics": pre_metrics,
         "post_metrics": metrics,

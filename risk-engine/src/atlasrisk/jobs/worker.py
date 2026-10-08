@@ -18,12 +18,22 @@ class QueueClient(Protocol):
 
     def claim(self, worker_id: str, lease_seconds: float) -> Mapping[str, Any] | None: ...
 
-    def complete(self, job_id: str, worker_id: str, result: Mapping[str, Any]) -> bool: ...
+    def complete(
+        self, job_id: str, worker_id: str, attempt_count: int, result: Mapping[str, Any]
+    ) -> bool: ...
 
-    def renew(self, job_id: str, worker_id: str, lease_seconds: float) -> bool: ...
+    def renew(
+        self, job_id: str, worker_id: str, attempt_count: int, lease_seconds: float
+    ) -> bool: ...
 
     def fail(
-        self, job_id: str, worker_id: str, code: str, message: str, retryable: bool
+        self,
+        job_id: str,
+        worker_id: str,
+        attempt_count: int,
+        code: str,
+        message: str,
+        retryable: bool,
     ) -> bool: ...
 
 
@@ -77,6 +87,7 @@ class JobWorker:
         if claimed is None:
             return False
         job_id = str(claimed["id"])
+        attempt_count = int(claimed["attempt_count"])
         renew = getattr(queue, "renew", None)
         stop_renewal = threading.Event()
         lease_lost = threading.Event()
@@ -87,7 +98,7 @@ class JobWorker:
             def renew_lease() -> None:
                 while not stop_renewal.wait(interval):
                     try:
-                        if not renew(job_id, worker_id, lease_seconds):
+                        if not renew(job_id, worker_id, attempt_count, lease_seconds):
                             lease_lost.set()
                             return
                     except Exception:
@@ -107,16 +118,16 @@ class JobWorker:
         finally:
             stop_renewal.set()
             if renewal_thread is not None:
-                renewal_thread.join(timeout=max(1.0, lease_seconds / 3))
+                renewal_thread.join()
         if lease_lost.is_set():
             # A stale owner must never attempt a result write or a second failure transition.
             return True
         if failure is not None:
             code, message, retryable = failure
-            queue.fail(job_id, worker_id, code, message, retryable=retryable)
+            queue.fail(job_id, worker_id, attempt_count, code, message, retryable=retryable)
             return True
         assert result is not None
-        committed = queue.complete(job_id, worker_id, result.as_dict())
+        committed = queue.complete(job_id, worker_id, attempt_count, result.as_dict())
         if not committed:
             # The lease expired or changed owners while the handler was running.
             return True

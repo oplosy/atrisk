@@ -43,6 +43,8 @@ func TestShockValidationRequiresBoundedDecimalStrings(t *testing.T) {
 		"oversized shock":         map[string]any{"correlation_target": "123456789012345678901.0"},
 		"out of range target":     map[string]any{"correlation_target": "1.1"},
 		"unsupported shock field": map[string]any{"unexpected": "0.1"},
+		"trailing decimal point":  map[string]any{"correlation_target": "1."},
+		"empty map key":           map[string]any{"asset_class_returns": map[string]any{"": "0.1"}},
 	} {
 		if validateShocks(value.(map[string]any)) {
 			t.Fatalf("%s unexpectedly validated", name)

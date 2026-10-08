@@ -82,6 +82,24 @@ def test_shocks_require_bounded_decimal_strings() -> None:
         evaluate_scenario(payload)
 
 
+def test_position_outputs_are_quantized_to_database_scale() -> None:
+    position = _position()
+    position["value_try"] = "1.000000000000000001"
+    position["value_usd"] = "1.000000000000000001"
+    payload = _payload("risk_off", [position])
+    payload["scenario_version"]["shocks"]["asset_class_returns"] = {
+        "crypto": "0.123456789012345678"
+    }
+    payload["scenario_version"]["shocks"]["volatility_multipliers"] = {}
+    result = evaluate_scenario(payload)
+    line = result["positions"][0]
+    assert len(line["post_value_try"].split(".")[-1]) <= 18
+    assert Decimal(line["pnl_try"]) == Decimal(line["post_value_try"]) - Decimal(
+        line["pre_value_try"]
+    )
+    assert Decimal(result["portfolio_pnl_try"]) == Decimal(line["pnl_try"])
+
+
 def test_try_depreciation_revalues_usd_asset_but_not_try_value() -> None:
     result = evaluate_scenario(_payload("try_depreciation", [_position()]))
     line = result["positions"][0]

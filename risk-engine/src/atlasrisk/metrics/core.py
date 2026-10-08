@@ -70,6 +70,35 @@ def calculate_metrics(
     annualization = 365 if calendar == "crypto_daily" else 252
     annualization_factor = math.sqrt(annualization)
 
+    instrument_ids = sorted(price_history)
+    pair_count = len(instrument_ids) * (len(instrument_ids) - 1) // 2
+    if len(instrument_ids) > _MAX_CORRELATION_INSTRUMENTS or pair_count > _MAX_CORRELATION_PAIRS:
+        return {
+            "calendar": calendar,
+            "annualization_factor": annualization_factor,
+            "returns": {},
+            "volatility": {},
+            "correlations": {},
+            "correlation_capacity": {
+                "state": "blocked",
+                "reason": "CORRELATION_WORKLOAD_LIMIT",
+                "instrument_count": len(instrument_ids),
+                "pair_count": pair_count,
+                "max_instruments": _MAX_CORRELATION_INSTRUMENTS,
+                "max_pairs": _MAX_CORRELATION_PAIRS,
+            },
+            "drawdown": {"maximum": None, "observations": 0, "state": "blocked"},
+            "leverage": {"gross": None, "net": None, "state": "blocked"},
+            "concentration": {
+                "hhi": None,
+                "top_1_share": None,
+                "top_5_share": None,
+                "top_weights": [],
+                "state": "blocked",
+            },
+            "data_quality": "blocked",
+        }
+
     returns = {
         instrument: compute_log_returns(prices, calendar=calendar)
         for instrument, prices in sorted(price_history.items())
@@ -113,7 +142,6 @@ def calculate_metrics(
 
     correlations: dict[str, dict] = {}
     instrument_ids = sorted(returns)
-    pair_count = len(instrument_ids) * (len(instrument_ids) - 1) // 2
     correlation_capacity: dict[str, int | str] | None = None
     if len(instrument_ids) > _MAX_CORRELATION_INSTRUMENTS or pair_count > _MAX_CORRELATION_PAIRS:
         correlation_capacity = {
