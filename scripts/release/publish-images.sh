@@ -24,4 +24,5 @@ publish() {  # name dockerfile
 
 publish atrisk-api infra/images/api.Dockerfile
 publish atrisk-risk-worker infra/images/risk-worker.Dockerfile
+publish atrisk-collector infra/images/collector.Dockerfile
 cat "$out"

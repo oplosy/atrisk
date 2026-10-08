@@ -254,6 +254,7 @@ jobs:
     env:
       API_IMAGE: atrisk-api:ci
       WORKER_IMAGE: atrisk-risk-worker:ci
+      COLLECTOR_IMAGE: atrisk-collector:ci
       ATLASRISK_DATABASE_URL: postgres://atrisk:atrisk-images-ci-only@127.0.0.1:5432/atrisk?sslmode=disable
     services:
       postgres:
@@ -277,6 +278,7 @@ jobs:
         run: |
           docker build --file infra/images/api.Dockerfile --build-arg VERSION=ci --tag "$API_IMAGE" .
           docker build --file infra/images/risk-worker.Dockerfile --build-arg VERSION=ci --tag "$WORKER_IMAGE" .
+          docker build --file infra/images/collector.Dockerfile --build-arg VERSION=ci --tag "$COLLECTOR_IMAGE" .
 
       - name: Smoke-test release images
         run: bash scripts/release/smoke-images.sh

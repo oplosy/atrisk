@@ -144,7 +144,7 @@ func TestFREDVintage(t *testing.T) {
 	var missingValue, missingText, missingFlag bool
 	if err := pool.QueryRow(ctx, `
 SELECT value IS NULL, value_text = '.', quality_flags->>'missing' = 'true'
-FROM observation_revisions WHERE series_id = $1 AND observation_time = $2`, validUUID(t, series.ID), timestamp("2024-02-01T00:00:00Z")).Scan(&missingValue, &missingText, &missingFlag); err != nil {
+FROM observation_revisions WHERE series_id = $1 AND observation_time = $2 AND value_text = '.'`, validUUID(t, series.ID), timestamp("2024-02-01T00:00:00Z")).Scan(&missingValue, &missingText, &missingFlag); err != nil {
 		t.Fatal(err)
 	}
 	if !missingValue || !missingText || !missingFlag {

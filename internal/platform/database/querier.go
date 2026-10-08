@@ -11,6 +11,7 @@ import (
 )
 
 type Querier interface {
+	CountRawObjectOccurrences(ctx context.Context, rawObjectID pgtype.UUID) (int64, error)
 	CreateAccount(ctx context.Context, arg CreateAccountParams) (Account, error)
 	CreatePortfolio(ctx context.Context, arg CreatePortfolioParams) (Portfolio, error)
 	CreatePortfolioInstrument(ctx context.Context, arg CreatePortfolioInstrumentParams) (Instrument, error)
@@ -18,6 +19,7 @@ type Querier interface {
 	DeleteAccount(ctx context.Context, id pgtype.UUID) (int64, error)
 	DeletePortfolio(ctx context.Context, id pgtype.UUID) (int64, error)
 	GetAccount(ctx context.Context, id pgtype.UUID) (Account, error)
+	GetCollectorScheduleByName(ctx context.Context, name string) (CollectorSchedule, error)
 	GetDataSourceByCode(ctx context.Context, code string) (DataSource, error)
 	GetDataset(ctx context.Context, id pgtype.UUID) (Dataset, error)
 	GetDatasetByExternalKey(ctx context.Context, arg GetDatasetByExternalKeyParams) (Dataset, error)

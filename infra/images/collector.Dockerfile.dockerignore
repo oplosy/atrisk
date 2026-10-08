@@ -1,0 +1,7 @@
+# Allowlist: the collector image needs only the Go module and collector/runtime packages.
+*
+!go.mod
+!go.sum
+!apps/collector/
+!internal/
+**/*_test.go

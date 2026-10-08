@@ -169,6 +169,12 @@ they are not OS cron entries. Each schedule stores source, window, next due time
 policy version, and last completed checkpoint. The same lease/idempotency rules as
 other durable work prevent duplicate semantic ingestion.
 
+The collector claims schedules with `FOR UPDATE SKIP LOCKED`, a UUID lease token,
+and an expiry. Completion and failure require the current owner and unexpired
+token, so a restarted or stale process cannot finish a newer claim. Raw payload
+content remains one immutable content-addressed object; `raw_object_occurrences`
+records each run/request retrieval separately.
+
 ## Security and deployment boundary
 
 - Containers run as non-root with read-only application filesystems where viable.
