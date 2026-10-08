@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/oplosy/atrisk/internal/archive"
 )
@@ -254,26 +255,51 @@ func sameCapturedAt(left, right *time.Time) bool {
 
 func validateDomainRows(ctx context.Context, tx pgx.Tx, kind, target string, parsed Result) error {
 	if kind == KindPositions {
-		var portfolioID string
-		if err := tx.QueryRow(ctx, `SELECT id::text FROM portfolios WHERE id=$1::uuid`, target).Scan(&portfolioID); err != nil {
-			return ErrInvalidRequest
+		accountIDs := make([]pgtype.UUID, len(parsed.Positions))
+		instrumentIDs := make([]pgtype.UUID, len(parsed.Positions))
+		for i, row := range parsed.Positions {
+			var err error
+			accountIDs[i], err = parseUUID(row.AccountID)
+			if err != nil {
+				return ErrInvalidRequest
+			}
+			instrumentIDs[i], err = parseUUID(row.InstrumentID)
+			if err != nil {
+				return ErrInvalidRequest
+			}
 		}
-		for _, row := range parsed.Positions {
-			var id string
-			if err := tx.QueryRow(ctx, `SELECT id::text FROM accounts WHERE portfolio_id=$1::uuid AND id=$2::uuid`, target, row.AccountID).Scan(&id); err != nil {
-				return ErrInvalidRequest
-			}
-			if err := tx.QueryRow(ctx, `SELECT id::text FROM instruments WHERE id=$1::uuid`, row.InstrumentID).Scan(&id); err != nil {
-				return ErrInvalidRequest
-			}
+		var invalid int
+		err := tx.QueryRow(ctx, `
+WITH input(account_id, instrument_id) AS (
+    SELECT * FROM unnest($1::uuid[], $2::uuid[])
+)
+SELECT count(*)
+FROM input
+LEFT JOIN portfolios p ON p.id = $3::uuid
+LEFT JOIN accounts a ON a.id = input.account_id AND a.portfolio_id = p.id
+LEFT JOIN instruments i ON i.id = input.instrument_id
+WHERE p.id IS NULL OR a.id IS NULL OR i.id IS NULL`, accountIDs, instrumentIDs, target).Scan(&invalid)
+		if err != nil || invalid != 0 {
+			return ErrInvalidRequest
 		}
 		return nil
 	}
-	for _, row := range parsed.Prices {
-		var id string
-		if err := tx.QueryRow(ctx, `SELECT id::text FROM instruments WHERE id=$1::uuid`, row.InstrumentID).Scan(&id); err != nil {
+	instrumentIDs := make([]pgtype.UUID, len(parsed.Prices))
+	for i, row := range parsed.Prices {
+		var err error
+		instrumentIDs[i], err = parseUUID(row.InstrumentID)
+		if err != nil {
 			return ErrInvalidRequest
 		}
+	}
+	var invalid int
+	if err := tx.QueryRow(ctx, `
+WITH input(instrument_id) AS (SELECT * FROM unnest($1::uuid[]))
+SELECT count(*)
+FROM input
+LEFT JOIN instruments i ON i.id = input.instrument_id
+WHERE i.id IS NULL`, instrumentIDs).Scan(&invalid); err != nil || invalid != 0 {
+		return ErrInvalidRequest
 	}
 	return nil
 }
@@ -284,36 +310,96 @@ func (s Service) commitPositions(ctx context.Context, tx pgx.Tx, target string, 
 	if err != nil {
 		return nil, ErrInvalidRequest
 	}
+	portfolioID, err := parseUUID(target)
+	if err != nil {
+		return nil, ErrInvalidRequest
+	}
+	snapshotUUID, err := parseUUID(snapshotID)
+	if err != nil {
+		return nil, ErrInvalidRequest
+	}
+	copyRows := make([][]any, 0, len(parsed.Positions))
 	for _, row := range parsed.Positions {
-		var cost any
-		if row.TotalCostBasis != "" {
-			cost = row.TotalCostBasis
-		}
-		var duration any
-		if row.ModifiedDurationYears != "" {
-			duration = row.ModifiedDurationYears
-		}
-		var convexity any
-		if row.ConvexityYearsSquared != "" {
-			convexity = row.ConvexityYearsSquared
-		}
-		if _, err := tx.Exec(ctx, `INSERT INTO portfolio_snapshot_lines (portfolio_id,snapshot_id,account_id,instrument_id,quantity,total_cost_basis,modified_duration_years,convexity_years_squared) VALUES ($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,$6,$7,$8)`, target, snapshotID, row.AccountID, row.InstrumentID, row.Quantity, cost, duration, convexity); err != nil {
+		accountID, accountErr := parseUUID(row.AccountID)
+		instrumentID, instrumentErr := parseUUID(row.InstrumentID)
+		quantity, quantityErr := parseNumeric(row.Quantity, false)
+		cost, costErr := parseNumeric(row.TotalCostBasis, true)
+		duration, durationErr := parseNumeric(row.ModifiedDurationYears, true)
+		convexity, convexityErr := parseNumeric(row.ConvexityYearsSquared, true)
+		if accountErr != nil || instrumentErr != nil || quantityErr != nil || costErr != nil || durationErr != nil || convexityErr != nil {
 			return nil, ErrInvalidRequest
 		}
+		copyRows = append(copyRows, []any{portfolioID, snapshotUUID, accountID, instrumentID, quantity, nullableNumeric(cost), nullableNumeric(duration), nullableNumeric(convexity)})
+	}
+	if _, err := tx.CopyFrom(ctx, pgx.Identifier{"portfolio_snapshot_lines"}, []string{"portfolio_id", "snapshot_id", "account_id", "instrument_id", "quantity", "total_cost_basis", "modified_duration_years", "convexity_years_squared"}, pgx.CopyFromRows(copyRows)); err != nil {
+		return nil, ErrInvalidRequest
 	}
 	return map[string]any{"snapshot_id": snapshotID, "raw_object_sha256": hash}, nil
 }
 func (s Service) commitPrices(ctx context.Context, tx pgx.Tx, parsed Result, rawID, hash string) (map[string]any, error) {
-	for _, row := range parsed.Prices {
-		basis := "first_observed_by_system"
-		var known any
-		if row.SourceKnownAtTime != nil {
-			basis = "source_effective_at"
-			known = *row.SourceKnownAtTime
-		}
-		if _, err := tx.Exec(ctx, `INSERT INTO price_revisions (instrument_id,quote_currency,observation_time,price,source_known_at,knowledge_time_basis,raw_object_id) VALUES ($1::uuid,$2,$3,$4,$5,$6,$7::uuid)`, row.InstrumentID, row.QuoteCurrency, row.ObservationTime, row.Price, known, basis, rawID); err != nil {
+	rawObjectID, err := parseUUID(rawID)
+	if err != nil {
+		return nil, ErrInvalidRequest
+	}
+	instrumentIDs := make([]pgtype.UUID, len(parsed.Prices))
+	quoteCurrencies := make([]string, len(parsed.Prices))
+	observationTimes := make([]pgtype.Timestamptz, len(parsed.Prices))
+	prices := make([]pgtype.Numeric, len(parsed.Prices))
+	sourceKnownAt := make([]pgtype.Timestamptz, len(parsed.Prices))
+	bases := make([]string, len(parsed.Prices))
+	for i, row := range parsed.Prices {
+		instrumentIDs[i], err = parseUUID(row.InstrumentID)
+		if err != nil {
 			return nil, ErrInvalidRequest
 		}
+		prices[i], err = parseNumeric(row.Price, false)
+		if err != nil {
+			return nil, ErrInvalidRequest
+		}
+		quoteCurrencies[i] = row.QuoteCurrency
+		observationTimes[i] = pgtype.Timestamptz{Time: row.ObservationTime, Valid: true}
+		bases[i] = "first_observed_by_system"
+		if row.SourceKnownAtTime != nil {
+			sourceKnownAt[i] = pgtype.Timestamptz{Time: row.SourceKnownAtTime.UTC(), Valid: true}
+			bases[i] = "source_effective_at"
+		}
 	}
-	return map[string]any{"revision_count": len(parsed.Prices), "raw_object_sha256": hash}, nil
+	command, err := tx.Exec(ctx, `
+WITH input(instrument_id, quote_currency, observation_time, price, source_known_at, knowledge_time_basis) AS (
+    SELECT * FROM unnest($1::uuid[], $2::text[], $3::timestamptz[], $4::numeric[], $5::timestamptz[], $6::text[])
+)
+INSERT INTO price_revisions (instrument_id, quote_currency, observation_time, price, source_known_at, knowledge_time_basis, raw_object_id)
+SELECT instrument_id, quote_currency, observation_time, price, source_known_at, knowledge_time_basis, $7::uuid
+FROM input
+`, instrumentIDs, quoteCurrencies, observationTimes, prices, sourceKnownAt, bases, rawObjectID)
+	if err != nil {
+		return nil, ErrInvalidRequest
+	}
+	return map[string]any{"revision_count": command.RowsAffected(), "raw_object_sha256": hash}, nil
+}
+
+func parseUUID(value string) (pgtype.UUID, error) {
+	var id pgtype.UUID
+	if err := id.Scan(strings.TrimSpace(value)); err != nil || !id.Valid {
+		return id, ErrInvalidRequest
+	}
+	return id, nil
+}
+
+func parseNumeric(value string, optional bool) (pgtype.Numeric, error) {
+	if value == "" && optional {
+		return pgtype.Numeric{}, nil
+	}
+	var numeric pgtype.Numeric
+	if err := numeric.Scan(value); err != nil || !numeric.Valid {
+		return numeric, ErrInvalidRequest
+	}
+	return numeric, nil
+}
+
+func nullableNumeric(value pgtype.Numeric) any {
+	if !value.Valid {
+		return nil
+	}
+	return value
 }
