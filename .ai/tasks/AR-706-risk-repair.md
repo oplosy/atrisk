@@ -7,7 +7,7 @@ depends_on: [AR-702]
 branch: task/AR-706-risk-repair
 base_sha: a4a060559e40c0773fe7eb7475b8f08b313ec1bc
 owned_paths: [internal/application/scenarios/, internal/jobs/, risk-engine/src/atlasrisk/jobs/, risk-engine/src/atlasrisk/metrics/, risk-engine/src/atlasrisk/scenarios/, risk-engine/tests/, .ai/reports/AR-706-risk-repair.md]
-shared_paths: [contracts/openapi/, contracts/jobs/, contracts/generated/, test/integration/risk_repair_test.go, test/integration/scenario_provenance_test.go, docs/architecture/DATA_AND_RISK_MODEL.md]
+shared_paths: [apps/web/src/features/risk/scenarioTemplates.ts, apps/web/src/routes/risk/RiskRoute.test.tsx, apps/web/src/features/risk/riskApi.test.ts, contracts/openapi/, contracts/jobs/, contracts/generated/, test/integration/risk_repair_test.go, test/integration/scenario_provenance_test.go, docs/architecture/DATA_AND_RISK_MODEL.md]
 adrs: [ADR-008, ADR-009, ADR-010, ADR-011, ADR-012, ADR-013, ADR-015]
 ---
 
@@ -34,7 +34,7 @@ Unrelated cleanup, trading, tenancy/auth redesign, rewriting immutable history, 
 
 - Crash/restart, expired lease, renewal/lost-owner completion and max-attempt scenarios have deterministic lifecycle tests.
 - Cash-only USD and mixed cash/spot scenarios work; foreign cash uses dated FX, missing FX blocks.
-- Numeric decimal shocks/oversized values fail atomically before enqueue; decimal strings/templates succeed.
+- Numeric decimal shocks/oversized values fail atomically before enqueue; decimal strings/templates succeed. The shipped RatesUp frontend preset must submit decimal-string yield shifts and remain usable.
 - Metric goldens preserve tolerances and missing-date/calendar semantics; capacity boundary covered and measured.
 - Update public schema and regenerate types with scripts, never hand-edit generated files.
 
@@ -54,4 +54,5 @@ Focused checks during implementation, then one complete handoff gate. Record mis
 ## Handoff evidence
 
 Use .ai/REPORT_TEMPLATE.md. Record paths, assumptions, acceptance evidence, commands/results, full SHA, task remote sync, clean tree and risks. Writer must not spawn agents; orchestrator reviews and integrates.
+
 
