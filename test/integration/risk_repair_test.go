@@ -145,6 +145,10 @@ func TestRiskEndToEndRepairCashUSDMetricBundle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create USD cash scenario: %v", err)
 	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `UPDATE risk_jobs SET state='cancelled', completed_at=clock_timestamp() WHERE id=$1::uuid AND state='queued'`, run.JobID)
+		_, _ = pool.Exec(ctx, `UPDATE scenario_runs SET state='failed', completed_at=clock_timestamp() WHERE job_id=$1::uuid AND state='queued'`, run.JobID)
+	})
 	var payload []byte
 	if err := pool.QueryRow(ctx, `SELECT payload FROM risk_jobs WHERE id=$1::uuid`, run.JobID).Scan(&payload); err != nil {
 		t.Fatal(err)
