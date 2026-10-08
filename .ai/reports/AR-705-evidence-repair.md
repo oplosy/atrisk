@@ -45,7 +45,7 @@
 ## Git state
 
 - Branch: `task/AR-705-evidence-repair`
-- Commit SHA: `9df9afd` (full SHA recorded in handoff)
+- Commit SHA: `63f5aa4f54861e026fd101c869d3a2d2377b815d`
 - Remote branch: task branch only; hosted sync must be verified by the orchestrator
 - Worktree: clean after commit
 
