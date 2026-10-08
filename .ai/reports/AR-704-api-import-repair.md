@@ -46,7 +46,8 @@
 ## Git state
 
 - Branch: `task/AR-704-api-import-repair`
-- Commit SHA: `1b7cc028c25a52ecfaca3344072ee2c3505496cb` (local; amend after report metadata update)
+- Implementation commit SHA: `768d2a5c6ef5d2ae71efa7c18c76aaaa00f64fd9`
+- Report metadata commit: follows this implementation commit
 - Remote branch: pending
 - Worktree: dirty until report and implementation commit
 
