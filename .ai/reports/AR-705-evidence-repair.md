@@ -17,7 +17,7 @@
 | Criterion | Evidence |
 |---|---|
 | AC-1 | `TestDecisionJournalAPIRepairRejectsRiskValuationMismatch` and `TestDecisionJournalAPIRepairRejectsNullRiskValuation` prove finalization rejects mismatch/NULL atomically and leaves the decision draft. |
-| AC-2 | The existing `TestHistoricalDecisionReconstruction` plus the consistent path in `TestDecisionJournalAPIRepairClosesHistoricalMetricRawDependencies` pass; historical price/FX provenance now requires a semantically matching native-currency-to-USD path and exact raw closure. |
+| AC-2 | The existing `TestHistoricalDecisionReconstruction` plus the consistent path in `TestDecisionJournalAPIRepairClosesHistoricalMetricRawDependencies` pass; historical price/FX provenance now requires a semantically matching native-currency-to-USD path and exact raw closure. Cash histories are bound to existing cash/currency instruments and native currency. |
 | AC-3 | `TestDecisionJournalAPIRepairClosesHistoricalMetricRawDependencies` removes the historical raw source before sealing, restores it, seals, corrupts it during reconstruction, and confirms the original manifest bytes remain unchanged after recovery. |
 
 ## Stop-condition check
@@ -30,7 +30,7 @@
 | Command | Result |
 |---|---|
 | `go test ./internal/application/evidence -count=1` | pass |
-| `go test ./test/integration -run 'TestDecisionEvidence|TestHistoricalDecision|TestEvidenceRepair|TestDecisionJournalAPIRepair' -count=1` | pass |
+| `go test ./test/integration -run 'TestDecisionEvidence|TestHistoricalDecision|TestEvidenceRepair|TestDecisionJournalAPIRepair' -count=1` | pass, including cash instrument binding and explicit malformed-null cases |
 | `go test ./internal/application/... ./apps/api/... -count=1` | pass |
 | `go test ./test/e2e -count=1` | pass in parent fresh clean PostgreSQL/Garage handoff fixture (Garage endpoint configured with `ATLASRISK_S3_ENDPOINT`, region `garage`, bucket `atlasrisk-raw`) |
 | `task verify` | pending hosted CI gate; executable installed at `C:\Users\mesut\Desktop\workspace\A-projects\atrisk\.task\bin\task.exe` |
@@ -45,7 +45,7 @@
 ## Git state
 
 - Branch: `task/AR-705-evidence-repair`
-- Commit SHA: `b928220` (full SHA to be verified by the orchestrator)
+- Commit SHA: `86b176048bf73880b6c6bf1d72ef8b73b61040db` (cash binding fix; previous AR-705 commits are ancestors)
 - Remote branch: task branch push was blocked by the execution approval review; orchestrator must push/verify hosted sync
 - Worktree: clean after commit
 
