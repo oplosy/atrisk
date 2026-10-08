@@ -6,7 +6,7 @@
 - Packet status at start: `ready`
 - Referenced ADRs: ADR-008, ADR-009, ADR-010, ADR-011, ADR-012, ADR-013, ADR-015
 - Owned paths: `internal/application/scenarios/`, `internal/jobs/`, `risk-engine/src/atlasrisk/jobs/`, `risk-engine/src/atlasrisk/metrics/`, `risk-engine/src/atlasrisk/scenarios/`, `risk-engine/tests/`, `.ai/reports/AR-706-risk-repair.md`
-- Shared paths changed and justification: `contracts/openapi/openapi.json` and `contracts/jobs/scenario-revalue.schema.json` were explicitly serialized in the packet for the public shock contract; generated contract targets were regenerated and unchanged.
+- Shared paths changed and justification: `test/integration/risk_repair_test.go` was explicitly serialized for the required lifecycle, atomic shock, and cash metric regressions. Contract sources were explicitly serialized for the public shock contract; generated contract targets were regenerated and unchanged.
 
 ## Result
 
@@ -24,17 +24,17 @@
 ## Stop-condition check
 
 - Decision or scope conflict: none.
-- Missing dependency, unsafe migration, or unavailable verification: hosted `task verify` remains parent-owned. The latest local `TestRiskEndToEnd` rerun was blocked by two pre-existing fixed idempotency keys in the isolated database (`risk-api-e2e-key`, `risk-api-e2e-completed-key`); reset the test database before the final selector run.
+- Missing dependency, unsafe migration, or unavailable verification: hosted `task verify` remains parent-owned. The fresh disposable PostgreSQL selector still reports two existing-suite issues: `TestRiskJobLifecycle` sees queued jobs left by preceding tests, and `TestRiskEndToEnd` returns `INVALID_REQUEST` from its pre-existing manual-spot fixture. The AR-706 repair selectors pass independently; parent should run the hosted gate with its isolated lifecycle and fixture setup.
 
 ## Verification
 
 | Command | Result |
 |---|---|
 | `go test ./internal/application/scenarios ./internal/jobs -count=1` | pass |
-| `uv run --project risk-engine --locked pytest risk-engine/tests -q` | pass, 71 tests |
+| `uv run --project risk-engine --locked pytest risk-engine/tests -q` | pass, 74 tests |
 | `uv run --project risk-engine --locked ruff check risk-engine/src risk-engine/tests` | pass |
 | `node --test test/contract/contract.test.mjs contracts/jobs/contract.test.mjs` | pass, 15 tests |
-| `go test ./test/integration -run 'TestRiskRepair|TestScenarioInputProvenance|TestRiskJobLifecycle|TestRiskEndToEnd' -count=1` | needs rerun after isolated DB idempotency-key cleanup; other selected tests passed before the residue was encountered |
+| `go test ./test/integration -run 'TestRiskRepair|TestScenarioInputProvenance|TestRiskJobLifecycle|TestRiskEndToEnd' -count=1` | repair/provenance selectors pass; existing `TestRiskJobLifecycle` is affected by queued-job interference when run after repair tests, and existing `TestRiskEndToEnd` rejects its manual-spot fixture with `INVALID_REQUEST` |
 | `go test ./test/integration -run 'TestRiskJobLifecycleRepair|TestRiskEndToEndRepair' -count=1` | pass against isolated PostgreSQL; lifecycle fence, atomic shocks, USD/EUR cash coverage |
 | `task verify` | parent-owned hosted CI pending |
 
@@ -47,10 +47,10 @@
 ## Git state
 
 - Branch: `task/AR-706-risk-repair`
-- Commit SHA: `e400d44` (integration coverage commit; independent-review repair is `3b50b90`, original implementation is `b8ee60a`)
+- Commit SHA: `5f8720ed177d87b7b40468068e32b3ab901e40b6` (attribution storage quantization and queue recovery capability repair; this report is committed separately on the same task branch)
 - Remote branch: pending parent task-branch synchronization
 - Worktree: clean after commit
 
 ## Assumptions and risks
 
-- Final integration evidence depends on parent resetting the dedicated test database's fixed idempotency keys; no product or schema migration is required.
+- Final integration evidence depends on parent-owned hosted `task verify` and its isolated database lifecycle. No product or schema migration is required.
