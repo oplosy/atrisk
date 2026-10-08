@@ -23,7 +23,7 @@
 ## Stop-condition check
 
 - Decision or scope conflict: `none`.
-- Missing dependency, unsafe migration, or unavailable verification: local `task` executable and `.task/bin/task.exe` are unavailable in this worktree; the parent-provided isolated PostgreSQL/Garage services were available. Existing fixed-name `TestImportAPI` was not rerun after an earlier concurrent invocation populated that disposable database; the new unique AR-704 regression ran successfully against the same migrated services.
+- Missing dependency, unsafe migration, or unavailable verification: the supplied worktree has no local `task` executable; the parent-owned hosted gate remains pending. The parent-provided isolated PostgreSQL/Garage services were available. Existing fixed-name `TestImportAPI` was not rerun after an earlier concurrent invocation populated that disposable database; the new unique AR-704 regression ran successfully against the same migrated services.
 
 ## Verification
 
@@ -34,7 +34,7 @@
 | `go test ./test/integration -run 'TestImportAPIRepair\|TestManualCSV' -count=1` | pass: ImportAPI-focused AR-704 regression selection |
 | `go test ./test/integration -run '^$' -count=1` | pass: integration package compiles |
 | `go vet ./apps/api/cmd/api ./internal/imports` | pass |
-| `task verify` | unavailable locally: Task executable is not installed in this worktree; hosted gate remains parent-owned |
+| `task verify` | not run by this worker; hosted full gate remains parent-owned, with scoped Go/API/import gates passing here |
 | `git diff --check` | pass |
 
 ## Change inventory
@@ -47,9 +47,9 @@
 
 - Branch: `task/AR-704-api-import-repair`
 - Implementation commit SHA: `768d2a5c6ef5d2ae71efa7c18c76aaaa00f64fd9`
-- Report metadata commit: follows this implementation commit
-- Remote branch: pending
-- Worktree: dirty until report and implementation commit
+- Report metadata commits follow this implementation commit; final tip is verified with `git rev-parse HEAD`.
+- Remote branch: not pushed; automatic approval review rejected the required `git push` as sensitive private-repository egress; no local `origin/task/AR-704-api-import-repair` ref exists.
+- Worktree: clean after final report commit
 
 ## Assumptions and risks
 
