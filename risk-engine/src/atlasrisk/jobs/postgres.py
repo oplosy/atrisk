@@ -82,6 +82,89 @@ class PostgresQueueClient:
         finally:
             cursor.close()
 
+    def renew(self, job_id: str, worker_id: str, lease_seconds: float) -> bool:
+        """Extend a live lease; a false result marks the owner as stale."""
+        cursor = self._connection.cursor()
+        try:
+            cursor.execute(
+                """
+                UPDATE risk_jobs
+                SET lease_expires_at=clock_timestamp() + make_interval(secs => %s)
+                WHERE id=%s::uuid AND state='running' AND lease_owner=%s
+                  AND lease_expires_at > clock_timestamp()
+                """,
+                (lease_seconds, job_id, worker_id),
+            )
+            renewed = cursor.rowcount == 1
+            self._connection.commit()
+            return renewed
+        except Exception:
+            self._connection.rollback()
+            raise
+        finally:
+            cursor.close()
+
+    def recover_expired(self) -> int:
+        """Recover expired jobs and keep scenario evidence in the same lifecycle state."""
+        cursor = self._connection.cursor()
+        try:
+            cursor.execute(
+                """
+                WITH expired AS (
+                    UPDATE risk_jobs
+                    SET state=CASE WHEN attempt_count >= max_attempts
+                                   THEN 'failed' ELSE 'retryable_failed' END,
+                        available_at=clock_timestamp(), lease_owner=NULL,
+                        lease_expires_at=NULL,
+                        completed_at=CASE WHEN attempt_count >= max_attempts
+                                          THEN clock_timestamp() ELSE NULL END,
+                        error_code='LEASE_EXPIRED',
+                        error_message='worker lease expired'
+                    WHERE state='running' AND lease_expires_at <= clock_timestamp()
+                    RETURNING id::text, attempt_count, kind, state
+                )
+                SELECT id, attempt_count, kind, state FROM expired
+                """
+            )
+            expired = cursor.fetchall()
+            for job_id, attempt, kind, state in expired:
+                cursor.execute(
+                    """
+                    UPDATE risk_job_attempts
+                    SET finished_at=clock_timestamp(), outcome='expired',
+                        error_code='LEASE_EXPIRED', error_message='worker lease expired'
+                    WHERE job_id=%s::uuid AND attempt=%s AND finished_at IS NULL
+                    """,
+                    (job_id, attempt),
+                )
+                if kind != "scenario.revalue":
+                    continue
+                if state == "failed":
+                    cursor.execute(
+                        """
+                        UPDATE scenario_runs
+                        SET state='failed', completed_at=clock_timestamp()
+                        WHERE job_id=%s::uuid AND state IN ('queued','running')
+                        """,
+                        (job_id,),
+                    )
+                elif state == "retryable_failed":
+                    cursor.execute(
+                        """
+                        UPDATE scenario_runs
+                        SET state='queued', completed_at=NULL
+                        WHERE job_id=%s::uuid AND state='running'
+                        """,
+                        (job_id,),
+                    )
+            self._connection.commit()
+            return len(expired)
+        except Exception:
+            self._connection.rollback()
+            raise
+        finally:
+            cursor.close()
+
     def complete(self, job_id: str, worker_id: str, result: Mapping[str, Any]) -> bool:
         cursor = self._connection.cursor()
         try:
@@ -107,9 +190,11 @@ class PostgresQueueClient:
                 """
                 UPDATE risk_job_attempts
                 SET finished_at=clock_timestamp(), outcome='succeeded'
-                WHERE job_id=%s::uuid AND finished_at IS NULL
+                WHERE job_id=%s::uuid
+                  AND attempt=(SELECT attempt_count FROM risk_jobs WHERE id=%s::uuid)
+                  AND worker_id=%s AND finished_at IS NULL
                 """,
-                (job_id,),
+                (job_id, job_id, worker_id),
             )
             self._connection.commit()
             return True
@@ -164,9 +249,11 @@ class PostgresQueueClient:
                 SET finished_at=clock_timestamp(),
                     outcome=%s,
                     error_code=%s, error_message=%s
-                WHERE job_id=%s::uuid AND finished_at IS NULL
+                WHERE job_id=%s::uuid
+                  AND attempt=(SELECT attempt_count FROM risk_jobs WHERE id=%s::uuid)
+                  AND worker_id=%s AND finished_at IS NULL
                 """,
-                (final_state, code, message, job_id),
+                (final_state, code, message, job_id, job_id, worker_id),
             )
             self._connection.commit()
             return True

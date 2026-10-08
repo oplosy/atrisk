@@ -18,6 +18,8 @@ from atlasrisk.returns import (
 _VOLATILITY_WINDOW = 63
 _CORRELATION_WINDOW = 252
 _MIN_CORRELATION_OVERLAP = 60
+_MAX_CORRELATION_INSTRUMENTS = 256
+_MAX_CORRELATION_PAIRS = 32_768
 
 
 def _finite_values(values: Mapping[date, float | None]) -> dict[date, float]:
@@ -56,6 +58,7 @@ def calculate_metrics(
     signed_exposures: Mapping[str, float],
     *,
     calendar: Calendar = "business_daily",
+    constant_instruments: set[str] | frozenset[str] = frozenset(),
 ) -> dict:
     """Calculate returns, volatility, correlation, drawdown, leverage, and concentration.
 
@@ -77,7 +80,15 @@ def calculate_metrics(
         window = list(values.values())[-_VOLATILITY_WINDOW:]
         invalid_prices = _invalid_price_count(price_history[instrument], calendar)
         missing_intervals = count_missing_intervals(price_history[instrument], calendar=calendar)
-        if len(window) >= _VOLATILITY_WINDOW and invalid_prices == 0 and missing_intervals == 0:
+        if (
+            instrument in constant_instruments
+            and window
+            and invalid_prices == 0
+            and missing_intervals == 0
+        ):
+            state = "valid"
+            value = 0.0
+        elif len(window) >= _VOLATILITY_WINDOW and invalid_prices == 0 and missing_intervals == 0:
             state = "valid"
             value = statistics.stdev(window) * annualization_factor
         elif window:
@@ -101,26 +112,64 @@ def calculate_metrics(
         quality_states.append("blocked")
 
     correlations: dict[str, dict] = {}
-    for left_id, right_id in itertools.combinations(sorted(returns), 2):
-        left_pair, right_pair = compute_aligned_log_returns(
-            price_history[left_id], price_history[right_id], calendar=calendar
-        )
-        overlap = sorted(set(left_pair).intersection(right_pair))[-_CORRELATION_WINDOW:]
-        left_values = [left_pair[observed_at] for observed_at in overlap]
-        right_values = [right_pair[observed_at] for observed_at in overlap]
-        if len(overlap) < _MIN_CORRELATION_OVERLAP:
-            value, state, reason = None, "blocked", "INSUFFICIENT_OVERLAP"
-        else:
-            value = _correlation(left_values, right_values)
-            state, reason = ("valid", None) if value is not None else ("degraded", "ZERO_VARIANCE")
-        quality_states.append(state)
-        correlations[f"{left_id}|{right_id}"] = {
-            "coefficient": value,
-            "overlap_count": len(overlap),
-            "required_overlap": _MIN_CORRELATION_OVERLAP,
-            "reason": reason,
-            "state": state,
+    instrument_ids = sorted(returns)
+    pair_count = len(instrument_ids) * (len(instrument_ids) - 1) // 2
+    correlation_capacity: dict[str, int | str] | None = None
+    if len(instrument_ids) > _MAX_CORRELATION_INSTRUMENTS or pair_count > _MAX_CORRELATION_PAIRS:
+        correlation_capacity = {
+            "state": "blocked",
+            "reason": "CORRELATION_WORKLOAD_LIMIT",
+            "instrument_count": len(instrument_ids),
+            "pair_count": pair_count,
+            "max_instruments": _MAX_CORRELATION_INSTRUMENTS,
+            "max_pairs": _MAX_CORRELATION_PAIRS,
         }
+        quality_states.append("blocked")
+    else:
+        valid_dates = {
+            instrument: {
+                observed_at
+                for observed_at, value in price_history[instrument].items()
+                if (calendar == "crypto_daily" or observed_at.weekday() < 5)
+                and value is not None
+                and math.isfinite(value)
+                and value > 0
+            }
+            for instrument in instrument_ids
+        }
+        for left_id, right_id in itertools.combinations(instrument_ids, 2):
+            shared_dates = valid_dates[left_id].intersection(valid_dates[right_id])
+            if not shared_dates:
+                left_pair, right_pair = {}, {}
+            elif valid_dates[left_id] == valid_dates[right_id]:
+                left_pair, right_pair = returns[left_id], returns[right_id]
+            else:
+                left_pair, right_pair = compute_aligned_log_returns(
+                    price_history[left_id], price_history[right_id], calendar=calendar
+                )
+            overlap = sorted(set(left_pair).intersection(right_pair))[-_CORRELATION_WINDOW:]
+            left_values = [left_pair[observed_at] for observed_at in overlap]
+            right_values = [right_pair[observed_at] for observed_at in overlap]
+            if len(overlap) < _MIN_CORRELATION_OVERLAP:
+                value, state, reason = None, "blocked", "INSUFFICIENT_OVERLAP"
+            else:
+                value = _correlation(left_values, right_values)
+                state, reason = (
+                    ("valid", None) if value is not None else ("degraded", "ZERO_VARIANCE")
+                )
+            if not (
+                state == "degraded"
+                and reason == "ZERO_VARIANCE"
+                and (left_id in constant_instruments or right_id in constant_instruments)
+            ):
+                quality_states.append(state)
+            correlations[f"{left_id}|{right_id}"] = {
+                "coefficient": value,
+                "overlap_count": len(overlap),
+                "required_overlap": _MIN_CORRELATION_OVERLAP,
+                "reason": reason,
+                "state": state,
+            }
 
     finite_nav = _finite_values(nav_history)
     invalid_exposures = any(not math.isfinite(value) for value in signed_exposures.values())
@@ -208,6 +257,7 @@ def calculate_metrics(
         },
         "volatility": volatility,
         "correlations": correlations,
+        "correlation_capacity": correlation_capacity,
         "drawdown": drawdown,
         "leverage": leverage,
         "concentration": concentration,

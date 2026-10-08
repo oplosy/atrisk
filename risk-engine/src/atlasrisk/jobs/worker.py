@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable, Mapping
 from typing import Any, Protocol
 
@@ -18,6 +19,8 @@ class QueueClient(Protocol):
     def claim(self, worker_id: str, lease_seconds: float) -> Mapping[str, Any] | None: ...
 
     def complete(self, job_id: str, worker_id: str, result: Mapping[str, Any]) -> bool: ...
+
+    def renew(self, job_id: str, worker_id: str, lease_seconds: float) -> bool: ...
 
     def fail(
         self, job_id: str, worker_id: str, code: str, message: str, retryable: bool
@@ -74,13 +77,47 @@ class JobWorker:
         if claimed is None:
             return False
         job_id = str(claimed["id"])
+        renew = getattr(queue, "renew", None)
+        stop_renewal = threading.Event()
+        lease_lost = threading.Event()
+        renewal_thread: threading.Thread | None = None
+        if callable(renew):
+            interval = max(0.1, lease_seconds / 3)
+
+            def renew_lease() -> None:
+                while not stop_renewal.wait(interval):
+                    try:
+                        if not renew(job_id, worker_id, lease_seconds):
+                            lease_lost.set()
+                            return
+                    except Exception:
+                        lease_lost.set()
+                        return
+
+            renewal_thread = threading.Thread(target=renew_lease, daemon=True)
+            renewal_thread.start()
+        failure: tuple[str, str, bool] | None = None
+        result: ResultEnvelope | None = None
         try:
             result, _ = self.run_once(job_id, dict(claimed["envelope"]))
         except PermanentJobError as error:
-            queue.fail(job_id, worker_id, error.code, str(error), retryable=False)
-            return True
+            failure = (error.code, str(error), False)
         except Exception as error:  # adapter decides whether retry policy permits another attempt
-            queue.fail(job_id, worker_id, "ATLAS_WORKER_ERROR", str(error), retryable=True)
+            failure = ("ATLAS_WORKER_ERROR", str(error), True)
+        finally:
+            stop_renewal.set()
+            if renewal_thread is not None:
+                renewal_thread.join(timeout=max(1.0, lease_seconds / 3))
+        if lease_lost.is_set():
+            # A stale owner must never attempt a result write or a second failure transition.
             return True
-        queue.complete(job_id, worker_id, result.as_dict())
+        if failure is not None:
+            code, message, retryable = failure
+            queue.fail(job_id, worker_id, code, message, retryable=retryable)
+            return True
+        assert result is not None
+        committed = queue.complete(job_id, worker_id, result.as_dict())
+        if not committed:
+            # The lease expired or changed owners while the handler was running.
+            return True
         return True

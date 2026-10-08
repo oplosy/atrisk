@@ -29,6 +29,27 @@ func TestScenariosRequestValidation(t *testing.T) {
 	}
 }
 
+func TestShockValidationRequiresBoundedDecimalStrings(t *testing.T) {
+	base := VersionInput{Shocks: map[string]any{
+		"asset_class_returns": map[string]any{"crypto": "-0.40"},
+		"correlation_target":  "0.75",
+	}}
+	if !validateShocks(base.Shocks) {
+		t.Fatal("expected decimal-string shocks to validate")
+	}
+	for name, value := range map[string]any{
+		"numeric shock":           map[string]any{"asset_class_returns": map[string]any{"crypto": 0.4}},
+		"exponent shock":          map[string]any{"correlation_target": "1e-1"},
+		"oversized shock":         map[string]any{"correlation_target": "123456789012345678901.0"},
+		"out of range target":     map[string]any{"correlation_target": "1.1"},
+		"unsupported shock field": map[string]any{"unexpected": "0.1"},
+	} {
+		if validateShocks(value.(map[string]any)) {
+			t.Fatalf("%s unexpectedly validated", name)
+		}
+	}
+}
+
 func TestPreShockMetricsFailClosedWhenAR302HistoryInputsAreUnavailable(t *testing.T) {
 	metrics := preShockMetricsUnavailable()
 	if metrics["data_quality"] != "blocked" {
@@ -131,5 +152,33 @@ func TestCanonicalUUIDNormalizesUppercaseInput(t *testing.T) {
 	canonical, err := canonicalUUID(strings.ToUpper(lower))
 	if err != nil || canonical != lower {
 		t.Fatalf("uppercase UUID was not canonicalized: %q err=%v", canonical, err)
+	}
+}
+
+func TestConstantCashHistoryUsesDatedFXWithoutForwardFill(t *testing.T) {
+	firstAt := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
+	history, err := buildCashMetricHistory("TRY", []metricFXRevision{
+		{ID: "fx-1", ObservationTime: firstAt, Rate: "30", Direction: "inverse", SystemKnownAt: firstAt},
+		{ID: "fx-2", ObservationTime: firstAt.Add(72 * time.Hour), Rate: "32", Direction: "inverse", SystemKnownAt: firstAt},
+	}, 3600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prices := aggregateMetricPriceHistory(history)
+	if len(prices) != 2 || prices["2026-01-02"] != "0.033333333333333333" || prices["2026-01-05"] != "0.031250000000000000" {
+		t.Fatalf("unexpected dated FX cash prices: %#v", prices)
+	}
+	if _, ok := prices["2026-01-03"]; ok {
+		t.Fatal("cash FX history was forward-filled")
+	}
+}
+
+func TestConstantCashDatesBuildBusinessHistory(t *testing.T) {
+	dates := constantCashDates("2026-01-05T00:00:00Z", 64)
+	if len(dates) != 64 {
+		t.Fatalf("expected 64 business dates, got %d", len(dates))
+	}
+	if _, ok := dates["2026-01-03"]; ok {
+		t.Fatal("constant cash history included a weekend")
 	}
 }

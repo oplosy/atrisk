@@ -19,10 +19,12 @@ def _derive_pre_metrics(metric_inputs: Any) -> dict[str, Any]:
     nav_history = metric_inputs.get("nav_history")
     signed_exposures = metric_inputs.get("signed_exposures")
     calendar = metric_inputs.get("calendar", "business_daily")
+    constant_instruments = metric_inputs.get("constant_instruments", [])
     if (
         not isinstance(price_history, dict)
         or not isinstance(nav_history, dict)
         or not isinstance(signed_exposures, dict)
+        or not isinstance(constant_instruments, list)
     ):
         raise ScenarioValidationError("server metric inputs are incomplete")
     try:
@@ -40,7 +42,13 @@ def _derive_pre_metrics(metric_inputs: Any) -> dict[str, Any]:
         exposures = {
             str(instrument): float(value) for instrument, value in signed_exposures.items()
         }
-        return calculate_metrics(prices, nav, exposures, calendar=calendar)
+        return calculate_metrics(
+            prices,
+            nav,
+            exposures,
+            calendar=calendar,
+            constant_instruments={str(instrument) for instrument in constant_instruments},
+        )
     except (TypeError, ValueError, AttributeError) as error:
         raise ScenarioValidationError("server metric inputs are invalid") from error
 
