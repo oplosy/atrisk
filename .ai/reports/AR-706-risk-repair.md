@@ -16,10 +16,10 @@
 
 | Criterion | Evidence |
 |---|---|
-| Lease recovery and stale ownership | Go and Python recovery update attempt evidence and linked scenario state; Go completion/failure/renewal predicates include attempt ownership; worker renewal suppresses stale success and failure writes. |
+| Lease recovery and stale ownership | Go and Python recovery update attempt evidence and linked scenario state; Go and Python completion/failure/renewal predicates include attempt identity; worker renewal suppresses stale success and failure writes and waits for the renewal thread to finish. |
 | Cash metrics | Sealed metric inputs support constant USD cash and dated foreign-currency FX history with separate `cash_revision_history`; missing FX and workload overflow fail closed; constant cash has valid zero volatility and explicit undefined pair correlations. |
-| Exact shocks | Go enqueue/version validation and Python execution validation require bounded decimal strings, fixed fields/shapes, semantic bounds, and storage-safe outputs; scenario engine version is `1.1.0`. |
-| Pairwise metrics | Identical valid-date grids reuse returns; differing grids retain pairwise alignment; no-overlap and deterministic instrument/pair capacity states remain explicit. |
+| Exact shocks | Go enqueue/version validation and Python execution validation require bounded decimal strings, fixed fields/shapes, semantic bounds, and storage-safe outputs; syntax and empty-key cases are synchronized; scenario engine version is `1.1.0`. |
+| Pairwise metrics | Capacity is checked before any return computation; identical valid-date grids reuse returns; differing grids retain pairwise alignment; no-overlap and deterministic instrument/pair capacity states remain explicit. |
 
 ## Stop-condition check
 
@@ -31,10 +31,11 @@
 | Command | Result |
 |---|---|
 | `go test ./internal/application/scenarios ./internal/jobs -count=1` | pass |
-| `uv run --project risk-engine --locked pytest risk-engine/tests -q` | pass, 69 tests |
+| `uv run --project risk-engine --locked pytest risk-engine/tests -q` | pass, 71 tests |
 | `uv run --project risk-engine --locked ruff check risk-engine/src risk-engine/tests` | pass |
 | `node --test test/contract/contract.test.mjs contracts/jobs/contract.test.mjs` | pass, 15 tests |
 | `go test ./test/integration -run 'TestRiskRepair|TestScenarioInputProvenance|TestRiskJobLifecycle|TestRiskEndToEnd' -count=1` | needs rerun after isolated DB idempotency-key cleanup; other selected tests passed before the residue was encountered |
+| `go test ./test/integration -run 'TestRiskJobLifecycleRepair|TestRiskEndToEndRepair' -count=1` | pass against isolated PostgreSQL |
 | `task verify` | parent-owned hosted CI pending |
 
 ## Change inventory
@@ -46,7 +47,7 @@
 ## Git state
 
 - Branch: `task/AR-706-risk-repair`
-- Commit SHA: `b8ee60a` (implementation commit)
+- Commit SHA: `3b50b90` (independent-review repair commit; original implementation is `b8ee60a`)
 - Remote branch: pending parent task-branch synchronization
 - Worktree: clean after commit
 
