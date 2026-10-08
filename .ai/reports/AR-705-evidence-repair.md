@@ -45,8 +45,8 @@
 ## Git state
 
 - Branch: `task/AR-705-evidence-repair`
-- Commit SHA: `63f5aa4f54861e026fd101c869d3a2d2377b815d`
-- Remote branch: task branch only; hosted sync must be verified by the orchestrator
+- Commit SHA: `b928220` (full SHA to be verified by the orchestrator)
+- Remote branch: task branch push was blocked by the execution approval review; orchestrator must push/verify hosted sync
 - Worktree: clean after commit
 
 ## Assumptions and risks
