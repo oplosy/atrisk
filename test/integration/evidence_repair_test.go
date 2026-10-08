@@ -187,6 +187,129 @@ func TestDecisionJournalAPIRepairClosesHistoricalMetricRawDependencies(t *testin
 	}
 }
 
+func TestDecisionJournalAPIRepairBindsCashMetricHistoryToInstrument(t *testing.T) {
+	migrateTestDatabase(t)
+	_, pool := testDatabase(t)
+	defer pool.Close()
+	ctx := context.Background()
+	portfolioID, accountID := repairPortfolio(t, pool)
+	cashTRY := repairInstrument(t, pool, "cash", "TRY")
+	cashUSD := repairInstrument(t, pool, "currency", "USD")
+	stockUSD := repairInstrument(t, pool, "crypto_spot", "USD")
+	fixtureSuffix := time.Now().UTC().Format("20060102T150405.999999999")
+	fxContent := []byte("ar705 cash FX source:" + fixtureSuffix)
+	fxDigest := sha256.Sum256(fxContent)
+	fxKey := "ar705-cash-fx-" + fixtureSuffix
+	var fxRawID, fxID string
+	if err := pool.QueryRow(ctx, `INSERT INTO raw_objects (content_sha256,object_key,media_type,byte_length,retrieved_at) VALUES ($1,$2,'text/plain',$3,clock_timestamp()) RETURNING id::text`, hex.EncodeToString(fxDigest[:]), fxKey, len(fxContent)).Scan(&fxRawID); err != nil {
+		t.Fatal(err)
+	}
+	var observationAt, systemKnownAt time.Time
+	if err := pool.QueryRow(ctx, `INSERT INTO fx_quote_revisions (base_currency,quote_currency,observation_time,rate,knowledge_time_basis,raw_object_id)
+		VALUES ('USD','TRY','2026-01-02T00:00:00Z','30','first_observed_by_system',$1::uuid)
+		RETURNING id::text,observation_time,system_known_at`, fxRawID).Scan(&fxID, &observationAt, &systemKnownAt); err != nil {
+		t.Fatal(err)
+	}
+	fxEntry := map[string]any{
+		"id": fxID, "pair": "USD/TRY", "direction": "inverse", "observation_time": observationAt.UTC().Format(time.RFC3339Nano),
+		"rate": "30.000000000000000000", "source_known_at": nil, "system_known_at": systemKnownAt.UTC().Format(time.RFC3339Nano), "knowledge_time_basis": "first_observed_by_system",
+	}
+	cashEntry := map[string]any{
+		"id": fxID, "observation_time": observationAt.UTC().Format(time.RFC3339Nano), "price": "1", "price_quote_currency": "TRY",
+		"usd_price": "0.033333333333333333", "source_known_at": nil, "system_known_at": systemKnownAt.UTC().Format(time.RFC3339Nano),
+		"knowledge_time_basis": "first_observed_by_system", "fx_path": []any{fxEntry},
+	}
+	archiveStore := &evidenceArchive{objects: map[string][]byte{fxKey: fxContent}}
+	valid := jsonMetricInputs(cashTRY, "2026-01-02", "0.033333333333333333", map[string]any{cashTRY: []map[string]any{cashEntry}})
+	runCashEvidenceCase(t, pool, portfolioID, accountID, valid, archiveStore, true)
+
+	constant := func(instrumentID string) string {
+		return jsonMetricInputs(instrumentID, "2026-01-02", "1", map[string]any{instrumentID: []map[string]any{{
+			"id": "cash-constant:" + instrumentID + ":2026-01-02", "observation_time": "2026-01-02T00:00:00Z", "price": "1", "price_quote_currency": "USD", "usd_price": "1",
+			"source_known_at": nil, "system_known_at": "0001-01-01T00:00:00Z", "knowledge_time_basis": "constant_cash", "fx_path": []any{},
+		}}})
+	}
+	runCashEvidenceCase(t, pool, portfolioID, accountID, constant(cashUSD), archiveStore, true)
+	for name, provenance := range map[string]string{
+		"nonexistent constant instrument":  constant("00000000-0000-0000-0000-000000000001"),
+		"noncash constant instrument":      constant(stockUSD),
+		"nonUSD constant instrument":       constant(cashTRY),
+		"nonexistent dated FX instrument":  jsonMetricInputs("00000000-0000-0000-0000-000000000002", "2026-01-02", "0.033333333333333333", map[string]any{"00000000-0000-0000-0000-000000000002": []map[string]any{cashEntry}}),
+		"noncash dated FX instrument":      jsonMetricInputs(stockUSD, "2026-01-02", "0.033333333333333333", map[string]any{stockUSD: []map[string]any{cashEntry}}),
+		"native mismatch dated FX":         jsonMetricInputs(cashUSD, "2026-01-02", "0.033333333333333333", map[string]any{cashUSD: []map[string]any{cashEntry}}),
+		"ordinary price group FX fallback": jsonPriceMetricInputs(cashTRY, "2026-01-02", "0.033333333333333333", map[string]any{cashTRY: []map[string]any{cashEntry}}),
+	} {
+		t.Run(name, func(t *testing.T) {
+			runCashEvidenceCase(t, pool, portfolioID, accountID, provenance, archiveStore, false)
+		})
+	}
+}
+
+func jsonMetricInputs(instrumentID, day, value string, history map[string]any) string {
+	inputs := map[string]any{
+		"price_history":         map[string]any{instrumentID: map[string]string{day: value}},
+		"cash_revision_history": history,
+	}
+	if _, ok := history[instrumentID]; !ok {
+		inputs["cash_revision_history"] = map[string]any{}
+	}
+	if priceHistory, ok := inputs["price_history"].(map[string]any); ok && priceHistory[instrumentID] == nil {
+		delete(priceHistory, instrumentID)
+	}
+	data, err := json.Marshal(map[string]any{"metric_inputs": inputs})
+	if err != nil {
+		panic(err)
+	}
+	return string(data)
+}
+
+func jsonPriceMetricInputs(instrumentID, day, value string, history map[string]any) string {
+	data, err := json.Marshal(map[string]any{"metric_inputs": map[string]any{
+		"price_history":          map[string]any{instrumentID: map[string]string{day: value}},
+		"price_revision_history": history,
+	}})
+	if err != nil {
+		panic(err)
+	}
+	return string(data)
+}
+
+func runCashEvidenceCase(t *testing.T, pool *pgxpool.Pool, portfolioID, accountID, provenance string, archiveStore *evidenceArchive, wantSuccess bool) {
+	t.Helper()
+	ctx := context.Background()
+	_, refs := decisionEvidenceFixture(t, pool, portfolioID, accountID)
+	riskID := insertRepairRiskRun(t, pool, refs[0].Reference, accountID, refs[0].Reference, refs[1].Reference, provenance)
+	refs[2].Reference = riskID
+	service := applicationjournal.Service{Pool: pool, Archive: archiveStore}
+	decision, err := service.Create(ctx, repairDecision(accountID, refs))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.Finalize(ctx, decision.ID)
+	if wantSuccess {
+		if err != nil {
+			t.Fatalf("valid cash provenance rejected: %v", err)
+		}
+		return
+	}
+	if !errors.Is(err, applicationjournal.ErrConflict) {
+		t.Fatalf("invalid cash provenance finalized: %v", err)
+	}
+	current, getErr := service.Get(ctx, decision.ID)
+	if getErr != nil || current.Status != domain.StatusDraft {
+		t.Fatalf("invalid cash provenance changed draft: status=%q err=%v", current.Status, getErr)
+	}
+}
+
+func repairInstrument(t *testing.T, pool *pgxpool.Pool, instrumentType, nativeCurrency string) string {
+	t.Helper()
+	var id string
+	if err := pool.QueryRow(context.Background(), `INSERT INTO instruments (canonical_symbol,instrument_type,native_currency) VALUES ('ar705-'||gen_random_uuid()::text,$1,$2) RETURNING id::text`, instrumentType, nativeCurrency).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
 func repairPortfolio(t *testing.T, pool *pgxpool.Pool) (string, string) {
 	t.Helper()
 	ctx := context.Background()

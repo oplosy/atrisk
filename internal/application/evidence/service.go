@@ -258,6 +258,7 @@ func (s Service) addMetricDependencies(ctx context.Context, tx pgx.Tx, riskSnaps
 	}
 	coveredInstruments := make(map[string]bool)
 	expectedHistories := make(map[string]map[string]string)
+	instrumentKinds := make(map[string]metricInstrument)
 	for _, group := range []struct {
 		key       string
 		cashGroup bool
@@ -289,6 +290,15 @@ func (s Service) addMetricDependencies(ctx context.Context, tx pgx.Tx, riskSnaps
 			if _, ok := canonicalUUID(instrumentID); !ok {
 				return ErrIncomplete
 			}
+			if group.cashGroup {
+				instrument, err := loadMetricInstrument(ctx, tx, instrumentID, instrumentKinds)
+				if err != nil || (instrument.Kind != "cash" && instrument.Kind != "currency") {
+					return ErrIncomplete
+				}
+				if instrument.Native == "" {
+					return ErrIncomplete
+				}
+			}
 			if len(revisions) == 0 {
 				return ErrIncomplete
 			}
@@ -299,7 +309,8 @@ func (s Service) addMetricDependencies(ctx context.Context, tx pgx.Tx, riskSnaps
 			coveredInstruments[instrumentID] = true
 			for _, revision := range revisions {
 				if group.cashGroup && strings.HasPrefix(metricString(revision, "id"), "cash-constant:") {
-					if !validConstantCashRevision(instrumentID, revision) {
+					instrument := instrumentKinds[instrumentID]
+					if instrument.Native != "USD" || !validConstantCashRevision(instrumentID, revision) {
 						return ErrIncomplete
 					}
 					day, ok := metricObservationDay(revision)
@@ -309,9 +320,23 @@ func (s Service) addMetricDependencies(ctx context.Context, tx pgx.Tx, riskSnaps
 					expectedHistory[day] = metricString(revision, "usd_price")
 					continue
 				}
-				raw, err := s.verifyMetricPriceRevision(ctx, tx, instrumentID, revision)
+				var raw RawRef
+				var err error
+				if group.cashGroup {
+					instrument := instrumentKinds[instrumentID]
+					if strings.ToUpper(metricString(revision, "price_quote_currency")) != instrument.Native {
+						return ErrIncomplete
+					}
+					raw, err = s.verifyMetricCashPriceRevision(ctx, tx, instrumentID, revision, metricString(revision, "id"))
+				} else {
+					raw, err = s.verifyMetricPriceRevision(ctx, tx, instrumentID, revision)
+				}
 				if err != nil {
-					return fmt.Errorf("verify metric price dependency: %w", err)
+					dependencyKind := "price"
+					if group.cashGroup {
+						dependencyKind = "cash"
+					}
+					return fmt.Errorf("verify metric %s dependency: %w", dependencyKind, err)
 				}
 				if err := s.addRawDependency(ctx, raw, manifest, rawSeen); err != nil {
 					return fmt.Errorf("archive metric price dependency: %w", err)
@@ -381,6 +406,26 @@ func (s Service) addMetricDependencies(ctx context.Context, tx pgx.Tx, riskSnaps
 func emptyJSONObject(raw json.RawMessage) bool {
 	var value map[string]any
 	return json.Unmarshal(raw, &value) == nil && len(value) == 0
+}
+
+type metricInstrument struct {
+	Kind   string
+	Native string
+}
+
+func loadMetricInstrument(ctx context.Context, tx pgx.Tx, instrumentID string, cache map[string]metricInstrument) (metricInstrument, error) {
+	if instrument, ok := cache[instrumentID]; ok {
+		return instrument, nil
+	}
+	var instrument metricInstrument
+	err := tx.QueryRow(ctx, `SELECT instrument_type,btrim(native_currency) FROM instruments WHERE id=$1::uuid`, instrumentID).Scan(&instrument.Kind, &instrument.Native)
+	if err != nil {
+		return metricInstrument{}, fmt.Errorf("resolve metric instrument: %w", err)
+	}
+	instrument.Kind = strings.ToLower(strings.TrimSpace(instrument.Kind))
+	instrument.Native = strings.ToUpper(strings.TrimSpace(instrument.Native))
+	cache[instrumentID] = instrument
+	return instrument, nil
 }
 
 func metricObservationDay(entry map[string]any) (string, bool) {
@@ -529,7 +574,7 @@ func (s Service) verifyMetricPriceRevision(ctx context.Context, tx pgx.Tx, instr
 		&knowledgeBasis, &raw.ID, &raw.Key, &raw.SHA256,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return s.verifyMetricCashPriceRevision(ctx, tx, instrumentID, entry, revisionID)
+		return RawRef{}, ErrIncomplete
 	}
 	if err != nil {
 		return RawRef{}, fmt.Errorf("resolve metric price revision: %w", err)
