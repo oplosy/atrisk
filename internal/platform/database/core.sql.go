@@ -11,6 +11,61 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countRawObjectOccurrences = `-- name: CountRawObjectOccurrences :one
+SELECT count(*)::bigint
+FROM raw_object_occurrences
+WHERE raw_object_id = $1
+`
+
+func (q *Queries) CountRawObjectOccurrences(ctx context.Context, rawObjectID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countRawObjectOccurrences, rawObjectID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const getCollectorScheduleByName = `-- name: GetCollectorScheduleByName :one
+SELECT id, name, provider, source_id, dataset_id, series_id, instrument_id,
+       configuration, request_fingerprint, interval_seconds, lease_seconds, next_run_at,
+       retry_available_at,
+       active, lease_owner, lease_token, lease_expires_at, checkpoint,
+       attempt_count, max_attempts, last_run_id, last_error_code, created_at, updated_at
+FROM collector_schedules
+WHERE name = $1
+`
+
+func (q *Queries) GetCollectorScheduleByName(ctx context.Context, name string) (CollectorSchedule, error) {
+	row := q.db.QueryRow(ctx, getCollectorScheduleByName, name)
+	var i CollectorSchedule
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Provider,
+		&i.SourceID,
+		&i.DatasetID,
+		&i.SeriesID,
+		&i.InstrumentID,
+		&i.Configuration,
+		&i.RequestFingerprint,
+		&i.IntervalSeconds,
+		&i.LeaseSeconds,
+		&i.NextRunAt,
+		&i.RetryAvailableAt,
+		&i.Active,
+		&i.LeaseOwner,
+		&i.LeaseToken,
+		&i.LeaseExpiresAt,
+		&i.Checkpoint,
+		&i.AttemptCount,
+		&i.MaxAttempts,
+		&i.LastRunID,
+		&i.LastErrorCode,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getDataSourceByCode = `-- name: GetDataSourceByCode :one
 SELECT id, code, name, adapter_version, metadata, created_at FROM data_sources
 WHERE code = $1

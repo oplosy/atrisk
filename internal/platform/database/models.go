@@ -17,6 +17,33 @@ type Account struct {
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
+type CollectorSchedule struct {
+	ID                 pgtype.UUID        `json:"id"`
+	Name               string             `json:"name"`
+	Provider           string             `json:"provider"`
+	SourceID           pgtype.UUID        `json:"source_id"`
+	DatasetID          pgtype.UUID        `json:"dataset_id"`
+	SeriesID           pgtype.UUID        `json:"series_id"`
+	InstrumentID       pgtype.UUID        `json:"instrument_id"`
+	Configuration      []byte             `json:"configuration"`
+	RequestFingerprint string             `json:"request_fingerprint"`
+	IntervalSeconds    int32              `json:"interval_seconds"`
+	LeaseSeconds       int32              `json:"lease_seconds"`
+	NextRunAt          pgtype.Timestamptz `json:"next_run_at"`
+	RetryAvailableAt   pgtype.Timestamptz `json:"retry_available_at"`
+	Active             bool               `json:"active"`
+	LeaseOwner         *string            `json:"lease_owner"`
+	LeaseToken         pgtype.UUID        `json:"lease_token"`
+	LeaseExpiresAt     pgtype.Timestamptz `json:"lease_expires_at"`
+	Checkpoint         []byte             `json:"checkpoint"`
+	AttemptCount       int32              `json:"attempt_count"`
+	MaxAttempts        int32              `json:"max_attempts"`
+	LastRunID          pgtype.UUID        `json:"last_run_id"`
+	LastErrorCode      *string            `json:"last_error_code"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
 type DataSource struct {
 	ID             pgtype.UUID        `json:"id"`
 	Code           string             `json:"code"`
@@ -68,6 +95,13 @@ type DecisionAmendment struct {
 	SourceMetadata   []byte             `json:"source_metadata"`
 	TimelineSequence int64              `json:"timeline_sequence"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+}
+
+type DecisionEvidence struct {
+	DecisionID     pgtype.UUID        `json:"decision_id"`
+	ManifestBytes  []byte             `json:"manifest_bytes"`
+	ManifestSha256 string             `json:"manifest_sha256"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type DecisionReview struct {
@@ -263,6 +297,17 @@ type RawObject struct {
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }
 
+type RawObjectOccurrence struct {
+	ID              pgtype.UUID        `json:"id"`
+	RawObjectID     pgtype.UUID        `json:"raw_object_id"`
+	IngestionRunID  pgtype.UUID        `json:"ingestion_run_id"`
+	OccurrenceKey   string             `json:"occurrence_key"`
+	RetrievedAt     pgtype.Timestamptz `json:"retrieved_at"`
+	RequestUri      *string            `json:"request_uri"`
+	RequestMetadata []byte             `json:"request_metadata"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
 type ReconciliationCheckpoint struct {
 	ID                 pgtype.UUID        `json:"id"`
 	ValuationID        pgtype.UUID        `json:"valuation_id"`
@@ -322,6 +367,7 @@ type RiskJob struct {
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 	CompletedAt      pgtype.Timestamptz `json:"completed_at"`
+	InputHash        *string            `json:"input_hash"`
 }
 
 type RiskJobAttempt struct {
@@ -360,6 +406,19 @@ type ScenarioRun struct {
 	RequestHash     string             `json:"request_hash"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 	CompletedAt     pgtype.Timestamptz `json:"completed_at"`
+	ValuationID     pgtype.UUID        `json:"valuation_id"`
+	InputProvenance []byte             `json:"input_provenance"`
+}
+
+type ScenarioRunFactorAttribution struct {
+	RunID               pgtype.UUID        `json:"run_id"`
+	Factor              string             `json:"factor"`
+	Contribution        pgtype.Numeric     `json:"contribution"`
+	Method              string             `json:"method"`
+	MethodVersion       string             `json:"method_version"`
+	InteractionResidual pgtype.Numeric     `json:"interaction_residual"`
+	Tolerance           pgtype.Numeric     `json:"tolerance"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 }
 
 type ScenarioRunMetric struct {
@@ -389,6 +448,17 @@ type ScenarioRunPosition struct {
 	FxMultiplierTry pgtype.Numeric     `json:"fx_multiplier_try"`
 	FxMultiplierUsd pgtype.Numeric     `json:"fx_multiplier_usd"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+type ScenarioRunPositionAttribution struct {
+	RunID               pgtype.UUID        `json:"run_id"`
+	SnapshotLineID      pgtype.UUID        `json:"snapshot_line_id"`
+	InstrumentID        pgtype.UUID        `json:"instrument_id"`
+	State               string             `json:"state"`
+	TotalPnl            pgtype.Numeric     `json:"total_pnl"`
+	FactorContributions []byte             `json:"factor_contributions"`
+	Residual            pgtype.Numeric     `json:"residual"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 }
 
 type ScenarioVersion struct {

@@ -26,6 +26,8 @@ Core entities:
   freshness policy
 - `ingestion_run`: request window, adapter version, outcome, and coverage
 - `raw_object`: content hash, object key, media type, byte length, retrieval time
+- `raw_object_occurrence`: append-only retrieval, request, and ingestion-run
+  association for a raw object, including re-fetches of identical content
 - `observation_revision`: series, observation time, exact value/text, source
   knowledge time, system knowledge time, raw object, and quality flags
 
@@ -43,7 +45,10 @@ TCMB or manual inputs without a trustworthy publication timestamp,
 Raw objects use a SHA-256 content address and immutable object key. Metadata binds
 the object to request URL template, non-secret parameters, response headers,
 adapter version, and ingestion run. Secrets and API keys are removed before
-persistence. Normalized records retain the raw-object identifier.
+persistence. Normalized records retain the raw-object identifier. A later run
+with identical bytes reuses the raw object and appends a separate occurrence so
+the first persisted system-known clock and all retrieval provenance remain
+queryable.
 
 ## Instrument and portfolio model
 
