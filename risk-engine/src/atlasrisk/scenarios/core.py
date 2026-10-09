@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import re
 from copy import deepcopy
-from decimal import Decimal, InvalidOperation, localcontext
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation, localcontext
 from typing import Any
 
-SCENARIO_ENGINE_VERSION = "1.0.0"
+SCENARIO_ENGINE_VERSION = "1.1.0"
 
 _TEMPLATES: dict[str, dict[str, Any]] = {
     "try_depreciation": {
@@ -26,7 +27,7 @@ _TEMPLATES: dict[str, dict[str, Any]] = {
         "shocks": {
             "fx_pair_changes": {},
             "asset_class_returns": {},
-            "yield_shifts_bps": {"TRY": 500, "USD": 200},
+            "yield_shifts_bps": {"TRY": "500", "USD": "200"},
             "volatility_multipliers": {},
             "correlation_target": None,
             "correlation_blend": None,
@@ -58,6 +59,95 @@ _TEMPLATES: dict[str, dict[str, Any]] = {
 
 class ScenarioValidationError(ValueError):
     """Scenario input is malformed and cannot be revalued deterministically."""
+
+
+_DECIMAL_SHOCK = re.compile(r"^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$")
+_STORAGE_QUANTUM = Decimal("0.000000000000000001")
+
+
+def _shock_decimal(value: Any, field: str) -> Decimal:
+    if not isinstance(value, str) or not _DECIMAL_SHOCK.fullmatch(value):
+        raise ScenarioValidationError(f"{field} must be a bounded decimal string")
+    unsigned = value[1:] if value.startswith("-") else value
+    integer, _, fraction = unsigned.partition(".")
+    if len(integer) > 20 or len(fraction) > 18:
+        raise ScenarioValidationError(f"{field} exceeds NUMERIC(38,18) bounds")
+    result = Decimal(value)
+    if not result.is_finite():
+        raise ScenarioValidationError(f"{field} must be finite")
+    return result
+
+
+def _storage_safe(value: Decimal) -> bool:
+    """Keep values written to NUMERIC(38,18) below its 20-digit integer bound."""
+    return value.is_finite() and (value == 0 or value.adjusted() < 20)
+
+
+def _quantize_storage(value: Decimal, field: str) -> Decimal:
+    try:
+        quantized = value.quantize(_STORAGE_QUANTUM, rounding=ROUND_HALF_UP)
+    except InvalidOperation as error:
+        raise ScenarioValidationError(f"{field} cannot be stored as NUMERIC(38,18)") from error
+    if not _storage_safe(quantized):
+        raise ScenarioValidationError(f"{field} cannot be stored as NUMERIC(38,18)")
+    return quantized
+
+
+def _storage_text(value: Decimal) -> str:
+    text = format(value, "f").rstrip("0").rstrip(".")
+    return text or "0"
+
+
+def quantize_storage(value: Decimal, field: str = "value") -> Decimal:
+    """Round a persisted decimal exactly as PostgreSQL NUMERIC does."""
+
+    return _quantize_storage(value, field)
+
+
+def storage_text(value: Decimal, field: str = "value") -> str:
+    """Return a quantized decimal in canonical non-exponent form."""
+
+    return _storage_text(_quantize_storage(value, field))
+
+
+def _validate_shocks(shocks: dict[str, Any]) -> None:
+    for field, value in shocks.items():
+        map_field = field in {
+            "fx_pair_changes",
+            "asset_class_returns",
+            "yield_shifts_bps",
+            "volatility_multipliers",
+        }
+        scalar_field = field in {
+            "correlation_target", "correlation_blend", "crypto_return", "rate_bps"
+        }
+        if not map_field and not scalar_field:
+            raise ScenarioValidationError(f"unsupported shock field: {field}")
+        if value is None:
+            if field in {"correlation_target", "correlation_blend"}:
+                continue
+            raise ScenarioValidationError(f"{field} must be a decimal string or object")
+        if isinstance(value, dict):
+            if not map_field:
+                raise ScenarioValidationError(f"{field} must be a decimal string")
+            for key, item in value.items():
+                if not isinstance(key, str) or not key.strip():
+                    raise ScenarioValidationError(f"{field} keys must be non-empty strings")
+                parsed = _shock_decimal(item, f"{field}.{key}")
+                if field == "fx_pair_changes" and parsed <= -1:
+                    raise ScenarioValidationError(f"{field}.{key} must be greater than minus one")
+                if field == "asset_class_returns" and parsed < -1:
+                    raise ScenarioValidationError(f"{field}.{key} cannot be less than minus one")
+                if field == "volatility_multipliers" and parsed < 0:
+                    raise ScenarioValidationError(f"{field}.{key} cannot be negative")
+            continue
+        if map_field:
+            raise ScenarioValidationError(f"{field} must be an object")
+        parsed = _shock_decimal(value, field)
+        if field == "correlation_target" and not Decimal(-1) <= parsed <= Decimal(1):
+            raise ScenarioValidationError("correlation_target must be between minus one and one")
+        if field == "correlation_blend" and not Decimal(0) <= parsed <= Decimal(1):
+            raise ScenarioValidationError("correlation_blend must be between zero and one")
 
 
 def _decimal(value: Any, field: str) -> Decimal:
@@ -102,7 +192,7 @@ def _fx_multiplier(path: list[dict[str, str]], pair_changes: dict[str, Any]) -> 
         if not isinstance(edge, dict):
             raise ScenarioValidationError("FX path edges must be objects")
         pair = edge.get("pair", "")
-        change = _decimal(pair_changes.get(pair, "0"), f"fx_pair_changes.{pair}")
+        change = _shock_decimal(pair_changes.get(pair, "0"), f"fx_pair_changes.{pair}")
         rate_multiplier = Decimal(1) + change
         direction = edge.get("direction")
         if rate_multiplier <= 0:
@@ -138,9 +228,9 @@ def _position_result(
         return {}, "UNMAPPED_FACTOR"
 
     try:
-        pre_try = _decimal(position.get("value_try"), "value_try")
-        pre_usd = _decimal(position.get("value_usd"), "value_usd")
-        price_return = _decimal(price_shock or "0", "asset_class_return")
+        pre_try = _quantize_storage(_decimal(position.get("value_try"), "value_try"), "value_try")
+        pre_usd = _quantize_storage(_decimal(position.get("value_usd"), "value_usd"), "value_usd")
+        price_return = _shock_decimal(price_shock or "0", "asset_class_return")
         price_multiplier = Decimal(1) + price_return
         if price_multiplier < 0:
             raise ScenarioValidationError("asset class shock cannot produce negative value")
@@ -163,7 +253,7 @@ def _position_result(
                     ),
                     "convexity_years_squared",
                 )
-                delta_yield = _decimal(yield_bps, "yield_shifts_bps") / Decimal(10_000)
+                delta_yield = _shock_decimal(yield_bps, "yield_shifts_bps") / Decimal(10_000)
                 yield_return = (
                     -duration_value * delta_yield + Decimal("0.5") * convexity * delta_yield**2
                 )
@@ -196,7 +286,19 @@ def _position_result(
         post_usd = pre_usd * price_multiplier * usd_fx
         pnl_try = post_try - pre_try
         pnl_usd = post_usd - pre_usd
-    except (KeyError, TypeError, ScenarioValidationError):
+        post_try = _quantize_storage(post_try, "post_value_try")
+        post_usd = _quantize_storage(post_usd, "post_value_usd")
+        pnl_try = post_try - pre_try
+        pnl_usd = post_usd - pre_usd
+        price_return = _quantize_storage(price_return, "price_return")
+        yield_return = _quantize_storage(yield_return, "yield_return")
+        try_fx = _quantize_storage(try_fx, "fx_multiplier_try")
+        usd_fx = _quantize_storage(usd_fx, "fx_multiplier_usd")
+    except ScenarioValidationError as error:
+        if "cannot be stored" in str(error):
+            return {}, "SCENARIO_OUTPUT_OUT_OF_BOUNDS"
+        return {}, "INVALID_SCENARIO_INPUT"
+    except (KeyError, TypeError):
         return {}, "INVALID_SCENARIO_INPUT"
 
     return {
@@ -204,27 +306,27 @@ def _position_result(
         "instrument_id": instrument_id,
         "state": "valid",
         "reason_codes": [],
-        "pre_value_try": str(pre_try),
-        "post_value_try": str(post_try),
-        "pnl_try": str(pnl_try),
-        "pre_value_usd": str(pre_usd),
-        "post_value_usd": str(post_usd),
-        "pnl_usd": str(pnl_usd),
-        "price_return": str(price_return),
-        "yield_return": str(yield_return),
-        "fx_multiplier_try": str(try_fx),
-        "fx_multiplier_usd": str(usd_fx),
+        "pre_value_try": _storage_text(pre_try),
+        "post_value_try": _storage_text(post_try),
+        "pnl_try": _storage_text(pnl_try),
+        "pre_value_usd": _storage_text(pre_usd),
+        "post_value_usd": _storage_text(post_usd),
+        "pnl_usd": _storage_text(pnl_usd),
+        "price_return": _storage_text(price_return),
+        "yield_return": _storage_text(yield_return),
+        "fx_multiplier_try": _storage_text(try_fx),
+        "fx_multiplier_usd": _storage_text(usd_fx),
     }, None
 
 
 def _post_metrics(pre_metrics: dict[str, Any], shocks: dict[str, Any]) -> dict[str, Any]:
     volatility_shocks = shocks.get("volatility_multipliers", {})
     correlation_target = shocks.get("correlation_target")
-    correlation_blend = _decimal(shocks.get("correlation_blend") or "0", "correlation_blend")
+    correlation_blend = _shock_decimal(shocks.get("correlation_blend") or "0", "correlation_blend")
     if not Decimal(0) <= correlation_blend <= Decimal(1):
         raise ScenarioValidationError("correlation_blend must be between zero and one")
     if correlation_target is not None:
-        target = _decimal(correlation_target, "correlation_target")
+        target = _shock_decimal(correlation_target, "correlation_target")
         if not Decimal(-1) <= target <= Decimal(1):
             raise ScenarioValidationError("correlation_target must be between minus one and one")
     else:
@@ -232,13 +334,10 @@ def _post_metrics(pre_metrics: dict[str, Any], shocks: dict[str, Any]) -> dict[s
     for key, multiplier in volatility_shocks.items():
         if key != "*" and not key:
             raise ScenarioValidationError("volatility multiplier keys must not be empty")
-        if _decimal(multiplier, f"volatility_multiplier.{key}") < 0:
+        if _shock_decimal(multiplier, f"volatility_multiplier.{key}") < 0:
             raise ScenarioValidationError("volatility multipliers must be non-negative")
     if volatility_shocks and not pre_metrics.get("volatility"):
         raise ScenarioValidationError("pre-shock volatility metrics are required")
-    if correlation_target is not None and not pre_metrics.get("correlations"):
-        raise ScenarioValidationError("pre-shock correlation metrics are required")
-
     data_quality = pre_metrics.get("data_quality", "valid")
     if data_quality not in {"valid", "degraded", "blocked"}:
         raise ScenarioValidationError("invalid pre-shock risk metric data quality")
@@ -251,12 +350,21 @@ def _post_metrics(pre_metrics: dict[str, Any], shocks: dict[str, Any]) -> dict[s
         if isinstance(value, dict):
             if value.get("state") == "blocked":
                 raise ScenarioValidationError(f"pre-shock {field} metric is blocked")
-            if value.get("state") == "degraded":
+            undefined_correlation = (
+                field.startswith("correlations")
+                and value.get("state") == "degraded"
+                and value.get("reason") == "ZERO_VARIANCE"
+                and value.get("coefficient") is None
+            )
+            if value.get("state") == "degraded" and not undefined_correlation:
                 degraded = True
             elif value.get("state", "valid") != "valid":
-                raise ScenarioValidationError(f"invalid pre-shock {field} metric state")
+                if not undefined_correlation:
+                    raise ScenarioValidationError(f"invalid pre-shock {field} metric state")
             value = value.get("annualized" if field.startswith("volatility") else "coefficient")
             if value is None:
+                if undefined_correlation:
+                    return None
                 raise ScenarioValidationError(f"pre-shock {field} metric is unavailable")
         if isinstance(value, float):
             value = str(value)
@@ -280,9 +388,9 @@ def _post_metrics(pre_metrics: dict[str, Any], shocks: dict[str, Any]) -> dict[s
     post_correlations = {}
     for key, value in pre_metrics.get("correlations", {}).items():
         coefficient = metric_value(value, f"correlations.{key}")
-        if target is not None:
+        if target is not None and coefficient is not None:
             coefficient += (target - coefficient) * correlation_blend
-        post_correlations[key] = str(coefficient)
+        post_correlations[key] = None if coefficient is None else str(coefficient)
     return {
         "volatility": post_volatility,
         "correlations": post_correlations,
@@ -333,6 +441,7 @@ def evaluate_scenario(payload: dict[str, Any]) -> dict[str, Any]:
     shocks = version.get("shocks")
     if not isinstance(shocks, dict) or not isinstance(version.get("assumptions"), dict):
         raise ScenarioValidationError("versioned shocks and assumptions are required")
+    _validate_shocks(shocks)
     for field in (
         "fx_pair_changes",
         "asset_class_returns",
@@ -411,8 +520,16 @@ def evaluate_scenario(payload: dict[str, Any]) -> dict[str, Any]:
         ),
         "unmapped_instruments": sorted(unmapped, key=lambda item: item["instrument_id"]),
         "positions": results,
-        "portfolio_pnl_try": str(pnl_try) if state != "blocked" else None,
-        "portfolio_pnl_usd": str(pnl_usd) if state != "blocked" else None,
+        "portfolio_pnl_try": (
+            _storage_text(_quantize_storage(pnl_try, "portfolio_pnl_try"))
+            if state != "blocked"
+            else None
+        ),
+        "portfolio_pnl_usd": (
+            _storage_text(_quantize_storage(pnl_usd, "portfolio_pnl_usd"))
+            if state != "blocked"
+            else None
+        ),
         "pnl_tolerance": version.get("assumptions", {}).get("pnl_tolerance", "0.00000001"),
         "pre_metrics": pre_metrics,
         "post_metrics": metrics,

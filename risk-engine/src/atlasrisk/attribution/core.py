@@ -15,7 +15,7 @@ from itertools import combinations
 from math import factorial
 from typing import Any
 
-from atlasrisk.scenarios import evaluate_scenario
+from atlasrisk.scenarios import evaluate_scenario, quantize_storage, storage_text
 
 ATTRIBUTION_METHOD = "shapley"
 ATTRIBUTION_VERSION = "1.0.0"
@@ -170,8 +170,8 @@ def _result_value(result: Mapping[str, Any], currency: str) -> Decimal:
     return total
 
 
-def _serialise_decimal(value: Decimal | None) -> str | None:
-    return None if value is None else str(value)
+def _serialise_decimal(value: Decimal | None, field: str = "attribution value") -> str | None:
+    return None if value is None else storage_text(value, field)
 
 
 def attribute_scenario(
@@ -190,7 +190,7 @@ def attribute_scenario(
         raise AttributionValidationError("scenario payload must contain scenario_version")
     if not isinstance(payload.get("positions"), list):
         raise AttributionValidationError("scenario payload must contain positions")
-    tolerance_value = _decimal(tolerance, "tolerance")
+    tolerance_value = quantize_storage(_decimal(tolerance, "tolerance"), "tolerance")
     if tolerance_value < 0:
         raise AttributionValidationError("tolerance must be non-negative")
     specs = _factor_specs(payload["scenario_version"])
@@ -214,7 +214,14 @@ def attribute_scenario(
         max_factors=max_factors,
     )
     baseline = _result_value(evaluate_subset(frozenset()), currency)
-    mapped_total = baseline + sum(factor_values.values(), Decimal(0))
+    baseline = quantize_storage(baseline, "baseline_pnl")
+    factor_values = {
+        name: quantize_storage(value, f"factor_contributions[{name}]")
+        for name, value in factor_values.items()
+    }
+    mapped_total = quantize_storage(
+        baseline + sum(factor_values.values(), Decimal(0)), "mapped_total"
+    )
 
     def position_value(index: int, subset: frozenset[str]) -> Decimal:
         result = evaluate_subset(subset)
@@ -249,7 +256,27 @@ def attribute_scenario(
             if isinstance(original_position, Mapping) and original_position.get("state") == "valid"
             else None
         )
-        allocated = position_value(index, frozenset()) + sum(contributions.values(), Decimal(0))
+        position_baseline = quantize_storage(
+            position_value(index, frozenset()), f"position[{index}].baseline_pnl"
+        )
+        contributions = {
+            name: quantize_storage(value, f"position[{index}].factor[{name}]")
+            for name, value in contributions.items()
+        }
+        total = (
+            quantize_storage(total, f"position[{index}].total_pnl")
+            if total is not None
+            else None
+        )
+        allocated = quantize_storage(
+            position_baseline + sum(contributions.values(), Decimal(0)),
+            f"position[{index}].allocated_pnl",
+        )
+        position_residual = (
+            quantize_storage(total - allocated, f"position[{index}].residual")
+            if total is not None
+            else None
+        )
         position_rows.append(
             {
                 "snapshot_line_id": original.get("snapshot_line_id"),
@@ -257,17 +284,33 @@ def attribute_scenario(
                 "state": original_position.get("state", "blocked")
                 if isinstance(original_position, Mapping)
                 else "blocked",
-                "total_pnl": _serialise_decimal(total),
+                "total_pnl": _serialise_decimal(total, f"position[{index}].total_pnl"),
                 "factor_contributions": [
-                    {"factor": name, "contribution": str(contributions[name])} for name in names
+                    {
+                        "factor": name,
+                        "contribution": _serialise_decimal(
+                            contributions[name], f"position[{index}].factor[{name}]"
+                        ),
+                    }
+                    for name in names
                 ],
-                "residual": _serialise_decimal(total - allocated) if total is not None else None,
+                "residual": _serialise_decimal(
+                    position_residual, f"position[{index}].residual"
+                ),
             }
         )
 
     raw_total = reference.get("portfolio_pnl_try" if currency == "try" else "portfolio_pnl_usd")
-    total = _decimal(raw_total, "portfolio pnl") if raw_total is not None else None
-    residual = total - mapped_total if total is not None else None
+    total = (
+        quantize_storage(_decimal(raw_total, "portfolio pnl"), "total_pnl")
+        if raw_total is not None
+        else None
+    )
+    residual = (
+        quantize_storage(total - mapped_total, "interaction_residual")
+        if total is not None
+        else None
+    )
     unmapped = list(reference.get("unmapped_instruments", []))
     for index, position in enumerate(reference.get("positions", [])):
         if isinstance(position, Mapping) and position.get("state") != "valid":
@@ -287,18 +330,24 @@ def attribute_scenario(
         "method": ATTRIBUTION_METHOD,
         "method_version": ATTRIBUTION_VERSION,
         "currency": currency,
-        "tolerance": format(tolerance_value, "f"),
+        "tolerance": _serialise_decimal(tolerance_value, "tolerance"),
         "factor_count": len(names),
         "subset_count": 2 ** len(names),
         "permutation_count": factorial(len(names)),
         "maximum_supported_factors": max_factors,
         "state": reference.get("state", "blocked"),
-        "total_pnl": _serialise_decimal(total),
-        "baseline_pnl": str(baseline),
+        "total_pnl": _serialise_decimal(total, "total_pnl"),
+        "baseline_pnl": _serialise_decimal(baseline, "baseline_pnl"),
         "factor_contributions": [
-            {"factor": name, "contribution": str(factor_values[name])} for name in names
+            {
+                "factor": name,
+                "contribution": _serialise_decimal(
+                    factor_values[name], f"factor_contributions[{name}]"
+                ),
+            }
+            for name in names
         ],
-        "interaction_residual": _serialise_decimal(residual),
+        "interaction_residual": _serialise_decimal(residual, "interaction_residual"),
         "position_contributions": position_rows,
         "unmapped_positions": sorted(unmapped, key=lambda item: str(item.get("instrument_id", ""))),
         "reconciles": residual is not None and abs(residual) <= tolerance_value,

@@ -9,6 +9,8 @@ from atlasrisk.scenarios import (
     ScenarioValidationError,
     create_template_version,
     evaluate_scenario,
+    quantize_storage,
+    storage_text,
 )
 
 
@@ -53,6 +55,61 @@ def test_templates_are_versioned_and_defensively_copied() -> None:
     assert second["shocks"]["asset_class_returns"]["crypto"] == "-0.40"
     with pytest.raises(ScenarioValidationError):
         create_template_version("custom", scenario_id="s-1")
+
+
+def test_shocks_require_bounded_decimal_strings() -> None:
+    payload = _payload("risk_off", [_position()])
+    payload["scenario_version"]["shocks"]["asset_class_returns"]["crypto"] = -0.4
+    with pytest.raises(ScenarioValidationError, match="decimal string"):
+        evaluate_scenario(payload)
+
+    payload = _payload("risk_off", [_position()])
+    payload["scenario_version"]["shocks"]["correlation_target"] = "1e-1"
+    with pytest.raises(ScenarioValidationError, match="decimal string"):
+        evaluate_scenario(payload)
+
+    payload = _payload("risk_off", [_position()])
+    payload["scenario_version"]["shocks"]["correlation_target"] = "123456789012345678901.0"
+    with pytest.raises(ScenarioValidationError, match="NUMERIC"):
+        evaluate_scenario(payload)
+
+    payload = _payload("risk_off", [_position()])
+    payload["scenario_version"]["shocks"]["unexpected"] = "0.1"
+    with pytest.raises(ScenarioValidationError, match="unsupported shock field"):
+        evaluate_scenario(payload)
+
+    payload = _payload("risk_off", [_position()])
+    payload["scenario_version"]["shocks"]["asset_class_returns"] = "-0.1"
+    with pytest.raises(ScenarioValidationError, match="must be an object"):
+        evaluate_scenario(payload)
+
+
+def test_position_outputs_are_quantized_to_database_scale() -> None:
+    position = _position()
+    position["value_try"] = "1.000000000000000001"
+    position["value_usd"] = "1.000000000000000001"
+    payload = _payload("risk_off", [position])
+    payload["scenario_version"]["shocks"]["asset_class_returns"] = {
+        "crypto": "0.123456789012345678"
+    }
+    payload["scenario_version"]["shocks"]["volatility_multipliers"] = {}
+    result = evaluate_scenario(payload)
+    line = result["positions"][0]
+    assert len(line["post_value_try"].split(".")[-1]) <= 18
+    assert Decimal(line["pnl_try"]) == Decimal(line["post_value_try"]) - Decimal(
+        line["pre_value_try"]
+    )
+    assert Decimal(result["portfolio_pnl_try"]) == Decimal(line["pnl_try"])
+
+
+def test_storage_quantization_matches_postgres_numeric_rounding() -> None:
+    assert storage_text(Decimal("1.0000000000000000005")) == "1.000000000000000001"
+    assert storage_text(Decimal("-1.0000000000000000005")) == "-1.000000000000000001"
+    assert storage_text(Decimal("0.1234567890123456789")) == "0.123456789012345679"
+    assert storage_text(Decimal("-0.1234567890123456789")) == "-0.123456789012345679"
+    assert quantize_storage(Decimal("1.000000000000000000")) == Decimal(
+        "1.000000000000000000"
+    )
 
 
 def test_try_depreciation_revalues_usd_asset_but_not_try_value() -> None:
@@ -130,6 +187,25 @@ def test_risk_off_consumes_canonical_ar302_metric_shapes() -> None:
     )
     assert Decimal(result["post_metrics"]["volatility"]["crypto"]) == Decimal("0.8")
     assert Decimal(result["post_metrics"]["correlations"]["crypto|equity"]) == Decimal("0.475")
+
+
+def test_undefined_cash_correlation_does_not_block_scenario() -> None:
+    payload = _payload("risk_off", [_position(asset_class="cash")])
+    payload["scenario_version"]["shocks"]["asset_class_returns"] = {"cash": "0"}
+    payload["pre_metrics"] = {
+        "data_quality": "valid",
+        "volatility": {"cash": {"annualized": 0, "state": "valid"}},
+        "correlations": {
+            "cash|spot": {
+                "coefficient": None,
+                "state": "degraded",
+                "reason": "ZERO_VARIANCE",
+            }
+        },
+    }
+    result = evaluate_scenario(payload)
+    assert result["state"] == "valid"
+    assert result["post_metrics"]["correlations"]["cash|spot"] is None
 
 
 def test_rate_shock_uses_basis_points_and_bond_duration_convexity() -> None:

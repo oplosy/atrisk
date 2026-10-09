@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from datetime import date, timedelta
 
+import atlasrisk.metrics.core as metrics_core
 from atlasrisk.metrics import calculate_metrics
 from atlasrisk.returns import compute_log_returns
 
@@ -176,4 +177,32 @@ def test_nonfinite_exposure_blocks_leverage_and_concentration() -> None:
 
     assert result["leverage"]["state"] == "blocked"
     assert result["concentration"]["state"] == "blocked"
+    assert result["data_quality"] == "blocked"
+
+
+def test_constant_cash_can_have_valid_zero_volatility() -> None:
+    prices = {date(2026, 1, 1) + timedelta(days=i): 1.0 for i in range(3)}
+    result = calculate_metrics(
+        {"cash": prices},
+        {day: 100.0 for day in prices},
+        {"cash": 100.0},
+        constant_instruments={"cash"},
+    )
+    assert result["volatility"]["cash"]["annualized"] == 0
+    assert result["volatility"]["cash"]["state"] == "valid"
+    assert result["data_quality"] == "valid"
+
+
+def test_correlation_capacity_is_explicit_and_bounded(monkeypatch) -> None:
+    prices = {
+        f"instrument-{index}": {date(2026, 1, 1): 1.0, date(2026, 1, 2): 1.0}
+        for index in range(257)
+    }
+    def fail_if_returns_called(*args, **kwargs):
+        raise AssertionError("capacity guard must run before return computation")
+
+    monkeypatch.setattr(metrics_core, "compute_log_returns", fail_if_returns_called)
+    result = calculate_metrics(prices, {date(2026, 1, 1): 1.0}, {key: 1.0 for key in prices})
+    assert result["correlations"] == {}
+    assert result["correlation_capacity"]["reason"] == "CORRELATION_WORKLOAD_LIMIT"
     assert result["data_quality"] == "blocked"

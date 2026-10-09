@@ -20,6 +20,8 @@ import (
 
 var ErrInvalidRequest = errors.New("invalid scenario request")
 
+const maxMetricInstruments = 256
+
 type Service struct{ Pool *pgxpool.Pool }
 
 type VersionInput struct {
@@ -51,7 +53,106 @@ func valid(input VersionInput) bool {
 	if input.TemplateKey != "try_depreciation" && input.TemplateKey != "rates_up" && input.TemplateKey != "risk_off" {
 		return false
 	}
-	return input.Units != nil && input.Shocks != nil && input.Mappings != nil && input.Assumptions != nil
+	return input.Units != nil && validateShocks(input.Shocks) && input.Mappings != nil && input.Assumptions != nil
+}
+
+// validateDecimalShock accepts the exact decimal-string subset that fits the
+// NUMERIC(38,18) persistence boundary: at most 20 integer and 18 fractional
+// digits, with no exponent or floating-point coercion.
+func validateDecimalShock(value string) (*big.Rat, bool) {
+	if value == "" {
+		return nil, false
+	}
+	unsigned := value
+	if unsigned[0] == '-' {
+		unsigned = unsigned[1:]
+	}
+	if unsigned == "" {
+		return nil, false
+	}
+	parts := strings.Split(unsigned, ".")
+	if len(parts) > 2 || len(parts[0]) == 0 || len(parts[0]) > 20 || (len(parts) == 2 && (len(parts[1]) == 0 || len(parts[1]) > 18)) {
+		return nil, false
+	}
+	if len(parts[0]) > 1 && parts[0][0] == '0' {
+		return nil, false
+	}
+	for _, part := range parts {
+		for _, character := range part {
+			if character < '0' || character > '9' {
+				return nil, false
+			}
+		}
+	}
+	rat, ok := new(big.Rat).SetString(value)
+	return rat, ok
+}
+
+func validateShocks(values map[string]any) bool {
+	for field, value := range values {
+		mapField := field == "fx_pair_changes" || field == "asset_class_returns" || field == "yield_shifts_bps" || field == "volatility_multipliers"
+		scalarField := field == "correlation_target" || field == "correlation_blend" || field == "crypto_return" || field == "rate_bps"
+		if !mapField && !scalarField {
+			return false
+		}
+		if value == nil {
+			if field == "correlation_target" || field == "correlation_blend" {
+				continue
+			}
+			return false
+		}
+		if nested, ok := value.(map[string]any); ok {
+			if !mapField {
+				return false
+			}
+			for _, item := range nested {
+				decimal, valid := item.(string)
+				parsed, parsedOK := validateDecimalShock(decimal)
+				if !valid || !parsedOK {
+					return false
+				}
+				switch field {
+				case "fx_pair_changes":
+					if parsed.Cmp(big.NewRat(-1, 1)) <= 0 {
+						return false
+					}
+				case "asset_class_returns":
+					if parsed.Cmp(big.NewRat(-1, 1)) < 0 {
+						return false
+					}
+				case "volatility_multipliers":
+					if parsed.Sign() < 0 {
+						return false
+					}
+				}
+			}
+			for key := range nested {
+				if strings.TrimSpace(key) == "" {
+					return false
+				}
+			}
+			continue
+		}
+		if mapField {
+			return false
+		}
+		decimal, ok := value.(string)
+		parsed, parsedOK := validateDecimalShock(decimal)
+		if !ok || !parsedOK {
+			return false
+		}
+		switch field {
+		case "correlation_target":
+			if parsed.Cmp(big.NewRat(-1, 1)) < 0 || parsed.Cmp(big.NewRat(1, 1)) > 0 {
+				return false
+			}
+		case "correlation_blend":
+			if parsed.Sign() < 0 || parsed.Cmp(big.NewRat(1, 1)) > 0 {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func canonicalUUID(value string) (string, error) {
@@ -200,11 +301,15 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 	provenanceLines := make([]map[string]any, 0)
 	metricPrices := make(map[string]map[string]string)
 	metricPriceProvenance := make(map[string][]map[string]any)
+	metricCashProvenance := make(map[string][]map[string]any)
 	metricFXHistories := make(map[string][]metricFXRevision)
 	metricQuantities := make(map[string]string)
 	metricExposures := make(map[string]string)
+	metricDates := make(map[string]struct{})
+	constantCash := make(map[string]struct{})
 	metricCalendar := "crypto_daily"
-	metricInputsAvailable := true
+	metricHistoryAllowed := len(valuationLines) <= maxMetricInstruments
+	metricInputsAvailable := metricHistoryAllowed
 	for _, line := range valuationLines {
 		lineID, instrumentID, instrumentType, nativeCurrency, state, priceMethod, quantity := line.lineID, line.instrumentID, line.instrumentType, line.nativeCurrency, line.state, line.priceMethod, line.quantity
 		duration, convexity, tryAmount, usdAmount, priceID, quoteUnit := line.duration, line.convexity, line.tryAmount, line.usdAmount, line.priceID, line.quoteUnit
@@ -260,7 +365,38 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 		if instrumentType != "crypto_spot" {
 			metricCalendar = "business_daily"
 		}
-		if priceMethod != "revision" || quoteUnit == nil {
+		if !metricHistoryAllowed {
+			// Preserve the sealed positions while refusing an unbounded history bundle.
+		} else if instrumentType == "cash" || instrumentType == "currency" {
+			metricQuantities[instrumentID] = quantity
+			if strings.TrimSpace(nativeCurrency) == "USD" {
+				constantCash[instrumentID] = struct{}{}
+			} else {
+				currency := strings.TrimSpace(nativeCurrency)
+				fxHistory, ok := metricFXHistories[currency]
+				if !ok {
+					var fxErr error
+					fxHistory, fxErr = loadMetricFXHistory(ctx, tx, currency, cutoff, knowledgeMode, knownAt)
+					if fxErr != nil {
+						return sealedValuation{}, fmt.Errorf("load cash FX history: %w", fxErr)
+					}
+					metricFXHistories[currency] = fxHistory
+				}
+				cashHistory, cashErr := buildCashMetricHistory(currency, fxHistory, fxMaxAge)
+				if cashErr != nil {
+					return sealedValuation{}, fmt.Errorf("build cash metric history: %w", cashErr)
+				}
+				if len(cashHistory) == 0 {
+					metricInputsAvailable = false
+				} else {
+					metricPrices[instrumentID] = aggregateMetricPriceHistory(cashHistory)
+					metricCashProvenance[instrumentID] = metricPriceRevisionMaps(cashHistory)
+					for day := range metricPrices[instrumentID] {
+						metricDates[day] = struct{}{}
+					}
+				}
+			}
+		} else if priceMethod != "revision" || quoteUnit == nil {
 			metricInputsAvailable = false
 		} else {
 			history, historyErr := loadMetricPriceHistory(ctx, tx, instrumentID, *quoteUnit, cutoff, knowledgeMode, knownAt)
@@ -300,6 +436,9 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 				metricPrices[instrumentID] = aggregateMetricPriceHistory(history)
 				metricPriceProvenance[instrumentID] = metricPriceRevisionMaps(history)
 				metricQuantities[instrumentID] = quantity
+				for day := range metricPrices[instrumentID] {
+					metricDates[day] = struct{}{}
+				}
 			}
 		}
 		provenanceLines = append(provenanceLines, map[string]any{
@@ -312,12 +451,39 @@ func loadSealedValuation(ctx context.Context, tx pgx.Tx, accountID, snapshotID, 
 	if len(positions) == 0 || len(positions) != expectedLines {
 		return sealedValuation{}, ErrInvalidRequest
 	}
+	if metricHistoryAllowed && len(constantCash) > 0 {
+		if len(metricDates) == 0 {
+			metricDates = constantCashDates(cutoff, 64)
+		}
+		for instrumentID := range constantCash {
+			history := make([]metricPriceRevision, 0, len(metricDates))
+			for day := range metricDates {
+				observedAt, err := time.Parse("2006-01-02", day)
+				if err != nil {
+					return sealedValuation{}, fmt.Errorf("parse constant cash day: %w", err)
+				}
+				history = append(history, metricPriceRevision{
+					ID: "cash-constant:" + instrumentID + ":" + day, ObservationTime: observedAt.UTC(),
+					Price: "1", QuoteCurrency: "USD", USDPrice: "1", KnowledgeTimeBasis: "constant_cash",
+				})
+			}
+			metricPrices[instrumentID] = aggregateMetricPriceHistory(history)
+			metricCashProvenance[instrumentID] = metricPriceRevisionMaps(history)
+		}
+	}
 	metricInputs := map[string]any{}
-	if len(metricPrices) > 0 {
+	if !metricHistoryAllowed {
+		metricInputs = map[string]any{
+			"data_quality": "blocked", "reason": "METRIC_INSTRUMENT_WORKLOAD_LIMIT",
+			"instrument_count": len(valuationLines), "max_instruments": maxMetricInstruments,
+		}
+	} else if len(metricPrices) > 0 {
 		metricInputs = map[string]any{
 			"price_history":          metricPrices,
 			"price_revision_history": metricPriceProvenance,
+			"cash_revision_history":  metricCashProvenance,
 			"signed_exposures":       metricExposures, "calendar": metricCalendar,
+			"constant_instruments": sortedKeys(constantCash),
 		}
 		if metricInputsAvailable {
 			navHistory, navErr := buildMetricNAV(metricPrices, metricQuantities)
@@ -524,6 +690,64 @@ func metricFXRevisionMaps(revisions []metricFXRevision) []map[string]any {
 		})
 	}
 	return result
+}
+
+func buildCashMetricHistory(currency string, fxHistory []metricFXRevision, maxAgeSeconds int64) ([]metricPriceRevision, error) {
+	seen := make(map[string]struct{})
+	history := make([]metricPriceRevision, 0, len(fxHistory))
+	for _, revision := range fxHistory {
+		day := revision.ObservationTime.UTC().Format("2006-01-02")
+		if _, ok := seen[day]; ok {
+			continue
+		}
+		selected := selectMetricFXRevision(fxHistory, revision.ObservationTime, maxAgeSeconds)
+		if selected == nil {
+			continue
+		}
+		usdPrice, err := convertMetricPriceToUSD("1", selected.Rate, selected.Direction)
+		if err != nil {
+			return nil, err
+		}
+		seen[day] = struct{}{}
+		history = append(history, metricPriceRevision{
+			ID: selected.ID, ObservationTime: selected.ObservationTime, Price: "1",
+			QuoteCurrency: currency, USDPrice: usdPrice,
+			FXPath: []metricFXRevision{*selected}, SourceKnownAt: selected.SourceKnownAt,
+			SystemKnownAt: selected.SystemKnownAt, KnowledgeTimeBasis: selected.KnowledgeTimeBasis,
+		})
+	}
+	return history, nil
+}
+
+func constantCashDates(cutoff string, observations int) map[string]struct{} {
+	if observations < 1 {
+		return map[string]struct{}{}
+	}
+	parsed, err := time.Parse(time.RFC3339, cutoff)
+	if err != nil {
+		parsed, err = time.Parse("2006-01-02 15:04:05-07", cutoff)
+	}
+	if err != nil {
+		return map[string]struct{}{}
+	}
+	dates := make(map[string]struct{}, observations)
+	for offset := 0; len(dates) < observations; offset++ {
+		day := parsed.UTC().AddDate(0, 0, -offset)
+		if day.Weekday() >= time.Saturday {
+			continue
+		}
+		dates[day.Format("2006-01-02")] = struct{}{}
+	}
+	return dates
+}
+
+func sortedKeys(values map[string]struct{}) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func buildMetricNAV(priceHistory map[string]map[string]string, quantities map[string]string) (map[string]string, error) {

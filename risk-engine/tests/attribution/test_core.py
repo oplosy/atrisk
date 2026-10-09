@@ -11,6 +11,7 @@ from atlasrisk.attribution import (
     attribute_scenario,
     shapley_allocate,
 )
+from atlasrisk.attribution import core as attribution_core
 
 ROOT = Path(__file__).resolve().parents[3]
 SCENARIO_FIXTURE = ROOT / "test" / "fixtures" / "risk" / "scenario-revaluation-golden.json"
@@ -111,3 +112,49 @@ def test_unsupported_position_remains_visible() -> None:
     assert result["unmapped_positions"][-1]["instrument_id"] == "unsupported-option"
     assert result["position_contributions"][1]["state"] == "blocked"
     assert result["position_contributions"][1]["residual"] is None
+
+
+def test_attribution_persisted_decimals_are_quantized_before_hashing(monkeypatch) -> None:
+    payload = {
+        "scenario_version": {
+            "shocks": {
+                "asset_class_returns": {"equity": "0.1"},
+                "yield_shifts_bps": {},
+                "fx_pair_changes": {},
+                "volatility_multipliers": {},
+                "correlation_target": None,
+                "correlation_blend": None,
+            }
+        },
+        "positions": [{"snapshot_line_id": "line", "instrument_id": "instrument"}],
+    }
+
+    def fake_evaluate(candidate):
+        active = (
+            candidate["scenario_version"]["shocks"]["asset_class_returns"]["equity"] != "0"
+        )
+        value = "1.0000000000000000005" if active else "0"
+        return {
+            "state": "valid",
+            "portfolio_pnl_try": value,
+            "positions": [{"state": "valid", "pnl_try": value}],
+            "unmapped_instruments": [],
+        }
+
+    monkeypatch.setattr(attribution_core, "evaluate_scenario", fake_evaluate)
+    result = attribute_scenario(
+        payload,
+        tolerance="0.0000000000000000005",
+        scenario_result=fake_evaluate(payload),
+    )
+
+    assert result["tolerance"] == "0.000000000000000001"
+    assert result["total_pnl"] == "1.000000000000000001"
+    assert result["baseline_pnl"] == "0"
+    assert result["factor_contributions"][0]["contribution"] == "1.000000000000000001"
+    assert result["interaction_residual"] == "0"
+    position = result["position_contributions"][0]
+    assert position["total_pnl"] == "1.000000000000000001"
+    assert position["factor_contributions"][0]["contribution"] == "1.000000000000000001"
+    assert position["residual"] == "0"
+    assert result["reconciles"] is True

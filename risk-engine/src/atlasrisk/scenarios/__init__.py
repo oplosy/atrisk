@@ -5,6 +5,8 @@ from atlasrisk.scenarios.core import (
     ScenarioValidationError,
     create_template_version,
     evaluate_scenario,
+    quantize_storage,
+    storage_text,
 )
 
 __all__ = [
@@ -12,4 +14,6 @@ __all__ = [
     "ScenarioValidationError",
     "create_template_version",
     "evaluate_scenario",
+    "quantize_storage",
+    "storage_text",
 ]
