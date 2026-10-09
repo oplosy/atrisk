@@ -47,7 +47,22 @@ dropped, and `no-new-privileges`.
 | `ATLASRISK_WORKER_POLL_SECONDS` | — | optional (2) | Idle wait between empty claims |
 | `ATLASRISK_WORKER_LEASE_SECONDS` | — | optional (120) | Lease taken on each job |
 
-The API listens on `:8080`; pass `-listen <address:port>` to bind elsewhere.
+The API binary defaults to `127.0.0.1:8080`. A container deployment that needs
+Docker-published traffic must explicitly pass `-listen 0.0.0.0:8080`; remote
+exposure still requires an external TLS reverse proxy and OIDC-aware access
+proxy. Binding the container interface does not provide authentication or
+transport security. Pass `-listen <address:port>` to override either mode.
+
+For example, a local container run may publish the explicitly bound API with:
+
+```powershell
+docker run --rm -p 127.0.0.1:8080:8080 `
+  -e ATLASRISK_DATABASE_URL="postgres://..." `
+  ghcr.io/oplosy/atrisk-api:<tag> -listen 0.0.0.0:8080
+```
+
+Use a TLS/OIDC proxy and a private container network before publishing the API
+to a remote interface.
 
 ## Upgrading an installation
 

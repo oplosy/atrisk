@@ -40,7 +40,7 @@ func main() {
 		os.Exit(runMigrate(os.Args[2:], os.Getenv, os.Stdout, os.Stderr))
 	}
 	showVersion := flag.Bool("version", false, "print the API build information")
-	listen := flag.String("listen", ":8080", "HTTP listen address")
+	listen := flag.String("listen", "127.0.0.1:8080", "HTTP listen address")
 	flag.Parse()
 
 	if *showVersion {
@@ -119,10 +119,32 @@ func main() {
 	mux.Handle("/v1/decisions/", journalHandler)
 	mux.Handle("/", timeline.New(application.Service{Queries: queries}))
 	handler := mux
-	server := &http.Server{Addr: *listen, Handler: handler, ReadHeaderTimeout: 5 * time.Second}
+	server := newAPIServer(*listen, handler)
 	fmt.Fprintf(os.Stdout, "atlasrisk api listening on %s\n", *listen)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
+	}
+}
+
+const (
+	apiReadHeaderTimeout = 5 * time.Second
+	apiReadTimeout       = 30 * time.Second
+	apiWriteTimeout      = 30 * time.Second
+	apiIdleTimeout       = 60 * time.Second
+)
+
+func newAPIServer(addr string, handler http.Handler) *http.Server {
+	return newAPIServerWithTimeouts(addr, handler, apiReadHeaderTimeout, apiReadTimeout, apiWriteTimeout, apiIdleTimeout)
+}
+
+func newAPIServerWithTimeouts(addr string, handler http.Handler, readHeaderTimeout, readTimeout, writeTimeout, idleTimeout time.Duration) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
 	}
 }
 
