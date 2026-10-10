@@ -67,9 +67,11 @@ the risk worker exists only as a library (`JobWorker.run_claimed_once`).
       reconnects after a connection failure, and exits 0 on SIGTERM.
 - [x] Both images run as a non-root user and pin every base image by digest.
 - [x] CI builds both images and proves migrate and worker start against PostgreSQL.
-- [ ] A release tag publishes both images and a release with the web bundle,
+- [x] A release tag publishes both images and a release with the web bundle,
       a SHA-256 checksum, and the image digests; tags not on `main` fail.
-      (Implemented; first proven by the first release tag.)
+      (Proven by tag `v1.0.1`, Release run `37668160469`: images, bundle,
+      checksum and `images.txt` published. The rejection of tags not on `main`
+      was not exercised.)
 
 ## Required verification
 
