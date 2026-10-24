@@ -51,8 +51,8 @@ func decisionEvidenceFixture(t *testing.T, pool *pgxpool.Pool, portfolioID, acco
 		VALUES ('scenario','1',gen_random_uuid()::text,ARRAY[$1]::text[],'{}','succeeded','{"engine_version":"fixture-1"}',$2,clock_timestamp()) RETURNING id::text`, snapshotID, strings.Repeat("c", 64)).Scan(&jobID); err != nil {
 		t.Fatal(err)
 	}
-	if err := pool.QueryRow(ctx, `INSERT INTO scenario_runs (scenario_id,scenario_version,account_id,snapshot_id,job_id,state,result,result_hash,request_hash,completed_at)
-		VALUES ($1::uuid,1,$2::uuid,$3::uuid,$4::uuid,'valid','{"engine_version":"fixture-1"}',$5,$6,clock_timestamp()) RETURNING id::text`, scenarioID, accountID, snapshotID, jobID, strings.Repeat("d", 64), strings.Repeat("e", 64)).Scan(&riskID); err != nil {
+	if err := pool.QueryRow(ctx, `INSERT INTO scenario_runs (scenario_id,scenario_version,account_id,snapshot_id,valuation_id,job_id,state,result,result_hash,request_hash,completed_at)
+		VALUES ($1::uuid,1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,'valid','{"engine_version":"fixture-1"}',$6,$7,clock_timestamp()) RETURNING id::text`, scenarioID, accountID, snapshotID, valuationID, jobID, strings.Repeat("d", 64), strings.Repeat("e", 64)).Scan(&riskID); err != nil {
 		t.Fatal(err)
 	}
 	return scenarioID, []domain.EvidenceRef{{Kind: "portfolio_snapshot", Reference: snapshotID}, {Kind: "valuation_run", Reference: valuationID}, {Kind: "risk_run", Reference: riskID}}

@@ -63,3 +63,27 @@ func TestCanonicalUUIDPreservesSnapshotBinding(t *testing.T) {
 		t.Fatalf("uppercase and lowercase UUIDs produced different bindings: %q vs %q", canonical, lower)
 	}
 }
+
+func TestMetricUSDConversionRequiresMatchingFXPath(t *testing.T) {
+	base := func(currency, price, usd string) map[string]any {
+		return map[string]any{"price_quote_currency": currency, "price": price, "usd_price": usd}
+	}
+	if err := validateMetricUSDConversion(base("USD", "100", "100.000000000000000000"), nil); err != nil {
+		t.Fatalf("USD price without FX path rejected: %v", err)
+	}
+	if err := validateMetricUSDConversion(base("USD", "100", "100"), []map[string]any{{"pair": "USD/JPY", "direction": "direct", "rate": "150"}}); !errors.Is(err, ErrIncomplete) {
+		t.Fatalf("unrelated USD FX path accepted: %v", err)
+	}
+	if err := validateMetricUSDConversion(base("TRY", "100", "3.333333333333333333"), nil); !errors.Is(err, ErrIncomplete) {
+		t.Fatalf("missing TRY to USD FX path accepted: %v", err)
+	}
+	if err := validateMetricUSDConversion(base("TRY", "100", "3.333333333333333333"), []map[string]any{{"pair": "USD/JPY", "direction": "inverse", "rate": "30"}}); !errors.Is(err, ErrIncomplete) {
+		t.Fatalf("unrelated TRY FX path accepted: %v", err)
+	}
+	if err := validateMetricUSDConversion(base("TRY", "100", "3.333333333333333333"), []map[string]any{{"pair": "USD/TRY", "direction": "inverse", "rate": "30"}}); err != nil {
+		t.Fatalf("valid inverse TRY to USD path rejected: %v", err)
+	}
+	if err := validateMetricUSDConversion(base("TRY", "100", "3000.000000000000000000"), []map[string]any{{"pair": "TRY/USD", "direction": "direct", "rate": "30"}}); err != nil {
+		t.Fatalf("valid direct TRY to USD path rejected: %v", err)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -99,9 +100,15 @@ func TestPipelineArchivesBeforeNormalizationAndPreservesProvenance(t *testing.T)
 	archiveStore := &recordingArchiveStore{}
 	runStore := &recordingRunStore{}
 	pipeline := Pipeline{
-		Fetcher:  &HTTPFetcher{Client: server.Client(), AllowedHosts: map[string]struct{}{"127.0.0.1": {}}, MaxBodyBytes: 1024},
-		Archive:  archiveStore,
-		Runs:     runStore,
+		Fetcher: &HTTPFetcher{Client: server.Client(), AllowedHosts: map[string]struct{}{"127.0.0.1": {}}, MaxBodyBytes: 1024},
+		Archive: archiveStore,
+		Runs:    runStore,
+		Persist: func(_ context.Context, _ string, records []NormalizedRecord) error {
+			if len(records) != 1 {
+				t.Fatalf("persistence callback received %d records", len(records))
+			}
+			return nil
+		},
 		MaxBytes: 1024,
 	}
 	result, err := pipeline.Run(context.Background(), RunSpec{SourceID: "source-1", IdempotencyKey: "fixture-1", AdapterVersion: "test-1"}, FetchRequest{URL: server.URL + "?api_key=source-secret"}, fixtureNormalizer{})
@@ -135,5 +142,24 @@ func TestReplayFixtureUsesSavedBytesWithoutNetwork(t *testing.T) {
 	}
 	if !payload.RetrievedAt.After(time.Time{}) {
 		t.Fatal("fixture replay did not record a retrieval timestamp")
+	}
+}
+
+func TestPipelineDoesNotCompleteWhenPersistenceFails(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"value":42}`))
+	}))
+	defer server.Close()
+	runStore := &recordingRunStore{}
+	wantErr := errors.New("database unavailable")
+	pipeline := Pipeline{
+		Fetcher: &HTTPFetcher{Client: server.Client(), AllowedHosts: map[string]struct{}{"127.0.0.1": {}}, MaxBodyBytes: 1024},
+		Archive: &recordingArchiveStore{}, Runs: runStore,
+		Persist: func(context.Context, string, []NormalizedRecord) error { return wantErr }, MaxBytes: 1024,
+	}
+	_, err := pipeline.Run(context.Background(), RunSpec{SourceID: "source-1", IdempotencyKey: "persist-failure", AdapterVersion: "test-1"}, FetchRequest{URL: server.URL}, fixtureNormalizer{})
+	if !errors.Is(err, wantErr) || !runStore.failed || runStore.completed {
+		t.Fatalf("persistence failure was not fail-closed: err=%v store=%+v", err, runStore)
 	}
 }

@@ -218,7 +218,7 @@ func (q Queue) Complete(ctx context.Context, claim Claim, result any) (bool, err
 		return false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	ct, err := tx.Exec(ctx, `UPDATE risk_jobs SET state='succeeded',result=$1::jsonb,result_hash=$2,lease_owner=NULL,lease_expires_at=NULL,completed_at=clock_timestamp() WHERE id=$3::uuid AND state='running' AND lease_owner=$4 AND lease_expires_at > clock_timestamp()`, data, hash, claim.ID, claim.WorkerID)
+	ct, err := tx.Exec(ctx, `UPDATE risk_jobs SET state='succeeded',result=$1::jsonb,result_hash=$2,lease_owner=NULL,lease_expires_at=NULL,completed_at=clock_timestamp() WHERE id=$3::uuid AND state='running' AND lease_owner=$4 AND attempt_count=$5 AND lease_expires_at > clock_timestamp()`, data, hash, claim.ID, claim.WorkerID, claim.AttemptCount)
 	if err != nil {
 		return false, fmt.Errorf("complete job: %w", err)
 	}
@@ -230,6 +230,34 @@ func (q Queue) Complete(ctx context.Context, claim Claim, result any) (bool, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return false, err
+	}
+	return true, nil
+}
+
+// Renew extends an active lease without changing the immutable attempt
+// evidence. A false result means this worker no longer owns a live lease.
+func (q Queue) Renew(ctx context.Context, claim Claim, lease time.Duration) (bool, error) {
+	if q.Pool == nil || claim.WorkerID == "" || claim.ID == "" {
+		return false, errors.New("worker ID, job ID, and database pool are required")
+	}
+	if lease <= 0 {
+		return false, errors.New("lease must be positive")
+	}
+	tx, err := q.Pool.Begin(ctx)
+	if err != nil {
+		return false, fmt.Errorf("begin lease renewal transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	ct, err := tx.Exec(ctx, `UPDATE risk_jobs SET lease_expires_at=clock_timestamp()+$1::interval WHERE id=$2::uuid AND state='running' AND lease_owner=$3 AND attempt_count=$4 AND lease_expires_at > clock_timestamp()`, lease.String(), claim.ID, claim.WorkerID, claim.AttemptCount)
+	if err != nil {
+		return false, fmt.Errorf("renew job lease: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		_ = tx.Commit(ctx)
+		return false, nil
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, fmt.Errorf("commit lease renewal: %w", err)
 	}
 	return true, nil
 }
@@ -248,7 +276,7 @@ func (q Queue) Fail(ctx context.Context, claim Claim, failure Failure) (bool, er
 		return false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	ct, err := tx.Exec(ctx, `UPDATE risk_jobs SET state=$1,available_at=clock_timestamp()+$2::interval,error_code=$3,error_message=$4,error_details=$5::jsonb,lease_owner=NULL,lease_expires_at=NULL,completed_at=CASE WHEN $1 IN ('failed','cancelled') THEN clock_timestamp() ELSE NULL END WHERE id=$6::uuid AND state='running' AND lease_owner=$7 AND lease_expires_at > clock_timestamp()`, state, failure.Delay.String(), failure.Code, failure.Message, details, claim.ID, claim.WorkerID)
+	ct, err := tx.Exec(ctx, `UPDATE risk_jobs SET state=$1,available_at=clock_timestamp()+$2::interval,error_code=$3,error_message=$4,error_details=$5::jsonb,lease_owner=NULL,lease_expires_at=NULL,completed_at=CASE WHEN $1 IN ('failed','cancelled') THEN clock_timestamp() ELSE NULL END WHERE id=$6::uuid AND state='running' AND lease_owner=$7 AND attempt_count=$8 AND lease_expires_at > clock_timestamp()`, state, failure.Delay.String(), failure.Code, failure.Message, details, claim.ID, claim.WorkerID, claim.AttemptCount)
 	if err != nil {
 		return false, err
 	}
@@ -291,8 +319,66 @@ func (q Queue) Cancel(ctx context.Context, id, reason string) (bool, error) {
 }
 
 func (q Queue) RecoverExpired(ctx context.Context) (int64, error) {
-	ct, err := q.Pool.Exec(ctx, `WITH expired AS (UPDATE risk_jobs SET state=CASE WHEN attempt_count >= max_attempts THEN 'failed' ELSE 'retryable_failed' END,available_at=clock_timestamp(),lease_owner=NULL,lease_expires_at=NULL,completed_at=CASE WHEN attempt_count >= max_attempts THEN clock_timestamp() ELSE NULL END,error_code='LEASE_EXPIRED',error_message='worker lease expired' WHERE state='running' AND lease_expires_at < clock_timestamp() RETURNING id,attempt_count) UPDATE risk_job_attempts a SET finished_at=clock_timestamp(),outcome='expired',error_code='LEASE_EXPIRED',error_message='worker lease expired' FROM expired e WHERE a.job_id=e.id AND a.attempt=e.attempt_count`)
-	return ct.RowsAffected(), err
+	if q.Pool == nil {
+		return 0, errors.New("jobs queue requires a database pool")
+	}
+	tx, err := q.Pool.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("begin expired-job recovery transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	rows, err := tx.Query(ctx, `WITH expired AS (
+		UPDATE risk_jobs
+		SET state=CASE WHEN attempt_count >= max_attempts THEN 'failed' ELSE 'retryable_failed' END,
+			available_at=clock_timestamp(), lease_owner=NULL, lease_expires_at=NULL,
+			completed_at=CASE WHEN attempt_count >= max_attempts THEN clock_timestamp() ELSE NULL END,
+			error_code='LEASE_EXPIRED', error_message='worker lease expired'
+		WHERE state='running' AND lease_expires_at <= clock_timestamp()
+		RETURNING id, attempt_count, kind, state
+	)
+	SELECT id::text, attempt_count, kind, state FROM expired`)
+	if err != nil {
+		return 0, fmt.Errorf("recover expired jobs: %w", err)
+	}
+	type expiredJob struct {
+		id, kind, state string
+		attempt         int
+	}
+	expired := make([]expiredJob, 0)
+	for rows.Next() {
+		var job expiredJob
+		if err := rows.Scan(&job.id, &job.attempt, &job.kind, &job.state); err != nil {
+			rows.Close()
+			return 0, fmt.Errorf("scan expired job: %w", err)
+		}
+		expired = append(expired, job)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return 0, fmt.Errorf("read expired jobs: %w", err)
+	}
+	rows.Close()
+	for _, job := range expired {
+		if _, err := tx.Exec(ctx, `UPDATE risk_job_attempts SET finished_at=clock_timestamp(), outcome='expired', error_code='LEASE_EXPIRED', error_message='worker lease expired' WHERE job_id=$1::uuid AND attempt=$2 AND finished_at IS NULL`, job.id, job.attempt); err != nil {
+			return 0, fmt.Errorf("finish expired job attempt: %w", err)
+		}
+		if job.kind != "scenario.revalue" {
+			continue
+		}
+		if job.state == string(StateFailed) {
+			if _, err := tx.Exec(ctx, `UPDATE scenario_runs SET state='failed', completed_at=clock_timestamp() WHERE job_id=$1::uuid AND state IN ('queued','running')`, job.id); err != nil {
+				return 0, fmt.Errorf("close failed scenario run after lease expiry: %w", err)
+			}
+		} else if job.state == string(StateRetryableFailed) {
+			if _, err := tx.Exec(ctx, `UPDATE scenario_runs SET state='queued', completed_at=NULL WHERE job_id=$1::uuid AND state='running'`, job.id); err != nil {
+				return 0, fmt.Errorf("requeue scenario run after lease expiry: %w", err)
+			}
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("commit expired-job recovery: %w", err)
+	}
+	return int64(len(expired)), nil
 }
 
 func scanJob(row pgx.Row) (Job, error) {

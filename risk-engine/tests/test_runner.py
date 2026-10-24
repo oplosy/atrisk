@@ -47,6 +47,14 @@ class ScriptedWorker:
         return bool(outcome)
 
 
+class RecoveringQueue:
+    def __init__(self) -> None:
+        self.recoveries = 0
+
+    def recover_expired(self) -> None:
+        self.recoveries += 1
+
+
 def log_events(capsys: pytest.CaptureFixture[str]) -> list[dict]:
     return [json.loads(line) for line in capsys.readouterr().err.splitlines()]
 
@@ -72,6 +80,24 @@ def test_serve_drains_the_queue_before_waiting() -> None:
     assert connection.closed
 
 
+def test_serve_recovers_expired_jobs_before_claiming() -> None:
+    connection = FakeConnection()
+    queue = RecoveringQueue()
+    worker = ScriptedWorker(False)
+    stop = StopAfter(waits=1)
+
+    runner.serve(
+        lambda: connection,
+        worker,
+        "worker-1",
+        stop,
+        queue_factory=lambda _: queue,
+    )
+
+    assert queue.recoveries == 1
+    assert worker.calls[0][0] is queue
+
+
 def test_serve_retries_when_the_database_is_unavailable(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -85,7 +111,15 @@ def test_serve_retries_when_the_database_is_unavailable(
         return connection
 
     stop = StopAfter(waits=2)
-    runner.serve(connect, ScriptedWorker(False), "worker-1", stop, poll_seconds=2, retry_seconds=7)
+    runner.serve(
+        connect,
+        ScriptedWorker(False),
+        "worker-1",
+        stop,
+        poll_seconds=2,
+        retry_seconds=7,
+        queue_factory=lambda _: object(),
+    )
 
     assert len(attempts) == 2
     assert stop.waits == [7, 2]
@@ -108,7 +142,15 @@ def test_serve_reconnects_after_a_job_loop_failure(capsys: pytest.CaptureFixture
 
     worker = ScriptedWorker(RuntimeError("payload: portfolio line 7"), False)
     stop = StopAfter(waits=2)
-    runner.serve(connect, worker, "worker-1", stop, poll_seconds=2, retry_seconds=5)
+    runner.serve(
+        connect,
+        worker,
+        "worker-1",
+        stop,
+        poll_seconds=2,
+        retry_seconds=5,
+        queue_factory=lambda _: object(),
+    )
 
     assert len(connections) == 2
     assert all(connection.closed for connection in connections)

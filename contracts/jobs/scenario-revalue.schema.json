@@ -15,7 +15,21 @@
         "version": { "type": "integer", "minimum": 1 },
         "template_key": { "enum": ["try_depreciation", "rates_up", "risk_off"] },
         "units": { "type": "object" },
-        "shocks": { "type": "object" },
+        "shocks": {
+          "type": "object",
+          "description": "Shock leaves are exact bounded decimal strings.",
+          "additionalProperties": false,
+          "properties": {
+            "fx_pair_changes": { "type": "object", "additionalProperties": { "type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$", "maxLength": 40 } },
+            "asset_class_returns": { "type": "object", "additionalProperties": { "type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$", "maxLength": 40 } },
+            "yield_shifts_bps": { "type": "object", "additionalProperties": { "type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$", "maxLength": 40 } },
+            "volatility_multipliers": { "type": "object", "additionalProperties": { "type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$", "maxLength": 40 } },
+            "correlation_target": { "oneOf": [ { "type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$", "maxLength": 40 }, { "type": "null" } ] },
+            "correlation_blend": { "oneOf": [ { "type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$", "maxLength": 40 }, { "type": "null" } ] },
+            "crypto_return": { "type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$", "maxLength": 40 },
+            "rate_bps": { "type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$", "maxLength": 40 }
+          }
+        },
         "mappings": { "type": "object" },
         "assumptions": { "type": "object" }
       },
@@ -31,8 +45,10 @@
       "properties": {
         "price_history": { "type": "object" },
         "price_revision_history": { "type": "object" },
+        "cash_revision_history": { "type": "object" },
         "nav_history": { "type": "object" },
         "signed_exposures": { "type": "object" },
+        "constant_instruments": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
         "calendar": { "enum": ["business_daily", "crypto_daily"] }
       }
     },

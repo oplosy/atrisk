@@ -1,4 +1,5 @@
 import json
+import time
 from pathlib import Path
 
 import pytest
@@ -70,14 +71,20 @@ def test_worker_claims_and_completes_through_queue_adapter() -> None:
             self.completed: dict | None = None
 
         def claim(self, worker_id: str, lease_seconds: float) -> dict:
-            return {"id": "job-1", "envelope": fixture("golden-job.json")}
+            return {"id": "job-1", "attempt_count": 1, "envelope": fixture("golden-job.json")}
 
-        def complete(self, job_id: str, worker_id: str, result: dict) -> bool:
+        def complete(self, job_id: str, worker_id: str, attempt_count: int, result: dict) -> bool:
             self.completed = result
             return True
 
         def fail(
-            self, job_id: str, worker_id: str, code: str, message: str, retryable: bool
+            self,
+            job_id: str,
+            worker_id: str,
+            attempt_count: int,
+            code: str,
+            message: str,
+            retryable: bool,
         ) -> bool:
             raise AssertionError("unexpected failure")
 
@@ -97,13 +104,19 @@ def test_worker_forwards_permanent_failure_to_queue_adapter() -> None:
         def claim(self, worker_id: str, lease_seconds: float) -> dict:
             value = fixture("golden-job.json")
             value["kind"] = "risk.unknown"
-            return {"id": "job-failure", "envelope": value}
+            return {"id": "job-failure", "attempt_count": 1, "envelope": value}
 
-        def complete(self, job_id: str, worker_id: str, result: dict) -> bool:
+        def complete(self, job_id: str, worker_id: str, attempt_count: int, result: dict) -> bool:
             raise AssertionError("unexpected completion")
 
         def fail(
-            self, job_id: str, worker_id: str, code: str, message: str, retryable: bool
+            self,
+            job_id: str,
+            worker_id: str,
+            attempt_count: int,
+            code: str,
+            message: str,
+            retryable: bool,
         ) -> bool:
             self.failure = (code, message, retryable)
             return True
@@ -115,3 +128,49 @@ def test_worker_forwards_permanent_failure_to_queue_adapter() -> None:
     assert queue.failure is not None
     assert queue.failure[0] == "ATLAS_UNKNOWN_JOB_KIND"
     assert queue.failure[2] is False
+
+
+def test_worker_fences_attempt_identity_when_renewal_loses_lease() -> None:
+    class FakeQueue:
+        def __init__(self) -> None:
+            self.renew_calls: list[tuple[str, str, int, float]] = []
+            self.completed = False
+            self.failed = False
+
+        def claim(self, worker_id: str, lease_seconds: float) -> dict:
+            return {"id": "job-stale", "attempt_count": 2, "envelope": fixture("golden-job.json")}
+
+        def renew(
+            self, job_id: str, worker_id: str, attempt_count: int, lease_seconds: float
+        ) -> bool:
+            self.renew_calls.append((job_id, worker_id, attempt_count, lease_seconds))
+            return False
+
+        def complete(self, job_id: str, worker_id: str, attempt_count: int, result: dict) -> bool:
+            self.completed = True
+            return True
+
+        def fail(
+            self,
+            job_id: str,
+            worker_id: str,
+            attempt_count: int,
+            code: str,
+            message: str,
+            retryable: bool,
+        ) -> bool:
+            self.failed = True
+            return True
+
+    class SlowWorker(JobWorker):
+        def run_once(self, job_id: str, value: dict) -> tuple:
+            time.sleep(0.15)
+            return super().run_once(job_id, value)
+
+    queue = FakeQueue()
+    assert SlowWorker({"risk.run": lambda value: {"ok": True}}, "engine-test").run_claimed_once(
+        queue, "worker-1", lease_seconds=0.2
+    )
+    assert queue.renew_calls == [("job-stale", "worker-1", 2, 0.2)]
+    assert not queue.completed
+    assert not queue.failed

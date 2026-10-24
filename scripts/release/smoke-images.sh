@@ -4,7 +4,7 @@
 # starting and stopping cleanly. Containers run the way an installation runs
 # them: read-only root filesystem, no capabilities, no new privileges.
 #
-#   API_IMAGE=... WORKER_IMAGE=... ATLASRISK_DATABASE_URL=... \
+#   API_IMAGE=... WORKER_IMAGE=... COLLECTOR_IMAGE=... ATLASRISK_DATABASE_URL=... \
 #     bash scripts/release/smoke-images.sh
 #
 # The database must be disposable and reachable from the host network.
@@ -12,6 +12,7 @@ set -euo pipefail
 
 : "${API_IMAGE:?API_IMAGE is required}"
 : "${WORKER_IMAGE:?WORKER_IMAGE is required}"
+: "${COLLECTOR_IMAGE:?COLLECTOR_IMAGE is required}"
 : "${ATLASRISK_DATABASE_URL:?ATLASRISK_DATABASE_URL is required}"
 api_port=${SMOKE_API_PORT:-18080}
 api_name=atrisk-smoke-api
@@ -25,7 +26,7 @@ trap cleanup EXIT
 
 fail() { echo "smoke: $*" >&2; exit 1; }
 
-for image in "$API_IMAGE" "$WORKER_IMAGE"; do
+for image in "$API_IMAGE" "$WORKER_IMAGE" "$COLLECTOR_IMAGE"; do
   user=$(docker image inspect --format '{{.Config.User}}' "$image")
   case ${user%%:*} in
     "" | 0 | root) fail "$image runs as root (user '$user')" ;;
@@ -36,6 +37,8 @@ docker run --rm "$API_IMAGE" --version | grep -q '^atlasrisk api version ' \
   || fail "API image does not report its version"
 docker run --rm "$WORKER_IMAGE" --version | grep -q '^atlasrisk risk-engine version ' \
   || fail "worker image does not report its version"
+docker run --rm "$COLLECTOR_IMAGE" --version | grep -q '^atlasrisk collector version ' \
+  || fail "collector image does not report its version"
 
 echo "smoke: migrate"
 docker run --rm "${opts[@]}" "$API_IMAGE" migrate

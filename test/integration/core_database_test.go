@@ -25,7 +25,7 @@ import (
 
 const testDatabaseEnv = "ATLASRISK_TEST_DATABASE_URL"
 const requireTestDatabaseEnv = "ATLASRISK_REQUIRE_TEST_DATABASE"
-const latestCoreMigrationVersion int64 = 12
+const latestCoreMigrationVersion int64 = 13
 
 func isolatedTestDSN(t *testing.T) string {
 	t.Helper()

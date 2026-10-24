@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -90,5 +91,80 @@ FROM raw_objects WHERE id = $1::uuid`, id).Scan(&storedSHA, &storedKey, &storedM
 	conflict.RequestURI = "https://example.test/other?page=1"
 	if _, err := store.RegisterRawObject(ctx, conflict); !errors.Is(err, ErrRawObjectConflict) {
 		t.Fatalf("conflicting raw provenance was accepted: %v", err)
+	}
+}
+
+func TestRawArchiveIdenticalRefetchPreservesOccurrences(t *testing.T) {
+	dsn := os.Getenv("ATLASRISK_TEST_DATABASE_URL")
+	if err := database.ValidateIsolatedTestDatabaseURL(dsn); err != nil {
+		if os.Getenv("ATLASRISK_REQUIRE_TEST_DATABASE") == "1" {
+			t.Fatalf("isolated database validation failed: %v", err)
+		}
+		t.Skipf("isolated database unavailable: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	migrationsDir, err := filepath.Abs(filepath.Join("..", "..", "db", "migrations"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Migrate(ctx, dsn, migrationsDir); err != nil {
+		t.Fatal(err)
+	}
+	pool, err := database.OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	queries := database.New(pool)
+	code := "raw-occurrence-" + time.Now().UTC().Format("20060102150405.000000000")
+	if _, err := queries.InsertDataSource(ctx, database.InsertDataSourceParams{Code: code, Name: code, AdapterVersion: "test", Metadata: []byte(`{}`)}); err != nil {
+		t.Fatal(err)
+	}
+	source, err := queries.GetDataSourceByCode(ctx, code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := DatabaseStore{Pool: pool}
+	firstRun, duplicate, err := store.StartRun(ctx, RunSpec{SourceID: source.ID.String(), IdempotencyKey: code + "-1", AdapterVersion: "test"})
+	if err != nil || duplicate {
+		t.Fatalf("start first run: id=%q duplicate=%v err=%v", firstRun, duplicate, err)
+	}
+	secondRun, duplicate, err := store.StartRun(ctx, RunSpec{SourceID: source.ID.String(), IdempotencyKey: code + "-2", AdapterVersion: "test"})
+	if err != nil || duplicate {
+		t.Fatalf("start second run: id=%q duplicate=%v err=%v", secondRun, duplicate, err)
+	}
+	body := []byte(fmt.Sprintf(`{"same":"body","source":%q}`, code))
+	digest := archive.SHA256Hex(body)
+	firstTime := time.Date(2026, time.January, 2, 3, 4, 5, 123456000, time.UTC)
+	item := RawObjectRegistration{Reference: archive.Reference{Key: archive.ObjectKey(digest), ContentSHA256: digest, ByteLength: int64(len(body)), MediaType: "application/json"}, RetrievedAt: firstTime, RequestURI: "https://example.test/data?page=1", IngestionRunID: &firstRun, OccurrenceKey: "page-1"}
+	firstRaw, err := store.RegisterRawObject(ctx, item)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item.IngestionRunID, item.OccurrenceKey, item.RetrievedAt = &secondRun, "page-1", firstTime.Add(time.Hour)
+	secondRaw, err := store.RegisterRawObject(ctx, item)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstRaw != secondRaw {
+		t.Fatalf("identical content did not reuse raw object: %q != %q", firstRaw, secondRaw)
+	}
+	var objects, occurrences int
+	if err := pool.QueryRow(ctx, `SELECT count(*)::int FROM raw_objects WHERE content_sha256 = $1`, digest).Scan(&objects); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*)::int FROM raw_object_occurrences WHERE raw_object_id = $1::uuid`, firstRaw).Scan(&occurrences); err != nil {
+		t.Fatal(err)
+	}
+	if objects != 1 || occurrences != 2 {
+		t.Fatalf("content reuse lost occurrence history: objects=%d occurrences=%d", objects, occurrences)
+	}
+	var storedFirst time.Time
+	if err := pool.QueryRow(ctx, `SELECT retrieved_at FROM raw_objects WHERE id = $1::uuid`, firstRaw).Scan(&storedFirst); err != nil {
+		t.Fatal(err)
+	}
+	if !storedFirst.Equal(firstTime) {
+		t.Fatalf("first raw system clock changed: got=%s want=%s", storedFirst, firstTime)
 	}
 }

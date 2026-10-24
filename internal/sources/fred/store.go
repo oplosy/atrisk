@@ -80,14 +80,18 @@ func (s Store) PersistRecords(ctx context.Context, seriesID string, records []in
 		return 0, fmt.Errorf("begin FRED observation transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	var sourceCode string
+	if err := tx.QueryRow(ctx, `SELECT source_code FROM series WHERE id = $1::uuid`, seriesID).Scan(&sourceCode); err != nil {
+		return 0, fmt.Errorf("find FRED series %q: %w", seriesID, err)
+	}
 	var inserted int64
 	for index, normalized := range records {
 		decoded, decodeErr := DecodeObservationRecord(normalized)
 		if decodeErr != nil {
 			return 0, fmt.Errorf("decode FRED observation %d: %w", index, decodeErr)
 		}
-		if decoded.SeriesID != seriesID {
-			return 0, fmt.Errorf("FRED observation %d belongs to series %q, want %q", index, decoded.SeriesID, seriesID)
+		if decoded.SeriesID != sourceCode {
+			return 0, fmt.Errorf("FRED observation %d belongs to source series %q, want %q", index, decoded.SeriesID, sourceCode)
 		}
 		var rawObjectID string
 		if err := tx.QueryRow(ctx, `SELECT id::text FROM raw_objects WHERE content_sha256 = $1`, normalized.RawObjectSHA256).Scan(&rawObjectID); err != nil {

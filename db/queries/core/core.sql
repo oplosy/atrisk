@@ -68,6 +68,20 @@ INSERT INTO raw_objects (
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 ON CONFLICT (content_sha256) DO NOTHING;
 
+-- name: GetCollectorScheduleByName :one
+SELECT id, name, provider, source_id, dataset_id, series_id, instrument_id,
+       configuration, request_fingerprint, interval_seconds, lease_seconds, next_run_at,
+       retry_available_at,
+       active, lease_owner, lease_token, lease_expires_at, checkpoint,
+       attempt_count, max_attempts, last_run_id, last_error_code, created_at, updated_at
+FROM collector_schedules
+WHERE name = $1;
+
+-- name: CountRawObjectOccurrences :one
+SELECT count(*)::bigint
+FROM raw_object_occurrences
+WHERE raw_object_id = $1;
+
 -- name: GetObservationRevision :one
 SELECT * FROM observation_revisions
 WHERE id = $1;
