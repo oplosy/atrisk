@@ -119,7 +119,10 @@ def _validate_shocks(shocks: dict[str, Any]) -> None:
             "volatility_multipliers",
         }
         scalar_field = field in {
-            "correlation_target", "correlation_blend", "crypto_return", "rate_bps"
+            "correlation_target",
+            "correlation_blend",
+            "crypto_return",
+            "rate_bps",
         }
         if not map_field and not scalar_field:
             raise ScenarioValidationError(f"unsupported shock field: {field}")

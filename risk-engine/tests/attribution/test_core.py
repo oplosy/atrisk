@@ -130,9 +130,7 @@ def test_attribution_persisted_decimals_are_quantized_before_hashing(monkeypatch
     }
 
     def fake_evaluate(candidate):
-        active = (
-            candidate["scenario_version"]["shocks"]["asset_class_returns"]["equity"] != "0"
-        )
+        active = candidate["scenario_version"]["shocks"]["asset_class_returns"]["equity"] != "0"
         value = "1.0000000000000000005" if active else "0"
         return {
             "state": "valid",

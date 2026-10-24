@@ -264,9 +264,7 @@ def attribute_scenario(
             for name, value in contributions.items()
         }
         total = (
-            quantize_storage(total, f"position[{index}].total_pnl")
-            if total is not None
-            else None
+            quantize_storage(total, f"position[{index}].total_pnl") if total is not None else None
         )
         allocated = quantize_storage(
             position_baseline + sum(contributions.values(), Decimal(0)),
@@ -294,9 +292,7 @@ def attribute_scenario(
                     }
                     for name in names
                 ],
-                "residual": _serialise_decimal(
-                    position_residual, f"position[{index}].residual"
-                ),
+                "residual": _serialise_decimal(position_residual, f"position[{index}].residual"),
             }
         )
 
