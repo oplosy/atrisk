@@ -107,9 +107,7 @@ def test_storage_quantization_matches_postgres_numeric_rounding() -> None:
     assert storage_text(Decimal("-1.0000000000000000005")) == "-1.000000000000000001"
     assert storage_text(Decimal("0.1234567890123456789")) == "0.123456789012345679"
     assert storage_text(Decimal("-0.1234567890123456789")) == "-0.123456789012345679"
-    assert quantize_storage(Decimal("1.000000000000000000")) == Decimal(
-        "1.000000000000000000"
-    )
+    assert quantize_storage(Decimal("1.000000000000000000")) == Decimal("1.000000000000000000")
 
 
 def test_try_depreciation_revalues_usd_asset_but_not_try_value() -> None:

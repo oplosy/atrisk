@@ -198,6 +198,7 @@ def test_correlation_capacity_is_explicit_and_bounded(monkeypatch) -> None:
         f"instrument-{index}": {date(2026, 1, 1): 1.0, date(2026, 1, 2): 1.0}
         for index in range(257)
     }
+
     def fail_if_returns_called(*args, **kwargs):
         raise AssertionError("capacity guard must run before return computation")
 
