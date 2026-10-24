@@ -1,7 +1,7 @@
 ---
 id: AR-705
 title: Bind decisions to consistent complete risk evidence
-status: ready
+status: merged
 phase: 7
 depends_on: [AR-702]
 branch: task/AR-705-evidence-repair
