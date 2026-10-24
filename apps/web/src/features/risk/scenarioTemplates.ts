@@ -26,7 +26,7 @@ const templates: Record<ScenarioTemplate, ScenarioConfig> = {
     shocks: {
       fx_pair_changes: {},
       asset_class_returns: {},
-      yield_shifts_bps: { TRY: 500, USD: 200 },
+      yield_shifts_bps: { TRY: "500", USD: "200" },
       volatility_multipliers: {},
       correlation_target: null,
       correlation_blend: null,

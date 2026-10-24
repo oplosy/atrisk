@@ -284,6 +284,39 @@ it("submits a versioned run bound to account, snapshot, and valuation IDs", asyn
   );
 });
 
+it("submits the rates up preset with decimal-string yield shifts", async () => {
+  vi.mocked(submitRiskRun).mockResolvedValue(run);
+  vi.mocked(getRiskRun).mockResolvedValue(run);
+  render(<RiskRoute />);
+
+  fireEvent.change(screen.getByLabelText("Scenario template"), {
+    target: { value: "rates_up" },
+  });
+  fireEvent.change(screen.getByLabelText("Account ID"), {
+    target: { value: "account-1" },
+  });
+  fireEvent.change(screen.getByLabelText("Snapshot ID"), {
+    target: { value: "snapshot-1" },
+  });
+  fireEvent.change(screen.getByLabelText("Valuation ID"), {
+    target: { value: "valuation-1" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Run scenario" }));
+
+  expect(
+    await screen.findByRole("heading", { name: "Blocked" }),
+  ).toBeInTheDocument();
+  expect(submitRiskRun).toHaveBeenCalledWith(
+    expect.objectContaining({
+      template_key: "rates_up",
+      shocks: expect.objectContaining({
+        yield_shifts_bps: { TRY: "500", USD: "200" },
+      }),
+    }),
+    expect.any(String),
+  );
+});
+
 it("does not let a late create response replace a run selected meanwhile", async () => {
   let resolveSubmit: (value: RiskRun) => void = () => {};
   vi.mocked(submitRiskRun).mockReturnValue(
