@@ -213,6 +213,9 @@ jobs:
       - name: Run collector integration
         run: task test-go-integration TEST=CollectorRepair
 
+      - name: Run TCMB ingestion integration
+        run: task test-go-integration TEST=TCMBIngestion
+
       - name: Run database migration verification
         run: task migrate-test
 
