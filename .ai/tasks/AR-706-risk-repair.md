@@ -1,7 +1,7 @@
 ---
 id: AR-706
 title: Recover risk leases and support bounded cash metrics
-status: ready
+status: merged
 phase: 7
 depends_on: [AR-702]
 branch: task/AR-706-risk-repair

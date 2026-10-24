@@ -54,3 +54,10 @@
 ## Assumptions and risks
 
 - Final integration evidence depends on parent-owned hosted `task verify` and its isolated database lifecycle. No product or schema migration is required.
+
+## Post-merge follow-up (2026-10-24)
+
+- The repair landed on `main` by a local merge (`83caab1`) without a hosted gate. Hosted `task verify` first ran in PR #74 and passed after a format-only fix.
+- Review against the acceptance criteria found one gap: the shipped `rates_up` frontend preset still sent numeric `yield_shifts_bps` (`500`, `200`), which the new synchronous shock validation rejects, so the preset was unusable. `apps/web/src/features/risk/scenarioTemplates.ts` now sends decimal strings, and `RiskRoute.test.tsx` covers the submitted payload (fails before the fix, passes after).
+- Commands: `npx vitest --config apps/web/vite.config.ts --run src/routes/risk` (7 passed), `npm run format:check`, `npm run lint`, `npm run typecheck` (pass); `go test ./test/integration -run 'TestRiskJobLifecycleRepair|TestRiskEndToEndRepair|TestRiskJobLifecycle$|TestRiskEndToEnd$' -count=1` against fresh PostgreSQL 18.6/Garage (pass).
+
