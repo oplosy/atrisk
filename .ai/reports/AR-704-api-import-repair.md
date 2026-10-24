@@ -59,3 +59,9 @@
 - Orchestrator independent review found no blocking API/import/security defects. Two pre-existing parser preview MINOR issues remain outside this packet (row-count overflow and textual duplicate normalization).
 - Windows formatting required temporary CRLF checkout normalization; original web files were restored afterward. SQLC exposed pre-existing migration 11/12 model drift; unchanged base models were restored in this packet and AR-707 owns forward-migration regeneration.
 
+## Post-merge follow-up (2026-10-24)
+
+- The repair landed on `main` by a local merge (`ce9f2fa`) without a hosted gate. Hosted `task verify` first ran in PR #74 and passed after a format-only fix.
+- Review against the packet found one gap: "Container entrypoint must explicitly bind its intended backend interface" was handled only in documentation, so the released API image listened on container loopback and a published port could not reach it without extra arguments. `infra/images/api.Dockerfile` now sets `CMD ["-listen", "0.0.0.0:8080"]` (arguments such as `migrate` or `-listen` still replace it), and `docs/releases/PUBLISHING.md` states the bind-versus-TLS/OIDC distinction.
+- Commands: `docker build -f infra/images/api.Dockerfile --build-arg VERSION=ar704 -t atrisk-api:ar704 .` (pass); `docker run --rm atrisk-api:ar704 -version` (pass); default run published on `127.0.0.1:28080` logged `listening on 0.0.0.0:8080` and `GET /api/v1/instruments` returned 200; `go test ./test/integration -run 'TestAPIImportRepair|TestImportAPIRepair' -count=1` against PostgreSQL 18.6/Garage (pass).
+

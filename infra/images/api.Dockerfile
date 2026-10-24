@@ -1,6 +1,8 @@
 # syntax=docker/dockerfile:1
 # AtlasRisk API. `atlasrisk-api` serves HTTP; `atlasrisk-api migrate` applies
 # the bundled db/migrations to ATLASRISK_DATABASE_URL and exits.
+# The binary defaults to loopback; the image binds the container interface
+# explicitly so a published port reaches it. This is not authentication or TLS.
 # Build from the repository root: docker build -f infra/images/api.Dockerfile .
 
 FROM golang:1.27.0-trixie@sha256:df98008ecd2b0ecc9f0a94d1b07e3564a9c92b555369b33d9b5f60d0765b2db7 AS build
@@ -25,3 +27,4 @@ COPY db/migrations /app/db/migrations
 USER 65532:65532
 EXPOSE 8080
 ENTRYPOINT ["/app/atlasrisk-api"]
+CMD ["-listen", "0.0.0.0:8080"]

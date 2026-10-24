@@ -82,18 +82,21 @@ variables at runtime):
 }
 ```
 
-The API binary defaults to `127.0.0.1:8080`. A container deployment that needs
-Docker-published traffic must explicitly pass `-listen 0.0.0.0:8080`; remote
-exposure still requires an external TLS reverse proxy and OIDC-aware access
-proxy. Binding the container interface does not provide authentication or
-transport security. Pass `-listen <address:port>` to override either mode.
+The API binary defaults to `127.0.0.1:8080`. The API image explicitly binds its
+container interface with a default `CMD ["-listen", "0.0.0.0:8080"]`, so a
+published port reaches it; publish that port on host loopback or a private
+container network only. Binding the container interface does not provide
+authentication or transport security: remote exposure still requires an
+external TLS reverse proxy and OIDC-aware access proxy. Passing arguments
+replaces the default command, so pass `-listen <address:port>` to choose another
+address, or `migrate` to apply migrations.
 
-For example, a local container run may publish the explicitly bound API with:
+For example, a local container run may publish the API on host loopback with:
 
 ```powershell
 docker run --rm -p 127.0.0.1:8080:8080 `
   -e ATLASRISK_DATABASE_URL="postgres://..." `
-  ghcr.io/oplosy/atrisk-api:<tag> -listen 0.0.0.0:8080
+  ghcr.io/oplosy/atrisk-api:<tag>
 ```
 
 Use a TLS/OIDC proxy and a private container network before publishing the API
