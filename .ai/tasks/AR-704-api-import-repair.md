@@ -1,7 +1,7 @@
 ---
 id: AR-704
 title: Repair API perimeter and batch CSV commits
-status: ready
+status: merged
 phase: 7
 depends_on: [AR-702]
 branch: task/AR-704-api-import-repair
