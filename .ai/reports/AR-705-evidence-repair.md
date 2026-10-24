@@ -53,3 +53,10 @@
 
 - The sealed risk provenance shape includes `metric_inputs.price_revision_history` and AR-706 `metric_inputs.cash_revision_history`; UUID-backed price/FX revisions must match persisted identity fields and archive bytes. Synthetic `cash-constant:<instrument-id>:<date>` entries are validated as deterministic generated inputs and have no raw object dependency.
 - Hosted `task verify` remains an orchestrator gate before marking the packet complete.
+
+## Post-merge verification (2026-10-24)
+
+- The repair landed on `main` by a local merge (`78efaef`) without a hosted gate. Hosted `task verify` (including `TestDecisionJournalAPI`) first ran in PR #74 and passed after a format-only fix to unrelated risk-engine files.
+- Acceptance criteria re-checked on `main` (`6f70262`) against fresh PostgreSQL 18.6/Garage containers: `go test ./internal/application/evidence -count=1` (pass); `go test ./test/integration -run 'TestDecisionEvidence|TestHistoricalDecision|TestDecisionJournalAPIRepair' -count=1` (pass: mismatch, NULL valuation, explicit NULL provenance, historical raw dependency closure, cash history binding, archive integrity, historical reconstruction); `go test ./test/e2e -count=1` (pass on a fresh database).
+- No code change was needed.
+
