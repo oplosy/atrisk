@@ -1,7 +1,7 @@
 ---
 id: AR-707
 title: Wire durable collector and persist ingestion before success
-status: ready
+status: merged
 phase: 7
 depends_on: [AR-702]
 branch: task/AR-707-ingestion-repair
