@@ -1,7 +1,7 @@
 ---
 id: AR-703
 title: Behavior-preserving simplification pass
-status: ready
+status: merged
 phase: 7
 depends_on: [AR-701, AR-702]
 branch: task/AR-703-simplify
