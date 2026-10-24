@@ -83,21 +83,27 @@ func TestTCMBIngestion(t *testing.T) {
 	if err != nil || loaded.RequestFingerprint != checkpoint.RequestFingerprint {
 		t.Fatalf("TCMB checkpoint did not round-trip: %+v err=%v", loaded, err)
 	}
-	fxRecords := make([]ingestion.NormalizedRecord, 0, len(records))
-	for _, record := range records {
-		decoded, decodeErr := tcmb.DecodeObservationRecord(record)
-		if decodeErr != nil {
-			t.Fatal(decodeErr)
+	// The store accepts one series per batch; the request covers two.
+	usdRecords := func(records []ingestion.NormalizedRecord) []ingestion.NormalizedRecord {
+		selected := make([]ingestion.NormalizedRecord, 0, len(records))
+		for _, record := range records {
+			decoded, decodeErr := tcmb.DecodeObservationRecord(record)
+			if decodeErr != nil {
+				t.Fatal(decodeErr)
+			}
+			if decoded.SeriesCode == "TP.DK.USD.A" {
+				selected = append(selected, record)
+			}
 		}
-		if decoded.SeriesCode == "TP.DK.USD.A" {
-			fxRecords = append(fxRecords, record)
-		}
+		return selected
 	}
+	fxRecords := usdRecords(records)
 	if _, err := store.PersistFXRecords(ctx, "USD", "TRY", series.ID.String(), records); err == nil {
 		t.Fatal("mixed-series TCMB FX batch was accepted")
 	}
+	// Other suites share this database and write their own USD/TRY quotes.
 	var quotesAfterMismatch int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fx_quote_revisions WHERE base_currency = 'USD' AND quote_currency = 'TRY'`).Scan(&quotesAfterMismatch); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fx_quote_revisions AS q JOIN raw_objects AS ro ON ro.id = q.raw_object_id WHERE q.base_currency = 'USD' AND q.quote_currency = 'TRY' AND ro.content_sha256 = $1`, digest).Scan(&quotesAfterMismatch); err != nil {
 		t.Fatal(err)
 	}
 	if quotesAfterMismatch != 0 {
@@ -127,7 +133,7 @@ func TestTCMBIngestion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if inserted, err := store.PersistRecords(ctx, series.ID.String(), revisionRecords); err != nil || inserted != 1 {
+	if inserted, err := store.PersistRecords(ctx, series.ID.String(), usdRecords(revisionRecords)); err != nil || inserted != 1 {
 		t.Fatalf("persist TCMB revised observation: inserted=%d err=%v", inserted, err)
 	}
 	var revisionCount int
@@ -166,7 +172,7 @@ func TestTCMBIngestion(t *testing.T) {
 		t.Fatalf("missing FX provenance SHA = %q, want %q", missingRawSHA, digest)
 	}
 	var numericFXCount int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fx_quote_revisions WHERE base_currency = 'USD' AND quote_currency = 'TRY'`).Scan(&numericFXCount); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fx_quote_revisions AS q JOIN raw_objects AS ro ON ro.id = q.raw_object_id WHERE q.base_currency = 'USD' AND q.quote_currency = 'TRY' AND ro.content_sha256 = $1`, digest).Scan(&numericFXCount); err != nil {
 		t.Fatal(err)
 	}
 	if numericFXCount != 4 {
