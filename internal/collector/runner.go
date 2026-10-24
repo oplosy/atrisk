@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"strconv"
@@ -22,6 +23,8 @@ import (
 type Runner struct {
 	Pool    *pgxpool.Pool
 	Archive archive.Store
+	// HTTPClient is optional; nil uses the provider clients' default transport.
+	HTTPClient *http.Client
 }
 
 type claimConfiguration struct {
@@ -75,6 +78,10 @@ func (r Runner) runFRED(ctx context.Context, claim Claim, config claimConfigurat
 	if err := json.Unmarshal(body, &request); err != nil {
 		return RunOutcome{}, fmt.Errorf("decode FRED request: %w", err)
 	}
+	// The checkpoint fingerprint includes the page size, so creation and resume must agree on it.
+	if request.Limit <= 0 {
+		request.Limit = 1000
+	}
 	if request.SeriesID == "" && claim.SeriesID != nil {
 		if err := r.Pool.QueryRow(ctx, `SELECT source_code FROM series WHERE id = $1::uuid`, *claim.SeriesID).Scan(&request.SeriesID); err != nil {
 			return RunOutcome{}, fmt.Errorf("resolve FRED series source code: %w", err)
@@ -84,7 +91,7 @@ func (r Runner) runFRED(ctx context.Context, claim Claim, config claimConfigurat
 	if apiKey == "" {
 		return RunOutcome{}, errors.New("FRED credential environment variable is empty")
 	}
-	client, err := fred.NewClient(fred.Config{BaseURL: config.BaseURL, APIKey: apiKey})
+	client, err := fred.NewClient(fred.Config{BaseURL: config.BaseURL, APIKey: apiKey, HTTPClient: r.HTTPClient})
 	if err != nil {
 		return RunOutcome{}, err
 	}
@@ -189,7 +196,7 @@ func (r Runner) runTCMB(ctx context.Context, claim Claim, config claimConfigurat
 	if err := json.Unmarshal(body, &request); err != nil {
 		return RunOutcome{}, fmt.Errorf("decode TCMB request: %w", err)
 	}
-	client, err := tcmb.NewClient(tcmb.Config{BaseURL: config.BaseURL, APIKey: os.Getenv(config.CredentialEnv)})
+	client, err := tcmb.NewClient(tcmb.Config{BaseURL: config.BaseURL, APIKey: os.Getenv(config.CredentialEnv), HTTPClient: r.HTTPClient})
 	if err != nil {
 		return RunOutcome{}, err
 	}
@@ -233,7 +240,7 @@ func (r Runner) runBinance(ctx context.Context, claim Claim, config claimConfigu
 	if err := json.Unmarshal(body, &request); err != nil {
 		return RunOutcome{}, fmt.Errorf("decode Binance request: %w", err)
 	}
-	client, err := binance.NewClient(binance.Config{BaseURL: config.BaseURL})
+	client, err := binance.NewClient(binance.Config{BaseURL: config.BaseURL, HTTPClient: r.HTTPClient})
 	if err != nil {
 		return RunOutcome{}, err
 	}
@@ -398,7 +405,7 @@ func (r Runner) pipeline(baseURL string) (ingestion.Pipeline, error) {
 	if err != nil || parsed.Hostname() == "" {
 		return ingestion.Pipeline{}, errors.New("provider base URL is invalid")
 	}
-	return ingestion.Pipeline{Fetcher: &ingestion.HTTPFetcher{AllowedHosts: map[string]struct{}{strings.ToLower(parsed.Hostname()): {}}, MaxBodyBytes: 10 << 20}, Archive: r.Archive, Runs: ingestion.DatabaseStore{Pool: r.Pool}}, nil
+	return ingestion.Pipeline{Fetcher: &ingestion.HTTPFetcher{Client: r.HTTPClient, AllowedHosts: map[string]struct{}{strings.ToLower(parsed.Hostname()): {}}, MaxBodyBytes: 10 << 20}, Archive: r.Archive, Runs: ingestion.DatabaseStore{Pool: r.Pool}}, nil
 }
 
 func stringPointer(value *string) *string { return value }

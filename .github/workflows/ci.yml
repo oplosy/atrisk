@@ -210,6 +210,9 @@ jobs:
       - name: Run valuation integration
         run: task test-go-integration TEST=ValuationAPI
 
+      - name: Run collector integration
+        run: task test-go-integration TEST=CollectorRepair
+
       - name: Run database migration verification
         run: task migrate-test
 
