@@ -224,7 +224,7 @@ func (c *Client) FetchKlinePages(ctx context.Context, request KlineRequest) ([]K
 	if err != nil {
 		return nil, err
 	}
-	pages := make([]KlinePage, 0, minInt(c.maxPages, 8))
+	pages := make([]KlinePage, 0, min(c.maxPages, 8))
 	for page := 0; page < c.maxPages; page++ {
 		current, err := c.FetchKlinePage(ctx, normalized)
 		if err != nil {
@@ -385,11 +385,4 @@ func validSymbol(value string) bool {
 		}
 	}
 	return true
-}
-
-func minInt(left, right int) int {
-	if left < right {
-		return left
-	}
-	return right
 }

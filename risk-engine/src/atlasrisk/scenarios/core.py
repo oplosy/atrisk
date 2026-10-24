@@ -61,6 +61,10 @@ class ScenarioValidationError(ValueError):
     """Scenario input is malformed and cannot be revalued deterministically."""
 
 
+class PreShockMetricsError(ScenarioValidationError):
+    """Required pre-shock risk metrics are missing, blocked, or unavailable."""
+
+
 _DECIMAL_SHOCK = re.compile(r"^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$")
 _STORAGE_QUANTUM = Decimal("0.000000000000000001")
 
@@ -335,24 +339,24 @@ def _post_metrics(pre_metrics: dict[str, Any], shocks: dict[str, Any]) -> dict[s
     else:
         target = None
     for key, multiplier in volatility_shocks.items():
-        if key != "*" and not key:
+        if not key:
             raise ScenarioValidationError("volatility multiplier keys must not be empty")
         if _shock_decimal(multiplier, f"volatility_multiplier.{key}") < 0:
             raise ScenarioValidationError("volatility multipliers must be non-negative")
     if volatility_shocks and not pre_metrics.get("volatility"):
-        raise ScenarioValidationError("pre-shock volatility metrics are required")
+        raise PreShockMetricsError("pre-shock volatility metrics are required")
     data_quality = pre_metrics.get("data_quality", "valid")
     if data_quality not in {"valid", "degraded", "blocked"}:
         raise ScenarioValidationError("invalid pre-shock risk metric data quality")
     if data_quality == "blocked":
-        raise ScenarioValidationError("pre-shock risk metrics are blocked")
+        raise PreShockMetricsError("pre-shock risk metrics are blocked")
     degraded = data_quality == "degraded"
 
     def metric_value(value: Any, field: str) -> Decimal:
         nonlocal degraded
         if isinstance(value, dict):
             if value.get("state") == "blocked":
-                raise ScenarioValidationError(f"pre-shock {field} metric is blocked")
+                raise PreShockMetricsError(f"pre-shock {field} metric is blocked")
             undefined_correlation = (
                 field.startswith("correlations")
                 and value.get("state") == "degraded"
@@ -368,7 +372,7 @@ def _post_metrics(pre_metrics: dict[str, Any], shocks: dict[str, Any]) -> dict[s
             if value is None:
                 if undefined_correlation:
                     return None
-                raise ScenarioValidationError(f"pre-shock {field} metric is unavailable")
+                raise PreShockMetricsError(f"pre-shock {field} metric is unavailable")
         if isinstance(value, float):
             value = str(value)
         result = _decimal(value, field)
@@ -435,7 +439,7 @@ def evaluate_scenario(payload: dict[str, Any]) -> dict[str, Any]:
         or version["version"] < 1
     ):
         raise ScenarioValidationError("scenario identity and integer version are required")
-    if version.get("template_key") not in {"try_depreciation", "rates_up", "risk_off"}:
+    if version.get("template_key") not in _TEMPLATES:
         raise ScenarioValidationError("unknown scenario template")
     if not isinstance(version.get("units", {}), dict) or not isinstance(
         version.get("mappings", {}), dict
@@ -488,9 +492,7 @@ def evaluate_scenario(payload: dict[str, Any]) -> dict[str, Any]:
         metric_reason: str | None = None
         try:
             metrics = _post_metrics(pre_metrics, shocks)
-        except ScenarioValidationError as error:
-            if not str(error).startswith("pre-shock"):
-                raise
+        except PreShockMetricsError:
             metrics = {"volatility": {}, "correlations": {}}
             metric_reason = "REQUIRED_RISK_METRICS_MISSING"
             blocked = True

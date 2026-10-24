@@ -3,13 +3,12 @@ package risk
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 
+	"github.com/oplosy/atrisk/apps/api/handlers/httpx"
 	application "github.com/oplosy/atrisk/internal/application/risk"
 )
 
@@ -57,7 +56,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.writeServiceError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusAccepted, result)
+		httpx.WriteJSON(w, http.StatusAccepted, result)
 		return
 	}
 	if len(parts) >= 3 && parts[0] == "risk" && parts[1] == "runs" {
@@ -85,7 +84,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.writeServiceError(w, err)
 				return
 			}
-			writeJSON(w, http.StatusOK, result)
+			httpx.WriteJSON(w, http.StatusOK, result)
 			return
 		}
 		if len(parts) == 4 && parts[3] == "cancel" && r.Method == http.MethodPost {
@@ -100,7 +99,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.writeServiceError(w, err)
 				return
 			}
-			writeJSON(w, http.StatusOK, result)
+			httpx.WriteJSON(w, http.StatusOK, result)
 			return
 		}
 	}
@@ -113,7 +112,7 @@ func (h Handler) get(w http.ResponseWriter, r *http.Request, id string) {
 		h.writeServiceError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, result)
+	httpx.WriteJSON(w, http.StatusOK, result)
 }
 
 func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
@@ -128,17 +127,9 @@ func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, target any) bool {
-	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<20))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "request body must be valid JSON")
-		return false
-	}
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "request body must contain one JSON object")
-		return false
-	}
-	return true
+	return httpx.DecodeJSON(w, r, target, 4<<20, func(code, message string) {
+		writeError(w, http.StatusBadRequest, code, message)
+	})
 }
 
 func parsePage(r *http.Request) (int, string, bool) {
@@ -162,10 +153,5 @@ func validUUID(value string) bool {
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string) {
-	writeJSON(w, status, map[string]any{"code": code, "message": message})
-}
-func writeJSON(w http.ResponseWriter, status int, value any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
+	httpx.WriteJSON(w, status, map[string]any{"code": code, "message": message})
 }
