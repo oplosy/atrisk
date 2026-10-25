@@ -197,8 +197,31 @@ func TestRiskEndToEndRepairDuplicateScenarioNameConflicts(t *testing.T) {
 		t.Fatalf("first submit status=%d", response)
 	}
 	secondKey := riskJobKey(t, "duplicate-second")
-	if response := submitRiskRequest(t, handler, request, secondKey); response != http.StatusConflict {
-		t.Fatalf("duplicate name status=%d", response)
+	data, err := json.Marshal(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second := httptest.NewRequest(http.MethodPost, "/api/v1/risk/runs", bytes.NewReader(data))
+	second.Header.Set("Idempotency-Key", secondKey)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, second)
+	if response.Code != http.StatusConflict {
+		t.Fatalf("duplicate name status=%d", response.Code)
+	}
+	var problem struct {
+		Details struct {
+			ScenarioID string `json:"scenario_id"`
+		}
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &problem); err != nil {
+		t.Fatal(err)
+	}
+	var existingID string
+	if err := pool.QueryRow(context.Background(), `SELECT id::text FROM scenarios WHERE account_id=$1::uuid AND name=$2`, accountID, "repair-duplicate-name").Scan(&existingID); err != nil {
+		t.Fatal(err)
+	}
+	if problem.Details.ScenarioID != existingID {
+		t.Fatalf("conflict scenario_id=%q want %q", problem.Details.ScenarioID, existingID)
 	}
 	var scenarios, jobsCreated int
 	if err := pool.QueryRow(context.Background(), `SELECT count(*)::int FROM scenarios WHERE account_id=$1::uuid AND name=$2`, accountID, "repair-duplicate-name").Scan(&scenarios); err != nil {

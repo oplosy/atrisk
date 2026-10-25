@@ -12,21 +12,31 @@ export type ApiFailureKind =
 export class ApiRequestError extends Error {
   readonly kind: ApiFailureKind;
   readonly status?: number;
+  readonly details?: Record<string, unknown>;
 
-  constructor(kind: ApiFailureKind, message: string, status?: number) {
+  constructor(
+    kind: ApiFailureKind,
+    message: string,
+    status?: number,
+    details?: Record<string, unknown>,
+  ) {
     super(message);
     this.name = "ApiRequestError";
     this.kind = kind;
     this.status = status;
+    this.details = details;
   }
 }
 
-async function readError(response: Response): Promise<string> {
+async function readError(
+  response: Response,
+): Promise<Pick<ErrorEnvelope, "message" | "details">> {
+  const fallback = `Request failed with HTTP ${response.status}`;
   try {
     const body = (await response.json()) as ErrorEnvelope;
-    return body.message || `Request failed with HTTP ${response.status}`;
+    return { message: body.message || fallback, details: body.details };
   } catch {
-    return `Request failed with HTTP ${response.status}`;
+    return { message: fallback };
   }
 }
 
@@ -55,14 +65,14 @@ export async function requestJsonWithInit<T>(
   }
 
   if (!response.ok) {
-    const message = await readError(response);
+    const { message, details } = await readError(response);
     if (response.status === 401 || response.status === 403) {
       throw new ApiRequestError("unauthorized-proxy", message, response.status);
     }
     if (response.status >= 500) {
       throw new ApiRequestError("server-error", message, response.status);
     }
-    throw new ApiRequestError("error", message, response.status);
+    throw new ApiRequestError("error", message, response.status, details);
   }
 
   return (await response.json()) as T;

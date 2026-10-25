@@ -346,13 +346,24 @@ export function RiskRoute() {
         setRefreshNonce((current) => current + 1);
       }
     } catch (cause) {
-      setSubmitError(
+      const existingScenarioId =
         cause instanceof ApiRequestError && cause.status === 409
-          ? `A scenario named “${submission.name}” already exists for this account. Choose another name, or enter that scenario's ID to record a new version of it.`
-          : cause instanceof Error
-            ? cause.message
-            : String(cause),
-      );
+          ? cause.details?.scenario_id
+          : undefined;
+      if (typeof existingScenarioId === "string" && existingScenarioId) {
+        setScenarioId(existingScenarioId);
+        setSubmitError(
+          `A scenario named “${submission.name}” already exists for this account. Its ID is now filled in; run again to record a new version of it, or clear the ID and choose another name.`,
+        );
+      } else {
+        setSubmitError(
+          cause instanceof ApiRequestError && cause.status === 409
+            ? `A scenario named “${submission.name}” already exists for this account. Choose another name, or enter that scenario's ID to record a new version of it.`
+            : cause instanceof Error
+              ? cause.message
+              : String(cause),
+        );
+      }
     } finally {
       setSubmitting(false);
     }

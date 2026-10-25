@@ -54,7 +54,7 @@ func TestHandlerRequiresAndForwardsIdempotencyKey(t *testing.T) {
 
 func TestHandlerMapsScenarioNameConflictToConflict(t *testing.T) {
 	// Regression: a duplicate scenario name surfaced as a 500.
-	fake := &fakeService{submitErr: application.ErrConflict}
+	fake := &fakeService{submitErr: &application.ConflictError{ScenarioID: "00000000-0000-0000-0000-0000000000aa"}}
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/risk/runs", strings.NewReader(`{"account_id":"00000000-0000-0000-0000-000000000001","snapshot_id":"00000000-0000-0000-0000-000000000002","valuation_id":"00000000-0000-0000-0000-000000000003","name":"risk","template_key":"risk_off","units":{},"shocks":{},"mappings":{},"assumptions":{}}`))
 	req.Header.Set("Idempotency-Key", "risk-conflict")
 	rec := httptest.NewRecorder()
@@ -65,8 +65,11 @@ func TestHandlerMapsScenarioNameConflictToConflict(t *testing.T) {
 	var body struct {
 		Code      string
 		RequestID string `json:"request_id"`
+		Details   struct {
+			ScenarioID string `json:"scenario_id"`
+		}
 	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || body.Code != "SCENARIO_NAME_CONFLICT" {
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || body.Code != "SCENARIO_NAME_CONFLICT" || body.Details.ScenarioID != "00000000-0000-0000-0000-0000000000aa" {
 		t.Fatalf("body=%s err=%v", rec.Body.String(), err)
 	}
 	// The Problem contract requires request_id, and it must match the response header.

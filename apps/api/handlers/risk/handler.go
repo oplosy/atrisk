@@ -125,7 +125,12 @@ func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
 	case errors.Is(err, application.ErrNotFound):
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "risk run was not found")
 	case errors.Is(err, application.ErrConflict):
-		writeError(w, http.StatusConflict, "SCENARIO_NAME_CONFLICT", "a scenario with this name already exists for the account; reuse its scenario_id or choose another name")
+		body := map[string]any{"code": "SCENARIO_NAME_CONFLICT", "message": "a scenario with this name already exists for the account; reuse its scenario_id or choose another name", "request_id": httpx.RequestID(w)}
+		var conflict *application.ConflictError
+		if errors.As(err, &conflict) && conflict.ScenarioID != "" {
+			body["details"] = map[string]any{"scenario_id": conflict.ScenarioID}
+		}
+		httpx.WriteJSON(w, http.StatusConflict, body)
 	default:
 		httpx.LogInternalError(w, "risk", err)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "risk operation failed")

@@ -24,6 +24,13 @@ var (
 	ErrNameConflict   = errors.New("scenario name already exists for account")
 )
 
+// NameConflictError names the existing scenario so a caller can reuse it.
+type NameConflictError struct{ ScenarioID string }
+
+func (e *NameConflictError) Error() string { return ErrNameConflict.Error() }
+
+func (e *NameConflictError) Unwrap() error { return ErrNameConflict }
+
 const maxMetricInstruments = 256
 
 type Service struct{ Pool *pgxpool.Pool }
@@ -956,7 +963,12 @@ func (s Service) CreateVersionAndRun(ctx context.Context, input VersionInput) (R
 		err = tx.QueryRow(ctx, `INSERT INTO scenarios (account_id,name,template_key) VALUES ($1::uuid,$2,$3) RETURNING id::text`, input.AccountID, input.Name, input.TemplateKey).Scan(&input.ScenarioID)
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "scenarios_account_name_key" {
-			return Run{}, ErrNameConflict
+			// The failed insert aborted tx, so the lookup runs on the pool.
+			var existingID string
+			if err := s.Pool.QueryRow(ctx, `SELECT id::text FROM scenarios WHERE account_id=$1::uuid AND name=$2`, input.AccountID, input.Name).Scan(&existingID); err != nil {
+				return Run{}, fmt.Errorf("look up conflicting scenario: %w", err)
+			}
+			return Run{}, &NameConflictError{ScenarioID: existingID}
 		}
 		if err != nil {
 			return Run{}, fmt.Errorf("create scenario: %w", err)

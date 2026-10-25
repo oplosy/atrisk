@@ -23,6 +23,13 @@ var (
 	ErrConflict       = errors.New("risk request conflicts with existing state")
 )
 
+// ConflictError reports the existing scenario that already uses the requested name.
+type ConflictError struct{ ScenarioID string }
+
+func (e *ConflictError) Error() string { return ErrConflict.Error() }
+
+func (e *ConflictError) Unwrap() error { return ErrConflict }
+
 type SubmitRequest struct {
 	AccountID   string `json:"account_id"`
 	SnapshotID  string `json:"snapshot_id"`
@@ -87,8 +94,9 @@ func (s Service) Submit(ctx context.Context, request SubmitRequest) (Run, error)
 		if errors.Is(err, applicationscenarios.ErrInvalidRequest) {
 			return Run{}, ErrInvalidRequest
 		}
-		if errors.Is(err, applicationscenarios.ErrNameConflict) {
-			return Run{}, ErrConflict
+		var nameConflict *applicationscenarios.NameConflictError
+		if errors.As(err, &nameConflict) {
+			return Run{}, &ConflictError{ScenarioID: nameConflict.ScenarioID}
 		}
 		return Run{}, fmt.Errorf("submit risk run: %w", err)
 	}

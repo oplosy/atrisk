@@ -390,6 +390,33 @@ it("explains a duplicate scenario name instead of a generic failure", async () =
   expect(screen.getByLabelText("Scenario name")).toHaveValue("Risk scenario");
 });
 
+it("fills in the existing scenario ID when the API names it on a conflict", async () => {
+  vi.mocked(submitRiskRun).mockRejectedValueOnce(
+    new ApiRequestError("error", "scenario name conflict", 409, {
+      scenario_id: "scenario-existing",
+    }),
+  );
+  render(<RiskRoute />);
+
+  fireEvent.change(screen.getByLabelText("Account ID"), {
+    target: { value: "account-1" },
+  });
+  fireEvent.change(screen.getByLabelText("Snapshot ID"), {
+    target: { value: "snapshot-1" },
+  });
+  fireEvent.change(screen.getByLabelText("Valuation ID"), {
+    target: { value: "valuation-1" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Run scenario" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Its ID is now filled in; run again to record a new version of it",
+  );
+  expect(screen.getByLabelText("Existing scenario ID (optional)")).toHaveValue(
+    "scenario-existing",
+  );
+});
+
 it("preserves risk input and reuses its idempotency key after a recoverable error", async () => {
   vi.mocked(submitRiskRun)
     .mockRejectedValueOnce(new Error("Temporary server error"))
