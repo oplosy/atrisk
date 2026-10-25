@@ -45,6 +45,9 @@ func (s Store) UpsertSchedule(ctx context.Context, schedule Schedule) (string, e
 	if s.Pool == nil {
 		return "", errors.New("collector database pool is required")
 	}
+	if schedule.SourceCode != "" || schedule.DatasetKey != "" || schedule.SeriesCode != "" {
+		return "", errors.New("collector schedule catalog codes must be resolved before registration")
+	}
 	var identitiesValid bool
 	if err := s.Pool.QueryRow(ctx, `
 SELECT EXISTS (
