@@ -540,8 +540,7 @@ export function DecisionJournalRoute() {
         aria-labelledby="journal-title"
       >
         <div>
-          <p className="journal-kicker">Decision record</p>
-          <h2 id="journal-title">Write down what was knowable.</h2>
+          <h2 id="journal-title">Decision records</h2>
           <p>
             Build a decision statement, inspect the immutable evidence seal,
             then append later reviews without rewriting history.
@@ -555,7 +554,6 @@ export function DecisionJournalRoute() {
       <section className="journal-section" aria-labelledby="draft-heading">
         <div className="journal-section__heading">
           <div>
-            <p className="journal-kicker">01 / Draft</p>
             <h2 id="draft-heading">Decision context</h2>
           </div>
           <span className="journal-status">
@@ -796,7 +794,6 @@ export function DecisionJournalRoute() {
       <section className="journal-section" aria-labelledby="evidence-heading">
         <div className="journal-section__heading">
           <div>
-            <p className="journal-kicker">02 / Evidence seal</p>
             <h2 id="evidence-heading">Preview immutable references</h2>
           </div>
           <span className="journal-status">
@@ -939,7 +936,6 @@ export function DecisionJournalRoute() {
       >
         <div className="journal-section__heading">
           <div>
-            <p className="journal-kicker">03 / Historical reconstruction</p>
             <h2 id="reconstruct-heading">Open a recorded decision</h2>
           </div>
         </div>
@@ -1003,7 +999,6 @@ export function DecisionJournalRoute() {
         <section className="journal-section" aria-labelledby="review-heading">
           <div className="journal-section__heading">
             <div>
-              <p className="journal-kicker">04 / Append-only review</p>
               <h2 id="review-heading">Review without rewriting</h2>
             </div>
             <span className="journal-status">historical append</span>

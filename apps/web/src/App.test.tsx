@@ -43,7 +43,7 @@ describe("App", () => {
     expect(decisionLink).toBeDefined();
     fireEvent.click(decisionLink!);
     expect(
-      screen.getByRole("heading", { name: /write down what was knowable/i }),
+      screen.getByRole("heading", { level: 1, name: "Decision journal" }),
     ).toBeInTheDocument();
   });
 
