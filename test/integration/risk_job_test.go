@@ -32,6 +32,7 @@ func TestRiskJobLifecycle(t *testing.T) {
 	migrateTestDatabase(t)
 	_, pool := testDatabase(t)
 	defer pool.Close()
+	isolateRiskQueue(t, pool)
 	queue := jobs.Queue{Pool: pool}
 	ctx := context.Background()
 

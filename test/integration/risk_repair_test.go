@@ -19,6 +19,7 @@ func TestRiskJobLifecycleRepairAttemptFence(t *testing.T) {
 	migrateTestDatabase(t)
 	_, pool := testDatabase(t)
 	defer pool.Close()
+	isolateRiskQueue(t, pool)
 	ctx := context.Background()
 	queue := jobs.Queue{Pool: pool}
 
