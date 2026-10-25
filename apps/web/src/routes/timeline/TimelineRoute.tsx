@@ -357,7 +357,6 @@ export function TimelineRoute({ mode, cutoff }: Props) {
       <section className="timeline-series" aria-labelledby="series-title">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">01 / source index</p>
             <h2 id="series-title">Series</h2>
           </div>
           <span className="section-heading__meta">{series.length} loaded</span>
@@ -425,7 +424,6 @@ export function TimelineRoute({ mode, cutoff }: Props) {
         <section aria-labelledby="reading-title">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">02 / point-in-time reading</p>
               <h2 id="reading-title">{selected?.name ?? "Select a series"}</h2>
             </div>
             <span className="section-heading__meta">
@@ -593,7 +591,6 @@ export function TimelineRoute({ mode, cutoff }: Props) {
 
         <div className="timeline-panels">
           <section className="timeline-panel" aria-labelledby="quality-title">
-            <p className="eyebrow">03 / quality gate</p>
             <h2 id="quality-title">Freshness and completeness</h2>
             <p>
               Evaluation clock: system knowledge ·{" "}
@@ -638,7 +635,6 @@ export function TimelineRoute({ mode, cutoff }: Props) {
             className="timeline-panel"
             aria-labelledby="provenance-title"
           >
-            <p className="eyebrow">04 / provenance</p>
             <h2 id="provenance-title">Raw evidence</h2>
             {inspected && observationState === "ready" ? (
               <dl>
@@ -665,7 +661,6 @@ export function TimelineRoute({ mode, cutoff }: Props) {
         >
           <div className="section-heading">
             <div>
-              <p className="eyebrow">05 / revision history</p>
               <h2 id="revisions-title">What changed, and when</h2>
             </div>
             <span className="section-heading__meta">
