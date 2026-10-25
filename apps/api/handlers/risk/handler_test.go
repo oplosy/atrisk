@@ -2,6 +2,7 @@ package risk
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,7 +11,10 @@ import (
 	application "github.com/oplosy/atrisk/internal/application/risk"
 )
 
-type fakeService struct{ submitted application.SubmitRequest }
+type fakeService struct {
+	submitted application.SubmitRequest
+	submitErr error
+}
 
 func TestRiskAPI(t *testing.T) {
 	t.Run("idempotency", TestHandlerRequiresAndForwardsIdempotencyKey)
@@ -19,6 +23,9 @@ func TestRiskAPI(t *testing.T) {
 
 func (f *fakeService) Submit(_ context.Context, request application.SubmitRequest) (application.Run, error) {
 	f.submitted = request
+	if f.submitErr != nil {
+		return application.Run{}, f.submitErr
+	}
 	return application.Run{ID: "run-1", Status: "queued", DataQuality: "blocked", SchemaVersion: "1.0", EngineVersion: "unknown", InputSnapshotIDs: []string{"snapshot-1"}}, nil
 }
 func (f *fakeService) Get(context.Context, string) (application.Run, error) {
@@ -42,6 +49,22 @@ func TestHandlerRequiresAndForwardsIdempotencyKey(t *testing.T) {
 	}
 	if fake.submitted.IdempotencyKey != "risk-1" {
 		t.Fatalf("idempotency key=%q", fake.submitted.IdempotencyKey)
+	}
+}
+
+func TestHandlerMapsScenarioNameConflictToConflict(t *testing.T) {
+	// Regression: a duplicate scenario name surfaced as a 500.
+	fake := &fakeService{submitErr: application.ErrConflict}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/risk/runs", strings.NewReader(`{"account_id":"00000000-0000-0000-0000-000000000001","snapshot_id":"00000000-0000-0000-0000-000000000002","valuation_id":"00000000-0000-0000-0000-000000000003","name":"risk","template_key":"risk_off","units":{},"shocks":{},"mappings":{},"assumptions":{}}`))
+	req.Header.Set("Idempotency-Key", "risk-conflict")
+	rec := httptest.NewRecorder()
+	New(fake).ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var body struct{ Code string }
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || body.Code != "SCENARIO_NAME_CONFLICT" {
+		t.Fatalf("body=%s err=%v", rec.Body.String(), err)
 	}
 }
 
