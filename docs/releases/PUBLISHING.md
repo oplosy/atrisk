@@ -55,8 +55,14 @@ The schedule file stores provider, source identity, request window, interval,
 and lease policy; it never stores credential values. Without `--once`, the
 collector polls PostgreSQL durable schedules until it receives SIGTERM.
 
-Minimal schedule template (replace IDs and set the referenced environment
-variables at runtime):
+Minimal schedule template (set the referenced environment variables at
+runtime). The optional `catalog` registers the data source, dataset and series
+rows a schedule collects into; schedules then reference them by `source_code`,
+`dataset_key` and `series_code`. Registration is idempotent, and a catalog entry
+that differs from an already registered row stops the collector instead of
+rewriting it. Each series needs a `freshness_policy` the quality engine accepts
+(`version` and a positive `max_age`). Schedules may still use `source_id`,
+`dataset_id` and `series_id` for rows created another way.
 
 ```json
 {
@@ -68,11 +74,30 @@ variables at runtime):
     "access_key_env": "AWS_ACCESS_KEY_ID",
     "secret_key_env": "AWS_SECRET_ACCESS_KEY"
   },
+  "catalog": {
+    "sources": [{
+      "code": "fred",
+      "name": "FRED/ALFRED",
+      "provider": "fred",
+      "datasets": [{
+        "external_key": "cpi",
+        "name": "Consumer prices",
+        "series": [{
+          "source_code": "CPIAUCSL",
+          "name": "CPI, all urban consumers",
+          "unit": "index",
+          "frequency": "monthly",
+          "freshness_policy": {"version": "v1", "expected": "monthly", "max_age": "P45D"}
+        }]
+      }]
+    }]
+  },
   "schedules": [{
     "name": "fred-series",
     "provider": "fred",
-    "source_id": "00000000-0000-4000-8000-000000000000",
-    "series_id": "00000000-0000-4000-8000-000000000001",
+    "source_code": "fred",
+    "dataset_key": "cpi",
+    "series_code": "CPIAUCSL",
     "credential_env": "FRED_API_KEY",
     "request": {"series_id": "CPIAUCSL", "limit": 1000, "max_pages": 100},
     "interval_seconds": 3600,
