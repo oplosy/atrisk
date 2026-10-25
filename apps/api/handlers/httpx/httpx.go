@@ -4,6 +4,7 @@ package httpx
 import (
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 )
 
@@ -29,4 +30,10 @@ func DecodeJSON(w http.ResponseWriter, r *http.Request, target any, maxBytes int
 		return false
 	}
 	return true
+}
+
+// LogInternalError records the cause behind a generic 500 response so an
+// operator can diagnose it; the client never sees err.
+func LogInternalError(component string, err error) {
+	slog.Error("api request failed", "component", component, "error", err)
 }
