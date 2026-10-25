@@ -159,6 +159,7 @@ func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
 	case errors.Is(err, evidence.ErrIntegrity):
 		writeError(w, http.StatusConflict, "EVIDENCE_INTEGRITY_FAILURE", "sealed evidence failed integrity verification")
 	default:
+		httpx.LogInternalError("journal", err)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "decision journal operation failed")
 	}
 }

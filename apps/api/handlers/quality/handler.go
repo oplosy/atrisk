@@ -74,6 +74,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, application.ErrNotFound):
 			writeError(w, http.StatusNotFound, "NOT_FOUND", "a requested quality series does not exist")
 		default:
+			httpx.LogInternalError("quality", err)
 			writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "quality evaluation failed")
 		}
 		return
