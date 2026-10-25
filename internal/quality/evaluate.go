@@ -156,6 +156,13 @@ func Evaluate(frequency, sourceTimezone string, rawPolicy json.RawMessage, from,
 	return result
 }
 
+// ValidatePolicy reports whether a series freshness policy can be evaluated,
+// so callers can reject it before it is stored.
+func ValidatePolicy(frequency, sourceTimezone string, raw json.RawMessage) error {
+	_, _, _, _, _, err := parsePolicy(frequency, sourceTimezone, raw)
+	return err
+}
+
 func parsePolicy(frequency, sourceTimezone string, raw json.RawMessage) (Policy, time.Duration, time.Duration, map[string]struct{}, *time.Location, error) {
 	var p Policy
 	location := time.UTC

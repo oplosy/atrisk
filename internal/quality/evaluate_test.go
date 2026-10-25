@@ -2,6 +2,7 @@ package quality
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 )
@@ -128,5 +129,19 @@ func TestQualityEvaluateInvalidPolicyFailsClosedAndAggregateCannotHideBlocked(t 
 	}
 	if got := Aggregate([]State{Valid, Degraded}); got != Degraded {
 		t.Fatalf("aggregate=%s want degraded", got)
+	}
+}
+
+func TestValidatePolicy(t *testing.T) {
+	if err := ValidatePolicy("daily", "Europe/Istanbul", json.RawMessage(`{"version":"v1","expected":"business_daily","max_age":"P3D"}`)); err != nil {
+		t.Fatal(err)
+	}
+	for name, raw := range map[string]string{"empty": ``, "no version": `{"max_age":"P1D"}`, "no max age": `{"version":"v1"}`} {
+		if err := ValidatePolicy("daily", "", json.RawMessage(raw)); !errors.Is(err, ErrInvalidPolicy) {
+			t.Fatalf("%s policy accepted: %v", name, err)
+		}
+	}
+	if err := ValidatePolicy("daily", "Mars/Olympus", json.RawMessage(`{"version":"v1","max_age":"P1D"}`)); !errors.Is(err, ErrInvalidPolicy) {
+		t.Fatalf("invalid timezone accepted: %v", err)
 	}
 }
