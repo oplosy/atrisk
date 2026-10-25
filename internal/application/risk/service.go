@@ -20,6 +20,7 @@ import (
 var (
 	ErrInvalidRequest = errors.New("invalid risk request")
 	ErrNotFound       = errors.New("risk run not found")
+	ErrConflict       = errors.New("risk request conflicts with existing state")
 )
 
 type SubmitRequest struct {
@@ -85,6 +86,9 @@ func (s Service) Submit(ctx context.Context, request SubmitRequest) (Run, error)
 	if err != nil {
 		if errors.Is(err, applicationscenarios.ErrInvalidRequest) {
 			return Run{}, ErrInvalidRequest
+		}
+		if errors.Is(err, applicationscenarios.ErrNameConflict) {
+			return Run{}, ErrConflict
 		}
 		return Run{}, fmt.Errorf("submit risk run: %w", err)
 	}

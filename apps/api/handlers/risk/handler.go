@@ -121,6 +121,8 @@ func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "risk request is invalid")
 	case errors.Is(err, application.ErrNotFound):
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "risk run was not found")
+	case errors.Is(err, application.ErrConflict):
+		writeError(w, http.StatusConflict, "SCENARIO_NAME_CONFLICT", "a scenario with this name already exists for the account; reuse its scenario_id or choose another name")
 	default:
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "risk operation failed")
 	}

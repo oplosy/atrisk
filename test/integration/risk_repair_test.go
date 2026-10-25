@@ -178,6 +178,39 @@ func TestRiskEndToEndRepairCashUSDMetricBundle(t *testing.T) {
 	}
 }
 
+func TestRiskEndToEndRepairDuplicateScenarioNameConflicts(t *testing.T) {
+	// Regression: reusing a scenario name for a new scenario returned 500.
+	migrateTestDatabase(t)
+	_, pool := testDatabase(t)
+	defer pool.Close()
+	accountID, snapshotID, valuationID, _, _ := createRiskAPIFixture(t, pool)
+	handler := apirisk.New(applicationrisk.Service{Pool: pool})
+	request := map[string]any{
+		"account_id": accountID, "snapshot_id": snapshotID, "valuation_id": valuationID,
+		"name": "repair-duplicate-name", "template_key": "risk_off",
+		"units":    map[string]any{"reporting_currency": "TRY"},
+		"shocks":   map[string]any{"asset_class_returns": map[string]any{"crypto": "-0.4"}},
+		"mappings": map[string]any{}, "assumptions": map[string]any{"coverage_policy": "block"},
+	}
+	if response := submitRiskRequest(t, handler, request, riskJobKey(t, "duplicate-first")); response != http.StatusAccepted {
+		t.Fatalf("first submit status=%d", response)
+	}
+	secondKey := riskJobKey(t, "duplicate-second")
+	if response := submitRiskRequest(t, handler, request, secondKey); response != http.StatusConflict {
+		t.Fatalf("duplicate name status=%d", response)
+	}
+	var scenarios, jobsCreated int
+	if err := pool.QueryRow(context.Background(), `SELECT count(*)::int FROM scenarios WHERE account_id=$1::uuid AND name=$2`, accountID, "repair-duplicate-name").Scan(&scenarios); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(context.Background(), `SELECT count(*)::int FROM risk_jobs WHERE idempotency_key=$1`, secondKey).Scan(&jobsCreated); err != nil {
+		t.Fatal(err)
+	}
+	if scenarios != 1 || jobsCreated != 0 {
+		t.Fatalf("scenarios=%d conflicting jobs=%d", scenarios, jobsCreated)
+	}
+}
+
 func submitRiskRequest(t *testing.T, handler http.Handler, payload map[string]any, key string) int {
 	t.Helper()
 	data, err := json.Marshal(payload)
