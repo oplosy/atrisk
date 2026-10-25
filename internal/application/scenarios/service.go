@@ -14,11 +14,15 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var ErrInvalidRequest = errors.New("invalid scenario request")
+var (
+	ErrInvalidRequest = errors.New("invalid scenario request")
+	ErrNameConflict   = errors.New("scenario name already exists for account")
+)
 
 const maxMetricInstruments = 256
 
@@ -950,6 +954,10 @@ func (s Service) CreateVersionAndRun(ctx context.Context, input VersionInput) (R
 	}
 	if input.ScenarioID == "" {
 		err = tx.QueryRow(ctx, `INSERT INTO scenarios (account_id,name,template_key) VALUES ($1::uuid,$2,$3) RETURNING id::text`, input.AccountID, input.Name, input.TemplateKey).Scan(&input.ScenarioID)
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "scenarios_account_name_key" {
+			return Run{}, ErrNameConflict
+		}
 		if err != nil {
 			return Run{}, fmt.Errorf("create scenario: %w", err)
 		}
