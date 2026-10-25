@@ -67,3 +67,34 @@ func TestNormalizeScheduleFingerprintIncludesIdentityAndLease(t *testing.T) {
 		t.Fatal("schedule identity change reused the old fingerprint")
 	}
 }
+
+func TestNormalizeScheduleValidatesFXPair(t *testing.T) {
+	tcmb := validScheduleInput()
+	tcmb.Provider, tcmb.Request = "tcmb", json.RawMessage(`{"series":["TP.DK.USD.A"]}`)
+	plain, err := NormalizeSchedule(tcmb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tcmb.FXPair = &FXPair{Base: "USD", Quote: "TRY"}
+	paired, err := NormalizeSchedule(tcmb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain.RequestFingerprint == paired.RequestFingerprint {
+		t.Fatal("fx_pair did not change the fingerprint")
+	}
+	if !strings.Contains(string(paired.Configuration), `"fx_pair":{"base":"USD","quote":"TRY"}`) {
+		t.Fatalf("configuration lost fx_pair: %s", paired.Configuration)
+	}
+	for name, pair := range map[string]FXPair{"lowercase": {"usd", "TRY"}, "same": {"TRY", "TRY"}, "ticker": {"USDT", "TRY"}} {
+		tcmb.FXPair = &pair
+		if _, err := NormalizeSchedule(tcmb); err == nil {
+			t.Fatalf("%s fx_pair accepted", name)
+		}
+	}
+	fred := validScheduleInput()
+	fred.FXPair = &FXPair{Base: "USD", Quote: "TRY"}
+	if _, err := NormalizeSchedule(fred); err == nil || !strings.Contains(err.Error(), "only for tcmb") {
+		t.Fatalf("fred fx_pair accepted: %v", err)
+	}
+}

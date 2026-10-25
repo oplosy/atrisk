@@ -411,6 +411,43 @@ WHERE r.source_id = $1::uuid AND occ.request_uri LIKE '%fixture-secret%'`, fredS
 		}
 	})
 
+	t.Run("TCMB FX schedule writes fx quote revisions", func(t *testing.T) {
+		// Regression: no production path wrote fx_quote_revisions, so valuations
+		// could never convert between fiat currencies.
+		fxSeries := newCollectorSeries(t, pool, "tcmb", "collector-tcmb-fx-"+stamp, "TP.DK.USD.A")
+		id, err := store.UpsertSchedule(ctx, collectorSchedule(t, collector.ScheduleInput{
+			Name: "collector-tcmb-fx-" + stamp, Provider: "tcmb", SourceID: fxSeries.sourceID, DatasetID: fxSeries.datasetID,
+			SeriesID: fxSeries.seriesID, CredentialEnv: "ATLASRISK_TEST_TCMB_KEY", BaseURL: server.URL,
+			Request: json.RawMessage(`{"series":["TP.DK.USD.A"],"startdate":"02-01-2024","enddate":"08-01-2024","frequency":"1","aggregationtypes":"avg","decimalseparator":","}`),
+			FXPair:  &collector.FXPair{Base: "USD", Quote: "TRY"},
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := worker("owner-fx").RunOnce(ctx); err != nil {
+			t.Fatal(err)
+		}
+		runID, status, _ := latestRunForSource(t, pool, fxSeries.sourceID)
+		if status != "succeeded" {
+			t.Fatalf("TCMB FX run status %q", status)
+		}
+		if _, _, lastRunID, _, _, _ := scheduleState(t, pool, id); lastRunID != runID {
+			t.Fatalf("schedule last run %q, want %q", lastRunID, runID)
+		}
+		// The fixture has four numeric USD/TRY days and one missing day.
+		fxRows := countRows(t, pool, `SELECT count(*)::int FROM fx_quote_revisions WHERE base_currency = 'USD' AND quote_currency = 'TRY'
+AND raw_object_id IN (SELECT raw_object_id FROM raw_object_occurrences WHERE ingestion_run_id = $1::uuid)`, runID)
+		if fxRows != 4 {
+			t.Fatalf("fx quote rows = %d, want 4", fxRows)
+		}
+		if got := countRows(t, pool, `SELECT count(*)::int FROM fx_quote_revisions WHERE base_currency = 'USD' AND quote_currency = 'TRY' AND observation_time = '2024-01-08T00:00:00Z' AND rate = 29.8214`); got == 0 {
+			t.Fatal("08-01-2024 USD/TRY rate was not persisted exactly")
+		}
+		if got := countRows(t, pool, `SELECT count(*)::int FROM observation_revisions WHERE series_id = $1::uuid`, fxSeries.seriesID); got != 5 {
+			t.Fatalf("FX series observations = %d, want 5 including the missing day", got)
+		}
+	})
+
 	t.Run("Binance closed daily prices persist with checkpoint", func(t *testing.T) {
 		binanceSeries := newCollectorSeries(t, pool, "binance", "collector-binance-"+stamp, "BTCUSDT")
 		if _, err := pool.Exec(ctx, `INSERT INTO instruments (canonical_symbol, instrument_type, native_currency, external_ids) VALUES ('BTCUSDT', 'crypto_spot', 'USDT', '{"provider":"binance"}') ON CONFLICT (canonical_symbol) DO NOTHING`); err != nil {

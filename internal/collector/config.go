@@ -15,6 +15,7 @@ import (
 )
 
 var envNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+var currencyPattern = regexp.MustCompile(`^[A-Z]{3}$`)
 var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`)
 
 type FileConfig struct {
@@ -46,6 +47,14 @@ type ScheduleInput struct {
 	MaxAttempts     int             `json:"max_attempts"`
 	LeaseSeconds    int             `json:"lease_seconds"`
 	NextRunAt       *time.Time      `json:"next_run_at,omitempty"`
+	FXPair          *FXPair         `json:"fx_pair,omitempty"`
+}
+
+// FXPair declares that a TCMB series quotes one unit of Base in Quote. EVDS
+// series codes carry no canonical pair, so the operator states it explicitly.
+type FXPair struct {
+	Base  string `json:"base"`
+	Quote string `json:"quote"`
 }
 
 type Schedule struct {
@@ -150,6 +159,14 @@ func NormalizeSchedule(input ScheduleInput) (Schedule, error) {
 	if err := validateRequestFields(input.Provider, request); err != nil {
 		return Schedule{}, err
 	}
+	if input.FXPair != nil {
+		if input.Provider != "tcmb" {
+			return Schedule{}, errors.New("fx_pair is supported only for tcmb schedules")
+		}
+		if !currencyPattern.MatchString(input.FXPair.Base) || !currencyPattern.MatchString(input.FXPair.Quote) || input.FXPair.Base == input.FXPair.Quote {
+			return Schedule{}, errors.New("fx_pair base and quote must be distinct uppercase ISO 4217 codes")
+		}
+	}
 	if input.IntervalSeconds <= 0 || input.IntervalSeconds > 31*24*60*60 {
 		return Schedule{}, errors.New("interval_seconds must be between 1 and 2678400")
 	}
@@ -171,7 +188,8 @@ func NormalizeSchedule(input ScheduleInput) (Schedule, error) {
 		Interval      int                        `json:"interval_seconds"`
 		MaxAttempts   int                        `json:"max_attempts"`
 		LeaseSeconds  int                        `json:"lease_seconds"`
-	}{Provider: input.Provider, SourceID: input.SourceID, DatasetID: input.DatasetID, SeriesID: input.SeriesID, InstrumentID: input.InstrumentID, Request: request, CredentialEnv: input.CredentialEnv, BaseURL: input.BaseURL, Interval: input.IntervalSeconds, MaxAttempts: input.MaxAttempts, LeaseSeconds: input.LeaseSeconds}
+		FXPair        *FXPair                    `json:"fx_pair,omitempty"`
+	}{Provider: input.Provider, SourceID: input.SourceID, DatasetID: input.DatasetID, SeriesID: input.SeriesID, InstrumentID: input.InstrumentID, Request: request, CredentialEnv: input.CredentialEnv, BaseURL: input.BaseURL, Interval: input.IntervalSeconds, MaxAttempts: input.MaxAttempts, LeaseSeconds: input.LeaseSeconds, FXPair: input.FXPair}
 	normalizedRequest, err := json.Marshal(requestPayload)
 	if err != nil {
 		return Schedule{}, err

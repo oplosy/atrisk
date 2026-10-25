@@ -82,6 +82,13 @@ variables at runtime):
 }
 ```
 
+A TCMB schedule for an exchange-rate series feeds valuation only when it states
+the pair the series quotes, for example `"fx_pair": {"base": "USD", "quote": "TRY"}`
+for `TP.DK.USD.A` (one USD in TRY). The collector then writes each numeric value
+to `fx_quote_revisions` as well as to the series observations; missing days stay
+visible as observations only. Without `fx_pair` the values are observations, and
+valuations cannot use them for currency conversion.
+
 The API binary defaults to `127.0.0.1:8080`. The API image explicitly binds its
 container interface with a default `CMD ["-listen", "0.0.0.0:8080"]`, so a
 published port reaches it; publish that port on host loopback or a private

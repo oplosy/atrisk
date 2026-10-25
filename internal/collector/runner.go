@@ -31,6 +31,7 @@ type claimConfiguration struct {
 	Request       json.RawMessage `json:"request"`
 	CredentialEnv string          `json:"credential_env"`
 	BaseURL       string          `json:"base_url"`
+	FXPair        *FXPair         `json:"fx_pair"`
 }
 
 type fredRequest struct {
@@ -216,7 +217,15 @@ func (r Runner) runTCMB(ctx context.Context, claim Claim, config claimConfigurat
 		return RunOutcome{}, err
 	}
 	pipeline.Persist = func(ctx context.Context, _ string, records []ingestion.NormalizedRecord) error {
-		_, err := (tcmb.Store{Pool: r.Pool}).PersistRecords(ctx, *claim.SeriesID, records)
+		store := tcmb.Store{Pool: r.Pool}
+		// FX rows feed valuation paths; the observations keep the series timeline.
+		// Both writes are idempotent, so a retry after a partial failure is safe.
+		if config.FXPair != nil {
+			if _, err := store.PersistFXRecords(ctx, config.FXPair.Base, config.FXPair.Quote, *claim.SeriesID, records); err != nil {
+				return err
+			}
+		}
+		_, err := store.PersistRecords(ctx, *claim.SeriesID, records)
 		return err
 	}
 	pipeline.Coverage = tcmbCoverage
