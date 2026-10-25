@@ -95,21 +95,6 @@
   font-weight: 600;
   gap: 0.35rem;
 }
-.journal-form input,
-.journal-form textarea,
-.journal-form select,
-.journal-evidence-item input,
-.journal-evidence-item select,
-.journal-lookup input {
-  background: #fff;
-  border: 1px solid #aab8ac;
-  border-radius: 8px;
-  color: var(--ink);
-  min-height: 42px;
-  min-width: 0;
-  padding: 0.55rem 0.65rem;
-  width: 100%;
-}
 .journal-form textarea {
   resize: vertical;
 }
@@ -148,34 +133,6 @@
   color: var(--muted);
   font-size: 0.78rem;
   line-height: 1.55;
-}
-.journal-button {
-  background: var(--green-dark);
-  border: 1px solid var(--green-dark);
-  border-radius: 8px;
-  color: #fff;
-  cursor: pointer;
-  font-size: 0.76rem;
-  font-weight: 700;
-  min-height: 42px;
-  padding: 0.6rem 0.85rem;
-}
-.journal-button:hover:not(:disabled) {
-  background: var(--green);
-}
-.journal-button:disabled {
-  background: #aeb9b1;
-  border-color: #aeb9b1;
-  color: #26352a;
-  cursor: not-allowed;
-}
-.journal-button--quiet {
-  background: transparent;
-  border-color: #9aab9f;
-  color: var(--ink);
-}
-.journal-button--quiet:hover:not(:disabled) {
-  background: #edf3ed;
 }
 .journal-alert {
   border-radius: 9px;

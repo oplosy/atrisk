@@ -79,37 +79,8 @@
   font-size: 0.86rem;
   font-weight: 600;
 }
-.portfolio-workspace input,
-.portfolio-workspace select {
-  width: 100%;
-  min-width: 0;
-  min-height: 42px;
-  border: 1px solid #aab8ac;
-  border-radius: 8px;
-  padding: 0.5rem 0.65rem;
-  background: #fff;
-  color: var(--ink);
-}
 .portfolio-workspace input[type="file"] {
   height: auto;
-}
-.portfolio-workspace button {
-  min-height: 42px;
-  border: 0;
-  border-radius: 8px;
-  background: var(--green-dark);
-  color: #fff;
-  padding: 0.6rem 0.85rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-.portfolio-workspace button:hover:not(:disabled) {
-  background: var(--green);
-}
-.portfolio-workspace button:disabled {
-  background: #aeb9b1;
-  color: #26352a;
-  cursor: not-allowed;
 }
 .portfolio-import {
   margin-top: 2rem;

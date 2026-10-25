@@ -41,28 +41,12 @@
   font-size: 0.85rem;
   font-weight: 700;
 }
-.risk-workspace input,
-.risk-workspace select,
-.risk-workspace textarea {
-  border: 1px solid #aab8ac;
-  border-radius: 8px;
-  color: var(--ink);
-  padding: 0.65rem 0.7rem;
-  min-width: 0;
-  min-height: 42px;
-  background: #fff;
-  font: inherit;
-}
 .risk-workspace textarea {
   width: 100%;
   resize: vertical;
   font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
   font-size: 0.8rem;
   line-height: 1.5;
-}
-.risk-workspace :is(input, select, textarea, button, summary):focus-visible {
-  outline: 3px solid #175f43;
-  outline-offset: 2px;
 }
 .risk-create__form {
   display: grid;
@@ -99,24 +83,6 @@
 }
 .risk-create__form > button {
   justify-self: start;
-}
-.risk-workspace button {
-  border: 0;
-  border-radius: 8px;
-  background: var(--green-dark);
-  color: #fff;
-  cursor: pointer;
-  font: inherit;
-  font-weight: 700;
-  padding: 0.65rem 0.85rem;
-  min-height: 42px;
-}
-.risk-workspace button:hover {
-  background: var(--green);
-}
-.risk-workspace button:disabled {
-  background: #687b70;
-  cursor: wait;
 }
 .risk-message,
 .risk-empty,
