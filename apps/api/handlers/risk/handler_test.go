@@ -62,9 +62,16 @@ func TestHandlerMapsScenarioNameConflictToConflict(t *testing.T) {
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
-	var body struct{ Code string }
+	var body struct {
+		Code      string
+		RequestID string `json:"request_id"`
+	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || body.Code != "SCENARIO_NAME_CONFLICT" {
 		t.Fatalf("body=%s err=%v", rec.Body.String(), err)
+	}
+	// The Problem contract requires request_id, and it must match the response header.
+	if body.RequestID == "" || body.RequestID != rec.Header().Get("X-Request-ID") {
+		t.Fatalf("request_id=%q header=%q", body.RequestID, rec.Header().Get("X-Request-ID"))
 	}
 }
 

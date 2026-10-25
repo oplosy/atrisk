@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -56,6 +57,8 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.writeServiceError(w, err)
 			return
 		}
+		// Links the request to the run and job it created, for tracing a run back to its request.
+		slog.Info("risk run submitted", "request_id", httpx.RequestID(w), "run_id", result.ID, "job_id", result.JobID)
 		httpx.WriteJSON(w, http.StatusAccepted, result)
 		return
 	}
@@ -124,7 +127,7 @@ func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
 	case errors.Is(err, application.ErrConflict):
 		writeError(w, http.StatusConflict, "SCENARIO_NAME_CONFLICT", "a scenario with this name already exists for the account; reuse its scenario_id or choose another name")
 	default:
-		httpx.LogInternalError("risk", err)
+		httpx.LogInternalError(w, "risk", err)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "risk operation failed")
 	}
 }
@@ -156,5 +159,5 @@ func validUUID(value string) bool {
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string) {
-	httpx.WriteJSON(w, status, map[string]any{"code": code, "message": message})
+	httpx.WriteJSON(w, status, map[string]any{"code": code, "message": message, "request_id": httpx.RequestID(w)})
 }
