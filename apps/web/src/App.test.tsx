@@ -7,7 +7,7 @@ describe("App", () => {
   it("renders an accessible shell with explicit evidence controls", () => {
     render(<App />);
     expect(
-      screen.getByRole("heading", { name: /know what was knowable/i }),
+      screen.getByRole("heading", { level: 1, name: "Overview" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("navigation", { name: /primary navigation/i }),
@@ -23,9 +23,7 @@ describe("App", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("link", { name: /risk workspace/i }));
     expect(
-      screen.getByRole("heading", {
-        name: /risk results with their quality attached/i,
-      }),
+      screen.getByRole("heading", { level: 1, name: "Risk workspace" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Inspect a risk run" }),
@@ -72,7 +70,7 @@ describe("App", () => {
     window.history.pushState({}, "", "/");
     fireEvent.popState(window);
     expect(
-      screen.getByRole("heading", { name: /know what was knowable/i }),
+      screen.getByRole("heading", { level: 1, name: "Overview" }),
     ).toBeInTheDocument();
     vi.unstubAllGlobals();
   });

@@ -19,39 +19,41 @@ export type ShellRoute =
   | "/decisions"
   | "/settings";
 
-const routes: Record<
-  Exclude<ShellRoute, "/">,
-  { eyebrow: string; title: string; body: string }
-> = {
+const pages: Record<ShellRoute, { title: string; description: string }> = {
+  "/": {
+    title: "Overview",
+    description:
+      "Portfolio state, data quality, and the evidence window for this workspace.",
+  },
   "/timeline": {
-    eyebrow: "Information timeline",
-    title: "Read the market record in context.",
-    body: "Source-as-of and system-as-of views will keep each observation tied to the evidence available at that point.",
+    title: "Information timeline",
+    description:
+      "Observations from each source, read at an explicit point in time.",
   },
   "/portfolio": {
-    eyebrow: "Portfolio",
-    title: "A clean place for immutable snapshots.",
-    body: "Positions, valuation paths, and reconciliation checkpoints belong here. No client-side totals are inferred.",
+    title: "Portfolio",
+    description:
+      "Record position snapshots, run valuations, and reconcile against statements.",
   },
   "/risk": {
-    eyebrow: "Risk workspace",
-    title: "Risk results with their quality attached.",
-    body: "Every result will expose its snapshot, engine version, and data-quality state before it is interpreted.",
+    title: "Risk workspace",
+    description:
+      "Run versioned stress scenarios and inspect results with their data-quality state.",
   },
   "/journal": {
-    eyebrow: "Decision journal",
-    title: "Keep decisions beside their evidence.",
-    body: "Journal entries will link to immutable snapshots without turning AtlasRisk into an execution or recommendation system.",
+    title: "Decision journal",
+    description:
+      "Record decisions against sealed evidence and append reviews without rewriting history.",
   },
   "/decisions": {
-    eyebrow: "Decision journal",
-    title: "Keep decisions beside their evidence.",
-    body: "Draft, seal, reconstruct, and review decision records without turning AtlasRisk into an execution or recommendation system.",
+    title: "Decision journal",
+    description:
+      "Record decisions against sealed evidence and append reviews without rewriting history.",
   },
   "/settings": {
-    eyebrow: "Workspace settings",
-    title: "Local-first controls.",
-    body: "Connection and display preferences stay explicit so a self-hosted installation remains inspectable.",
+    title: "Workspace settings",
+    description:
+      "Connection and display preferences for this self-hosted installation.",
   },
 };
 
@@ -137,7 +139,7 @@ export function RootRoute({ route, onNavigate }: RootRouteProps) {
     [],
   );
   const portfolio = useApiResource(loadPortfolios, isEmpty);
-  const page = route === "/" ? undefined : routes[route];
+  const page = pages[route];
   const quality = qualityForResource(portfolio.state);
   const portfolioCount = portfolio.data?.items.length ?? 0;
   const asOfLabel = useMemo(() => {
@@ -221,32 +223,31 @@ export function RootRoute({ route, onNavigate }: RootRouteProps) {
         </aside>
 
         <main className="content" id="main-content">
-          <div className="content__intro">
-            <div>
-              <p className="eyebrow">{page?.eyebrow ?? "Decision workspace"}</p>
-              <h1>{page?.title ?? "Know what was knowable."}</h1>
-              <p className="lede">
-                {page?.body ??
-                  "AtlasRisk keeps portfolio state, market evidence, and risk quality in one inspectable timeline."}
-              </p>
-            </div>
-            <div className="intro__stamp">
-              <span>Clock semantics</span>
-              <strong>Explicit as-of</strong>
-              <small>No inferred publication time</small>
-            </div>
-          </div>
+          <header className="page-header">
+            {route !== "/" ? (
+              <nav className="breadcrumb" aria-label="Breadcrumb">
+                <a
+                  href="/"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    onNavigate("/");
+                  }}
+                >
+                  AtlasRisk
+                </a>
+                <span aria-hidden="true">/</span>
+                <span aria-current="page">{page.title}</span>
+              </nav>
+            ) : null}
+            <h1>{page.title}</h1>
+            <p className="page-header__description">{page.description}</p>
+          </header>
 
-          {route !== "/portfolio" && route !== "/risk" && (
+          {(route === "/" || route === "/timeline") && (
             <section className="control-strip" aria-labelledby="as-of-title">
               <div className="control-strip__title">
-                <span className="step-number">01</span>
-                <div>
-                  <p className="eyebrow" id="as-of-title">
-                    Evidence window
-                  </p>
-                  <strong>Choose the clock before reading a result.</strong>
-                </div>
+                <h2 id="as-of-title">Evidence window</h2>
+                <p>Explicit as-of. Publication time is never inferred.</p>
               </div>
               <label>
                 Knowledge mode
