@@ -218,6 +218,8 @@
   color: var(--muted);
   font-size: 0.75rem;
   font-weight: 600;
+  overflow-wrap: normal;
+  white-space: nowrap;
 }
 .risk-workspace tbody th {
   font-weight: 600;

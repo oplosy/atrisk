@@ -937,6 +937,7 @@ h3 {
   color: var(--muted);
   font-size: 0.75rem;
   font-weight: 600;
+  white-space: nowrap;
 }
 .timeline-table tbody tr:hover {
   background: var(--surface-muted);
