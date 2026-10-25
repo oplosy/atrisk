@@ -122,6 +122,7 @@ func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
 	case errors.Is(err, application.ErrNotFound):
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "risk run was not found")
 	default:
+		httpx.LogInternalError("risk", err)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "risk operation failed")
 	}
 }

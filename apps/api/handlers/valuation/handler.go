@@ -72,6 +72,7 @@ func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
 	case errors.Is(err, application.ErrNotFound):
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "valuation resource not found")
 	default:
+		httpx.LogInternalError("valuation", err)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "valuation operation failed")
 	}
 }
