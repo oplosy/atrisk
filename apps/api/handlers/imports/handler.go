@@ -2,12 +2,10 @@ package imports
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"mime"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/oplosy/atrisk/apps/api/handlers/httpx"
 	application "github.com/oplosy/atrisk/internal/imports"
@@ -95,13 +93,13 @@ func writeImportError(w http.ResponseWriter, err error) {
 	case errors.Is(err, application.ErrNotFound):
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "import target does not exist")
 	case errors.Is(err, application.ErrUnavailable):
-		httpx.LogInternalError("imports", err)
+		httpx.LogInternalError(w, "imports", err)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "import service is unavailable")
 	default:
-		httpx.LogInternalError("imports", err)
+		httpx.LogInternalError(w, "imports", err)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "import failed")
 	}
 }
 func writeError(w http.ResponseWriter, status int, code, message string) {
-	httpx.WriteJSON(w, status, map[string]string{"code": code, "message": message, "request_id": fmt.Sprintf("import-%d", time.Now().UTC().UnixNano())})
+	httpx.WriteJSON(w, status, map[string]string{"code": code, "message": message, "request_id": httpx.RequestID(w)})
 }

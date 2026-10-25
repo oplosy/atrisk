@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oplosy/atrisk/apps/api/handlers/httpx"
 	apiimports "github.com/oplosy/atrisk/apps/api/handlers/imports"
 	apijournal "github.com/oplosy/atrisk/apps/api/handlers/journal"
 	apiportfolio "github.com/oplosy/atrisk/apps/api/handlers/portfolio"
@@ -103,7 +104,7 @@ func main() {
 	route("decisions", journalHandler)
 	route("decisions/", journalHandler)
 	mux.Handle("/", timeline.New(application.Service{Queries: queries}))
-	server := newAPIServer(*listen, mux)
+	server := newAPIServer(*listen, httpx.WithRequestID(mux))
 	fmt.Fprintf(os.Stdout, "atlasrisk api listening on %s\n", *listen)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)

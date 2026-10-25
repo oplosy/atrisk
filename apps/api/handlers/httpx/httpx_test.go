@@ -63,11 +63,44 @@ func TestLogInternalErrorRecordsComponentAndCause(t *testing.T) {
 	previous := slog.Default()
 	slog.SetDefault(slog.New(slog.NewTextHandler(&buffer, nil)))
 	t.Cleanup(func() { slog.SetDefault(previous) })
-	LogInternalError("risk", errors.New("submit risk run: connection refused"))
+	recorder := httptest.NewRecorder()
+	recorder.Header().Set(RequestIDHeader, "req-42")
+	LogInternalError(recorder, "risk", errors.New("submit risk run: connection refused"))
 	got := buffer.String()
-	for _, want := range []string{"level=ERROR", "component=risk", `error="submit risk run: connection refused"`} {
+	for _, want := range []string{"level=ERROR", "request_id=req-42", "component=risk", `error="submit risk run: connection refused"`} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("log %q does not contain %q", got, want)
 		}
+	}
+}
+
+func TestWithRequestIDKeepsSafeClientIDsAndGeneratesOthers(t *testing.T) {
+	var seen string
+	handler := WithRequestID(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		seen = RequestID(w)
+	}))
+	cases := map[string]bool{"client-req_1.a:b": true, "": false, "has space": false, "line\nbreak": false, strings.Repeat("a", 129): false}
+	for client, kept := range cases {
+		request := httptest.NewRequest(http.MethodGet, "/api/v1/portfolios", nil)
+		if client != "" {
+			request.Header.Set(RequestIDHeader, client)
+		}
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		got := recorder.Header().Get(RequestIDHeader)
+		if got == "" || got != seen {
+			t.Fatalf("client %q: response id %q, handler id %q", client, got, seen)
+		}
+		if (got == client) != kept {
+			t.Fatalf("client %q: response id %q, kept=%v", client, got, kept)
+		}
+	}
+}
+
+func TestRequestIDIsStableWithoutMiddleware(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	first := RequestID(recorder)
+	if len(first) != 32 || RequestID(recorder) != first || recorder.Header().Get(RequestIDHeader) != first {
+		t.Fatalf("request id %q was not created once and reused", first)
 	}
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -74,7 +73,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, application.ErrNotFound):
 			writeError(w, http.StatusNotFound, "NOT_FOUND", "a requested quality series does not exist")
 		default:
-			httpx.LogInternalError("quality", err)
+			httpx.LogInternalError(w, "quality", err)
 			writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "quality evaluation failed")
 		}
 		return
@@ -91,5 +90,5 @@ func isQualityPath(path string) bool {
 func writeError(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(map[string]string{"code": code, "message": message, "request_id": fmt.Sprintf("quality-%d", time.Now().UTC().UnixNano())})
+	_ = json.NewEncoder(w).Encode(map[string]string{"code": code, "message": message, "request_id": httpx.RequestID(w)})
 }
