@@ -55,6 +55,65 @@ const routes: Record<
   },
 };
 
+type NavIconName =
+  | "overview"
+  | "timeline"
+  | "portfolio"
+  | "risk"
+  | "journal"
+  | "settings";
+
+const navGroups: Array<{
+  label?: string;
+  items: Array<{ path: ShellRoute; label: string; icon: NavIconName }>;
+}> = [
+  { items: [{ path: "/", label: "Overview", icon: "overview" }] },
+  {
+    label: "Analyze",
+    items: [
+      { path: "/timeline", label: "Information timeline", icon: "timeline" },
+      { path: "/portfolio", label: "Portfolio", icon: "portfolio" },
+      { path: "/risk", label: "Risk workspace", icon: "risk" },
+    ],
+  },
+  {
+    label: "Record",
+    items: [{ path: "/decisions", label: "Decision journal", icon: "journal" }],
+  },
+  {
+    label: "Administration",
+    items: [
+      { path: "/settings", label: "Workspace settings", icon: "settings" },
+    ],
+  },
+];
+
+const iconPaths: Record<NavIconName, string> = {
+  overview: "M3 3h4v4H3zM9 3h4v4H9zM3 9h4v4H3zM9 9h4v4H9z",
+  timeline: "M2 12l3.5-4 3 2.5L14 4M2 14h12",
+  portfolio: "M2.5 5h11v8h-11zM6 5V3h4v2M2.5 8.5h11",
+  risk: "M8 2l5 2v4c0 3-2.2 5.2-5 6-2.8-.8-5-3-5-6V4z",
+  journal: "M4 2h8v12H4zM6 5h4M6 8h4M6 11h2",
+  settings: "M3 4h10M3 8h10M3 12h10M6 2.5v3M10 6.5v3M5 10.5v3",
+};
+
+function NavIcon({ name }: { name: NavIconName }) {
+  return (
+    <svg
+      className="nav-link__icon"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.25"
+      strokeLinejoin="round"
+      strokeLinecap="round"
+    >
+      <path d={iconPaths[name]} />
+    </svg>
+  );
+}
+
 function qualityForResource(state: ResourceState): QualityState {
   if (state === "ready") return "valid";
   if (state === "stale" || state === "offline") return "degraded";
@@ -97,14 +156,10 @@ export function RootRoute({ route, onNavigate }: RootRouteProps) {
             onNavigate("/");
           }}
         >
-          <span className="brand__mark" aria-hidden="true">
-            AR
-          </span>
-          <span>
-            <strong>AtlasRisk</strong>
-            <small>decision support / local-first</small>
-          </span>
+          <span className="brand__mark" aria-hidden="true" />
+          <strong>AtlasRisk</strong>
         </a>
+        <span className="topbar__env">Local</span>
         <div className="topbar__meta">
           {route === "/timeline" ? (
             <span className="connection">
@@ -120,63 +175,47 @@ export function RootRoute({ route, onNavigate }: RootRouteProps) {
             </QualityBadge>
           )}
           <span className="connection">
-            <span className="connection__dot" aria-hidden="true" /> self-hosted
+            <span className="connection__dot" aria-hidden="true" />
+            Self-hosted
           </span>
         </div>
       </header>
 
       <div className="shell-layout">
         <aside className="sidebar" aria-label="Workspace sidebar">
-          <p className="sidebar__label">Workspace</p>
-          <nav aria-label="Primary navigation">
-            <a
-              className={
-                route === "/" ? "nav-link nav-link--active" : "nav-link"
-              }
-              aria-current={route === "/" ? "page" : undefined}
-              href="/"
-              onClick={(event) => {
-                event.preventDefault();
-                onNavigate("/");
-              }}
-            >
-              <span aria-hidden="true">⌂</span> Overview
-            </a>
-            {(Object.keys(routes) as Array<Exclude<ShellRoute, "/">>).map(
-              (path) => (
-                <a
-                  key={path}
-                  className={
-                    route === path ? "nav-link nav-link--active" : "nav-link"
-                  }
-                  aria-current={route === path ? "page" : undefined}
-                  href={path}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    onNavigate(path);
-                  }}
-                >
-                  <span aria-hidden="true">
-                    {path === "/timeline"
-                      ? "◌"
-                      : path === "/portfolio"
-                        ? "▦"
-                        : path === "/risk"
-                          ? "⌁"
-                          : path === "/journal" || path === "/decisions"
-                            ? "✎"
-                            : "⚙"}
-                  </span>
-                  {routes[path].eyebrow}
-                </a>
-              ),
-            )}
+          <nav className="sidebar__nav" aria-label="Primary navigation">
+            {navGroups.map((group) => (
+              <div className="nav-group" key={group.label ?? "root"}>
+                {group.label ? (
+                  <p className="nav-group__label">{group.label}</p>
+                ) : null}
+                {group.items.map((item) => (
+                  <a
+                    key={item.path}
+                    className={
+                      route === item.path
+                        ? "nav-link nav-link--active"
+                        : "nav-link"
+                    }
+                    aria-current={route === item.path ? "page" : undefined}
+                    href={item.path}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      onNavigate(item.path);
+                    }}
+                  >
+                    <NavIcon name={item.icon} />
+                    {item.label}
+                  </a>
+                ))}
+              </div>
+            ))}
           </nav>
           <div className="sidebar__footer">
-            <span className="sidebar__version">V1 · no execution</span>
+            <span>Version 1 · Decision support only</span>
             <p>
-              Prices, shocks, and risk numbers always come from deterministic
-              server paths.
+              Prices, shocks, and risk figures come from deterministic server
+              paths.
             </p>
           </div>
         </aside>
@@ -241,7 +280,7 @@ export function RootRoute({ route, onNavigate }: RootRouteProps) {
             <TimelineRoute mode={mode} cutoff={cutoff} />
           ) : route === "/risk" ? (
             <RiskRoute />
-          ) : route === "/decisions" ? (
+          ) : route === "/decisions" || route === "/journal" ? (
             <DecisionJournalRoute />
           ) : route === "/" ? (
             <>
