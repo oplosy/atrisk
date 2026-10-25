@@ -95,8 +95,10 @@ func writeImportError(w http.ResponseWriter, err error) {
 	case errors.Is(err, application.ErrNotFound):
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "import target does not exist")
 	case errors.Is(err, application.ErrUnavailable):
+		httpx.LogInternalError("imports", err)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "import service is unavailable")
 	default:
+		httpx.LogInternalError("imports", err)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "import failed")
 	}
 }

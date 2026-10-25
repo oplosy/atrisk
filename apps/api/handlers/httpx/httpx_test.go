@@ -1,6 +1,9 @@
 package httpx
 
 import (
+	"bytes"
+	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -52,5 +55,19 @@ func TestDecodeJSON(t *testing.T) {
 				t.Fatalf("ok = %v, message = %q", ok, message)
 			}
 		})
+	}
+}
+
+func TestLogInternalErrorRecordsComponentAndCause(t *testing.T) {
+	var buffer bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buffer, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	LogInternalError("risk", errors.New("submit risk run: connection refused"))
+	got := buffer.String()
+	for _, want := range []string{"level=ERROR", "component=risk", `error="submit risk run: connection refused"`} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("log %q does not contain %q", got, want)
+		}
 	}
 }

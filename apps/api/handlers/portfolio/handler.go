@@ -277,8 +277,10 @@ func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
 	case errors.Is(err, application.ErrConflict):
 		writeError(w, http.StatusConflict, "CONFLICT", "portfolio resource conflicts with an existing immutable or referenced resource")
 	case errors.Is(err, application.ErrDatabase):
+		httpx.LogInternalError("portfolio", err)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "portfolio database is unavailable")
 	default:
+		httpx.LogInternalError("portfolio", err)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "portfolio operation failed")
 	}
 }

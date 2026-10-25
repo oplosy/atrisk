@@ -124,6 +124,7 @@ func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
 	case errors.Is(err, application.ErrConflict):
 		writeError(w, http.StatusConflict, "SCENARIO_NAME_CONFLICT", "a scenario with this name already exists for the account; reuse its scenario_id or choose another name")
 	default:
+		httpx.LogInternalError("risk", err)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "risk operation failed")
 	}
 }

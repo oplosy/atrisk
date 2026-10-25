@@ -94,8 +94,10 @@ func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
 	case errors.As(err, &conflict):
 		writeError(w, http.StatusConflict, conflict.Code, conflict.Message)
 	case errors.Is(err, application.ErrDatabase):
+		httpx.LogInternalError("reconciliation", err)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "reconciliation database is unavailable")
 	default:
+		httpx.LogInternalError("reconciliation", err)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "reconciliation operation failed")
 	}
 }
