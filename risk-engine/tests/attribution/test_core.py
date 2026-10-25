@@ -91,6 +91,18 @@ def test_scenario_attribution_reconciles_golden_stress_loss() -> None:
     )
 
 
+def test_yield_shift_factors_use_a_decimal_string_neutral() -> None:
+    # Regression: an integer neutral made every rates_up subset fail shock validation.
+    payload = json.loads(SCENARIO_FIXTURE.read_text(encoding="utf-8"))["payload"]
+    payload["scenario_version"]["shocks"]["yield_shifts_bps"] = {"TRY": "500", "USD": "200"}
+
+    result = attribute_scenario(payload)
+
+    factors = {item["factor"] for item in result["factor_contributions"]}
+    assert {"yield_shift:TRY", "yield_shift:USD"} <= factors
+    assert result["reconciles"] is True
+
+
 def test_unsupported_position_remains_visible() -> None:
     payload = json.loads(SCENARIO_FIXTURE.read_text(encoding="utf-8"))["payload"]
     payload["positions"].append(

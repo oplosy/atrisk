@@ -120,7 +120,7 @@ def _factor_specs(version: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
             }
 
     add_map("asset_class_returns", "asset_return", "0")
-    add_map("yield_shifts_bps", "yield_shift", 0)
+    add_map("yield_shifts_bps", "yield_shift", "0")
     add_map("fx_pair_changes", "fx_change", "0")
     add_map("volatility_multipliers", "volatility_multiplier", "1")
     if shocks.get("correlation_target") is not None:
