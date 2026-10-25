@@ -157,7 +157,7 @@ func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
 	case errors.Is(err, application.ErrInvalidSeriesSelection):
 		writeError(w, http.StatusBadRequest, "INVALID_SERIES_SELECTION", "at least one series_id is required")
 	default:
-		httpx.LogInternalError("timeline", err)
+		httpx.LogInternalError(w, "timeline", err)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "timeline query failed")
 	}
 }
@@ -165,11 +165,9 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 	writeErrorDetails(w, status, code, message, nil)
 }
 func writeErrorDetails(w http.ResponseWriter, status int, code, message string, details map[string]any) {
-	body := map[string]any{"code": code, "message": message, "request_id": requestID()}
+	body := map[string]any{"code": code, "message": message, "request_id": httpx.RequestID(w)}
 	if details != nil {
 		body["details"] = details
 	}
 	httpx.WriteJSON(w, status, body)
 }
-
-func requestID() string { return "timeline-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10) }

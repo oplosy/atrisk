@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/oplosy/atrisk/apps/api/handlers/httpx"
 	"github.com/oplosy/atrisk/internal/application/evidence"
@@ -159,11 +157,11 @@ func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
 	case errors.Is(err, evidence.ErrIntegrity):
 		writeError(w, http.StatusConflict, "EVIDENCE_INTEGRITY_FAILURE", "sealed evidence failed integrity verification")
 	default:
-		httpx.LogInternalError("journal", err)
+		httpx.LogInternalError(w, "journal", err)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "decision journal operation failed")
 	}
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string) {
-	httpx.WriteJSON(w, status, map[string]any{"code": code, "message": message, "request_id": "journal-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10)})
+	httpx.WriteJSON(w, status, map[string]any{"code": code, "message": message, "request_id": httpx.RequestID(w)})
 }

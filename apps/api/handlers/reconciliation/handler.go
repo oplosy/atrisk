@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/oplosy/atrisk/apps/api/handlers/httpx"
 	application "github.com/oplosy/atrisk/internal/application/reconciliation"
@@ -94,14 +92,14 @@ func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
 	case errors.As(err, &conflict):
 		writeError(w, http.StatusConflict, conflict.Code, conflict.Message)
 	case errors.Is(err, application.ErrDatabase):
-		httpx.LogInternalError("reconciliation", err)
+		httpx.LogInternalError(w, "reconciliation", err)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "reconciliation database is unavailable")
 	default:
-		httpx.LogInternalError("reconciliation", err)
+		httpx.LogInternalError(w, "reconciliation", err)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "reconciliation operation failed")
 	}
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string) {
-	httpx.WriteJSON(w, status, map[string]any{"code": code, "message": message, "request_id": "reconciliation-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10)})
+	httpx.WriteJSON(w, status, map[string]any{"code": code, "message": message, "request_id": httpx.RequestID(w)})
 }

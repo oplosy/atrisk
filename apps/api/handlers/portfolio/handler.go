@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/oplosy/atrisk/apps/api/handlers/httpx"
 	application "github.com/oplosy/atrisk/internal/application/portfolio"
@@ -277,14 +275,14 @@ func (h Handler) writeServiceError(w http.ResponseWriter, err error) {
 	case errors.Is(err, application.ErrConflict):
 		writeError(w, http.StatusConflict, "CONFLICT", "portfolio resource conflicts with an existing immutable or referenced resource")
 	case errors.Is(err, application.ErrDatabase):
-		httpx.LogInternalError("portfolio", err)
+		httpx.LogInternalError(w, "portfolio", err)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "portfolio database is unavailable")
 	default:
-		httpx.LogInternalError("portfolio", err)
+		httpx.LogInternalError(w, "portfolio", err)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "portfolio operation failed")
 	}
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string) {
-	httpx.WriteJSON(w, status, map[string]any{"code": code, "message": message, "request_id": "portfolio-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10)})
+	httpx.WriteJSON(w, status, map[string]any{"code": code, "message": message, "request_id": httpx.RequestID(w)})
 }
