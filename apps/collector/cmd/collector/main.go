@@ -55,8 +55,16 @@ func main() {
 		fail("archive connection failed")
 	}
 	scheduleStore := collector.Store{Pool: p}
+	catalogIDs, err := scheduleStore.RegisterCatalog(ctx, config.Catalog)
+	if err != nil {
+		fail("collector catalog registration failed")
+	}
 	for _, input := range config.Schedules {
-		schedule, normalizeErr := collector.NormalizeSchedule(input)
+		resolved, resolveErr := catalogIDs.Resolve(input)
+		if resolveErr != nil {
+			fail("collector schedule references an unregistered catalog entry")
+		}
+		schedule, normalizeErr := collector.NormalizeSchedule(resolved)
 		if normalizeErr != nil {
 			fail("invalid collector schedule")
 		}

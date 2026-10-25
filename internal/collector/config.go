@@ -21,6 +21,7 @@ var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-
 type FileConfig struct {
 	DatabaseURLEnv string          `json:"database_url_env"`
 	Archive        ArchiveConfig   `json:"archive"`
+	Catalog        CatalogConfig   `json:"catalog"`
 	Schedules      []ScheduleInput `json:"schedules"`
 }
 
@@ -33,12 +34,17 @@ type ArchiveConfig struct {
 }
 
 type ScheduleInput struct {
-	Name            string          `json:"name"`
-	Provider        string          `json:"provider"`
-	SourceID        string          `json:"source_id"`
-	DatasetID       string          `json:"dataset_id,omitempty"`
-	SeriesID        string          `json:"series_id,omitempty"`
-	InstrumentID    string          `json:"instrument_id,omitempty"`
+	Name         string `json:"name"`
+	Provider     string `json:"provider"`
+	SourceID     string `json:"source_id"`
+	DatasetID    string `json:"dataset_id,omitempty"`
+	SeriesID     string `json:"series_id,omitempty"`
+	InstrumentID string `json:"instrument_id,omitempty"`
+	// Catalog codes stand in for source_id, dataset_id and series_id; the
+	// collector resolves them to IDs before the schedule is fingerprinted.
+	SourceCode      string          `json:"source_code,omitempty"`
+	DatasetKey      string          `json:"dataset_key,omitempty"`
+	SeriesCode      string          `json:"series_code,omitempty"`
 	CredentialEnv   string          `json:"credential_env,omitempty"`
 	BaseURL         string          `json:"base_url,omitempty"`
 	Request         json.RawMessage `json:"request"`
@@ -87,6 +93,9 @@ func (c FileConfig) Validate() error {
 	if err := c.Archive.Validate(); err != nil {
 		return fmt.Errorf("archive configuration: %w", err)
 	}
+	if err := c.Catalog.Validate(); err != nil {
+		return err
+	}
 	if len(c.Schedules) == 0 {
 		return errors.New("at least one collector schedule is required")
 	}
@@ -98,6 +107,14 @@ func (c FileConfig) Validate() error {
 		seen[c.Schedules[i].Name] = struct{}{}
 		if _, err := NormalizeSchedule(c.Schedules[i]); err != nil {
 			return fmt.Errorf("schedule %d: %w", i, err)
+		}
+		if code := c.Schedules[i].SourceCode; code != "" {
+			if provider, _ := c.Catalog.provider(code); provider != strings.ToLower(strings.TrimSpace(c.Schedules[i].Provider)) {
+				return fmt.Errorf("schedule %d: source_code %q is not a catalog source for provider %q", i, code, c.Schedules[i].Provider)
+			}
+			if !c.Catalog.has(code, c.Schedules[i].DatasetKey, c.Schedules[i].SeriesCode) {
+				return fmt.Errorf("schedule %d: catalog has no dataset %q series %q under source %q", i, c.Schedules[i].DatasetKey, c.Schedules[i].SeriesCode, code)
+			}
 		}
 	}
 	return nil
@@ -126,7 +143,10 @@ func NormalizeSchedule(input ScheduleInput) (Schedule, error) {
 	if input.Provider != "fred" && input.Provider != "tcmb" && input.Provider != "binance" {
 		return Schedule{}, fmt.Errorf("unsupported provider %q", input.Provider)
 	}
-	if !uuidPattern.MatchString(input.SourceID) {
+	if err := validateCatalogReferences(input); err != nil {
+		return Schedule{}, err
+	}
+	if input.SourceCode == "" && !uuidPattern.MatchString(input.SourceID) {
 		return Schedule{}, errors.New("source_id must be a UUID")
 	}
 	if input.Provider != "binance" && !envNamePattern.MatchString(strings.TrimSpace(input.CredentialEnv)) {
@@ -143,7 +163,7 @@ func NormalizeSchedule(input ScheduleInput) (Schedule, error) {
 			return Schedule{}, fmt.Errorf("%s must be a UUID", field)
 		}
 	}
-	if (input.Provider == "fred" || input.Provider == "tcmb") && input.SeriesID == "" {
+	if (input.Provider == "fred" || input.Provider == "tcmb") && input.SeriesID == "" && input.SeriesCode == "" {
 		return Schedule{}, fmt.Errorf("%s schedules require series_id", input.Provider)
 	}
 	if input.Provider == "binance" && input.InstrumentID == "" {
@@ -196,6 +216,23 @@ func NormalizeSchedule(input ScheduleInput) (Schedule, error) {
 	}
 	digest := sha256.Sum256(normalizedRequest)
 	return Schedule{ScheduleInput: input, RequestFingerprint: hex.EncodeToString(digest[:]), Configuration: normalizedRequest}, nil
+}
+
+// validateCatalogReferences allows either IDs or catalog codes for each
+// identity, never both, and codes only as a chain from source to series.
+func validateCatalogReferences(input ScheduleInput) error {
+	for _, pair := range [][2]string{{input.SourceID, input.SourceCode}, {input.DatasetID, input.DatasetKey}, {input.SeriesID, input.SeriesCode}} {
+		if pair[0] != "" && pair[1] != "" {
+			return errors.New("use either catalog codes or IDs for an identity, not both")
+		}
+	}
+	if (input.DatasetKey != "" && input.SourceCode == "") || (input.SeriesCode != "" && input.DatasetKey == "") {
+		return errors.New("dataset_key requires source_code and series_code requires dataset_key")
+	}
+	if input.SourceCode != "" && (input.DatasetID != "" || input.SeriesID != "") {
+		return errors.New("a schedule with source_code must reference its dataset and series by code")
+	}
+	return nil
 }
 
 func validateRequestFields(provider string, request map[string]json.RawMessage) error {
