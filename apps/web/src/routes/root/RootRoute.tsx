@@ -285,17 +285,14 @@ export function RootRoute({ route, onNavigate }: RootRouteProps) {
             <DecisionJournalRoute />
           ) : route === "/" ? (
             <>
-              <section className="signal-grid" aria-label="Workspace signals">
-                <article className="signal-card signal-card--accent">
-                  <span className="signal-card__index">A / context</span>
-                  <h2>Portfolio surface</h2>
-                  <strong className="signal-card__value">
-                    {portfolioCount}
-                  </strong>
-                  <p>
+              <section className="metric-grid" aria-label="Workspace summary">
+                <article className="metric">
+                  <h2 className="metric__label">Portfolios</h2>
+                  <strong className="metric__value">{portfolioCount}</strong>
+                  <p className="metric__detail">
                     {portfolioCount === 0
                       ? "No portfolios returned yet."
-                      : "portfolio contexts available"}
+                      : "Portfolio contexts available"}
                   </p>
                   <QualityBadge state={quality}>
                     {quality === "valid"
@@ -305,81 +302,99 @@ export function RootRoute({ route, onNavigate }: RootRouteProps) {
                         : "Blocked path"}
                   </QualityBadge>
                 </article>
-                <article className="signal-card">
-                  <span className="signal-card__index">B / provenance</span>
-                  <h2>As-of reading</h2>
-                  <strong className="signal-card__value signal-card__value--text">
+                <article className="metric">
+                  <h2 className="metric__label">Knowledge mode</h2>
+                  <strong className="metric__value metric__value--text">
                     {mode === "latest" ? "Latest" : mode.replace("-", " ")}
                   </strong>
-                  <p>Cutoff is explicit and preserved with the view.</p>
-                  <span className="signal-card__note">
+                  <p className="metric__detail">
                     {cutoff
-                      ? cutoff.replace("T", " · ")
+                      ? `Cutoff ${cutoff.replace("T", " ")}`
                       : "Cutoff not selected"}
-                  </span>
-                </article>
-                <article className="signal-card">
-                  <span className="signal-card__index">C / boundary</span>
-                  <h2>Decision support</h2>
-                  <strong className="signal-card__value signal-card__value--text">
-                    No trades
-                  </strong>
-                  <p>
-                    Execution, custody, and recommendations stay outside V1.
                   </p>
-                  <span className="signal-card__note">
-                    Deterministic inputs only
-                  </span>
+                </article>
+                <article className="metric">
+                  <h2 className="metric__label">Order execution</h2>
+                  <strong className="metric__value metric__value--text">
+                    Disabled
+                  </strong>
+                  <p className="metric__detail">
+                    Decision support only. No orders, custody, or
+                    recommendations.
+                  </p>
                 </article>
               </section>
-              <section
-                className="state-section"
-                aria-labelledby="portfolio-state-title"
-              >
-                <div className="section-heading">
-                  <div>
-                    <p className="eyebrow">API state</p>
+
+              <div className="overview-grid">
+                <section
+                  className="panel"
+                  aria-labelledby="portfolio-state-title"
+                >
+                  <div className="panel__header">
                     <h2 id="portfolio-state-title">Portfolio connection</h2>
+                    <code className="panel__meta">GET /api/v1/portfolios</code>
                   </div>
-                  <span className="section-heading__meta">
-                    GET /api/v1/portfolios
-                  </span>
-                </div>
-                <StatusPanel
-                  state={portfolio.state}
-                  onRetry={portfolio.retry}
-                />
-              </section>
+                  <div className="panel__body">
+                    {portfolio.state === "ready" ? (
+                      <p className="panel__ok">
+                        Connected. {portfolioCount} portfolio
+                        {portfolioCount === 1 ? "" : "s"} returned.
+                      </p>
+                    ) : (
+                      <StatusPanel
+                        state={portfolio.state}
+                        onRetry={portfolio.retry}
+                      />
+                    )}
+                  </div>
+                </section>
+
+                <section className="panel" aria-labelledby="quick-links-title">
+                  <div className="panel__header">
+                    <h2 id="quick-links-title">Workspaces</h2>
+                  </div>
+                  <ul className="link-list">
+                    {(
+                      [
+                        "/timeline",
+                        "/portfolio",
+                        "/risk",
+                        "/decisions",
+                      ] as const
+                    ).map((path) => (
+                      <li key={path}>
+                        <a
+                          href={path}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            onNavigate(path);
+                          }}
+                        >
+                          <span>
+                            <strong>{pages[path].title}</strong>
+                            <small>{pages[path].description}</small>
+                          </span>
+                          <span aria-hidden="true">›</span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              </div>
             </>
           ) : (
-            <section
-              className="state-section state-section--route"
-              aria-labelledby="route-state-title"
-            >
-              <div className="section-heading">
-                <div>
-                  <p className="eyebrow">Route shell</p>
-                  <h2 id="route-state-title">
-                    This surface is ready for its domain task
-                  </h2>
-                </div>
-                <QualityBadge state={quality}>
-                  {quality === "valid"
-                    ? "Data path ready"
-                    : quality === "degraded"
-                      ? "Review data quality"
-                      : "Result blocked"}
-                </QualityBadge>
+            <section className="panel" aria-labelledby="route-state-title">
+              <div className="panel__header">
+                <h2 id="route-state-title">Preferences</h2>
               </div>
-              <div className="route-note">
-                <span className="route-note__mark" aria-hidden="true">
-                  ↗
-                </span>
-                <p>
-                  Navigation, evidence controls, focus treatment, and quality
-                  language are shared. The next task can add domain data here
-                  without replacing the shell.
-                </p>
+              <div className="panel__body">
+                <div className="empty-state">
+                  <h3>No configurable settings yet</h3>
+                  <p>
+                    The API address and storage are set by the deployment.
+                    Display preferences will appear here when available.
+                  </p>
+                </div>
               </div>
             </section>
           )}

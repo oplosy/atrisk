@@ -1,7 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { vi } from "vitest";
 
 import { App } from "./App";
+
+const primaryNav = () =>
+  within(screen.getByRole("navigation", { name: /primary navigation/i }));
 
 describe("App", () => {
   it("renders an accessible shell with explicit evidence controls", () => {
@@ -21,7 +24,9 @@ describe("App", () => {
 
   it("keeps route context visible when navigating by keyboard-compatible links", () => {
     render(<App />);
-    fireEvent.click(screen.getByRole("link", { name: /risk workspace/i }));
+    fireEvent.click(
+      primaryNav().getByRole("link", { name: /risk workspace/i }),
+    );
     expect(
       screen.getByRole("heading", { level: 1, name: "Risk workspace" }),
     ).toBeInTheDocument();
@@ -32,7 +37,7 @@ describe("App", () => {
 
   it("opens the decision journal at its dedicated route", () => {
     render(<App />);
-    const decisionLink = screen
+    const decisionLink = primaryNav()
       .getAllByRole("link", { name: /decision journal/i })
       .find((link) => link.getAttribute("href") === "/decisions");
     expect(decisionLink).toBeDefined();
@@ -61,7 +66,7 @@ describe("App", () => {
     );
     render(<App />);
     fireEvent.click(
-      screen.getByRole("link", { name: /information timeline/i }),
+      primaryNav().getByRole("link", { name: /information timeline/i }),
     );
     expect(window.location.pathname).toBe("/timeline");
     expect(
