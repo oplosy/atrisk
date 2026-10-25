@@ -159,7 +159,7 @@ func TestCoreDatabaseMigrations(t *testing.T) {
 	var tableCount int
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*)::int FROM information_schema.tables
-		WHERE table_schema = 'public'
+		WHERE table_schema = current_schema()
 		  AND table_name IN ('data_sources', 'datasets', 'series', 'instruments',
 			'raw_objects', 'observation_revisions', 'price_revisions', 'fx_quote_revisions')`).Scan(&tableCount); err != nil {
 		t.Fatalf("inspect migrated tables: %v", err)
@@ -177,7 +177,7 @@ func TestCoreDatabaseMigrations(t *testing.T) {
 	var scenarioObjects int
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*)::int FROM information_schema.tables
-		WHERE table_schema='public' AND table_name IN ('scenarios','scenario_versions','scenario_runs','scenario_run_positions','scenario_run_metrics')`).Scan(&scenarioObjects); err != nil {
+		WHERE table_schema=current_schema() AND table_name IN ('scenarios','scenario_versions','scenario_runs','scenario_run_positions','scenario_run_metrics')`).Scan(&scenarioObjects); err != nil {
 		t.Fatalf("inspect scenario persistence tables: %v", err)
 	}
 	if scenarioObjects != 5 {
@@ -185,8 +185,9 @@ func TestCoreDatabaseMigrations(t *testing.T) {
 	}
 	var appendOnlyTriggers int
 	if err := pool.QueryRow(ctx, `
-		SELECT count(*)::int FROM pg_trigger
-		WHERE NOT tgisinternal AND tgname IN ('scenario_versions_immutable','scenario_run_positions_immutable','scenario_run_metrics_immutable')`).Scan(&appendOnlyTriggers); err != nil {
+		SELECT count(*)::int FROM pg_trigger tg JOIN pg_class c ON c.oid = tg.tgrelid
+		WHERE NOT tg.tgisinternal AND c.relnamespace = current_schema()::regnamespace
+		  AND tg.tgname IN ('scenario_versions_immutable','scenario_run_positions_immutable','scenario_run_metrics_immutable')`).Scan(&appendOnlyTriggers); err != nil {
 		t.Fatalf("inspect immutable scenario evidence triggers: %v", err)
 	}
 	if appendOnlyTriggers != 3 {
@@ -195,7 +196,7 @@ func TestCoreDatabaseMigrations(t *testing.T) {
 	var assetUnitTypes int
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*)::int FROM information_schema.columns
-		WHERE table_schema='public' AND ((table_name='instruments' AND column_name='native_currency' AND data_type='text')
+		WHERE table_schema=current_schema() AND ((table_name='instruments' AND column_name='native_currency' AND data_type='text')
 		   OR (table_name='price_revisions' AND column_name='quote_currency' AND data_type='text'))`).Scan(&assetUnitTypes); err != nil {
 		t.Fatalf("inspect asset unit column types: %v", err)
 	}
@@ -203,21 +204,21 @@ func TestCoreDatabaseMigrations(t *testing.T) {
 		t.Fatalf("expected two widened asset-unit columns, got %d", assetUnitTypes)
 	}
 	var fxUnitType string
-	if err := pool.QueryRow(ctx, `SELECT data_type FROM information_schema.columns WHERE table_schema='public' AND table_name='fx_quote_revisions' AND column_name='quote_currency'`).Scan(&fxUnitType); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT data_type FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='fx_quote_revisions' AND column_name='quote_currency'`).Scan(&fxUnitType); err != nil {
 		t.Fatalf("inspect FX quote unit type: %v", err)
 	}
 	if fxUnitType != "character" {
 		t.Fatalf("FX quote currency was widened unexpectedly: %q", fxUnitType)
 	}
 	var latestPriceViewCount int
-	if err := pool.QueryRow(ctx, `SELECT count(*)::int FROM pg_views WHERE schemaname='public' AND viewname='latest_price_revisions'`).Scan(&latestPriceViewCount); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT count(*)::int FROM pg_views WHERE schemaname=current_schema() AND viewname='latest_price_revisions'`).Scan(&latestPriceViewCount); err != nil {
 		t.Fatalf("inspect latest price view: %v", err)
 	}
 	if latestPriceViewCount != 1 {
 		t.Fatalf("latest price projection was not recreated after asset-unit migration: %d", latestPriceViewCount)
 	}
 	var compositeForeignKeys int
-	if err := pool.QueryRow(ctx, `SELECT count(*)::int FROM pg_constraint WHERE conname = 'ingestion_runs_source_dataset_fk'`).Scan(&compositeForeignKeys); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT count(*)::int FROM pg_constraint WHERE connamespace = current_schema()::regnamespace AND conname = 'ingestion_runs_source_dataset_fk'`).Scan(&compositeForeignKeys); err != nil {
 		t.Fatalf("inspect source/dataset foreign key: %v", err)
 	}
 	if compositeForeignKeys != 1 {
