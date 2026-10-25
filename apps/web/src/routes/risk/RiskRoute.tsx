@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { RiskRun } from "../../../../../contracts/generated/typescript/contracts";
+import { ApiRequestError } from "../../app/api";
 import {
   getRiskRun,
   submitRiskRun,
@@ -345,7 +346,13 @@ export function RiskRoute() {
         setRefreshNonce((current) => current + 1);
       }
     } catch (cause) {
-      setSubmitError(cause instanceof Error ? cause.message : String(cause));
+      setSubmitError(
+        cause instanceof ApiRequestError && cause.status === 409
+          ? `A scenario named “${submission.name}” already exists for this account. Choose another name, or enter that scenario's ID to record a new version of it.`
+          : cause instanceof Error
+            ? cause.message
+            : String(cause),
+      );
     } finally {
       setSubmitting(false);
     }

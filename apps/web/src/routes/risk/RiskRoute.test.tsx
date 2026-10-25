@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
+import { ApiRequestError } from "../../app/api";
 import type { RiskRun } from "../../../../../contracts/generated/typescript/contracts";
 import { getRiskRun, submitRiskRun } from "../../features/risk/riskApi";
 import { RiskRoute } from "./RiskRoute";
@@ -364,6 +365,29 @@ it("does not let a late create response replace a run selected meanwhile", async
   expect(vi.mocked(submitRiskRun).mock.calls[1]?.[1]).toBe(
     vi.mocked(submitRiskRun).mock.calls[0]?.[1],
   );
+});
+
+it("explains a duplicate scenario name instead of a generic failure", async () => {
+  vi.mocked(submitRiskRun).mockRejectedValueOnce(
+    new ApiRequestError("error", "scenario name conflict", 409),
+  );
+  render(<RiskRoute />);
+
+  fireEvent.change(screen.getByLabelText("Account ID"), {
+    target: { value: "account-1" },
+  });
+  fireEvent.change(screen.getByLabelText("Snapshot ID"), {
+    target: { value: "snapshot-1" },
+  });
+  fireEvent.change(screen.getByLabelText("Valuation ID"), {
+    target: { value: "valuation-1" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Run scenario" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "A scenario named “Risk scenario” already exists for this account. Choose another name, or enter that scenario's ID",
+  );
+  expect(screen.getByLabelText("Scenario name")).toHaveValue("Risk scenario");
 });
 
 it("preserves risk input and reuses its idempotency key after a recoverable error", async () => {
