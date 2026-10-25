@@ -19,41 +19,102 @@ export type ShellRoute =
   | "/decisions"
   | "/settings";
 
-const routes: Record<
-  Exclude<ShellRoute, "/">,
-  { eyebrow: string; title: string; body: string }
-> = {
+const pages: Record<ShellRoute, { title: string; description: string }> = {
+  "/": {
+    title: "Overview",
+    description:
+      "Portfolio state, data quality, and the evidence window for this workspace.",
+  },
   "/timeline": {
-    eyebrow: "Information timeline",
-    title: "Read the market record in context.",
-    body: "Source-as-of and system-as-of views will keep each observation tied to the evidence available at that point.",
+    title: "Information timeline",
+    description:
+      "Observations from each source, read at an explicit point in time.",
   },
   "/portfolio": {
-    eyebrow: "Portfolio",
-    title: "A clean place for immutable snapshots.",
-    body: "Positions, valuation paths, and reconciliation checkpoints belong here. No client-side totals are inferred.",
+    title: "Portfolio",
+    description:
+      "Record position snapshots, run valuations, and reconcile against statements.",
   },
   "/risk": {
-    eyebrow: "Risk workspace",
-    title: "Risk results with their quality attached.",
-    body: "Every result will expose its snapshot, engine version, and data-quality state before it is interpreted.",
+    title: "Risk workspace",
+    description:
+      "Run versioned stress scenarios and inspect results with their data-quality state.",
   },
   "/journal": {
-    eyebrow: "Decision journal",
-    title: "Keep decisions beside their evidence.",
-    body: "Journal entries will link to immutable snapshots without turning AtlasRisk into an execution or recommendation system.",
+    title: "Decision journal",
+    description:
+      "Record decisions against sealed evidence and append reviews without rewriting history.",
   },
   "/decisions": {
-    eyebrow: "Decision journal",
-    title: "Keep decisions beside their evidence.",
-    body: "Draft, seal, reconstruct, and review decision records without turning AtlasRisk into an execution or recommendation system.",
+    title: "Decision journal",
+    description:
+      "Record decisions against sealed evidence and append reviews without rewriting history.",
   },
   "/settings": {
-    eyebrow: "Workspace settings",
-    title: "Local-first controls.",
-    body: "Connection and display preferences stay explicit so a self-hosted installation remains inspectable.",
+    title: "Workspace settings",
+    description:
+      "Connection and display preferences for this self-hosted installation.",
   },
 };
+
+type NavIconName =
+  | "overview"
+  | "timeline"
+  | "portfolio"
+  | "risk"
+  | "journal"
+  | "settings";
+
+const navGroups: Array<{
+  label?: string;
+  items: Array<{ path: ShellRoute; label: string; icon: NavIconName }>;
+}> = [
+  { items: [{ path: "/", label: "Overview", icon: "overview" }] },
+  {
+    label: "Analyze",
+    items: [
+      { path: "/timeline", label: "Information timeline", icon: "timeline" },
+      { path: "/portfolio", label: "Portfolio", icon: "portfolio" },
+      { path: "/risk", label: "Risk workspace", icon: "risk" },
+    ],
+  },
+  {
+    label: "Record",
+    items: [{ path: "/decisions", label: "Decision journal", icon: "journal" }],
+  },
+  {
+    label: "Administration",
+    items: [
+      { path: "/settings", label: "Workspace settings", icon: "settings" },
+    ],
+  },
+];
+
+const iconPaths: Record<NavIconName, string> = {
+  overview: "M3 3h4v4H3zM9 3h4v4H9zM3 9h4v4H3zM9 9h4v4H9z",
+  timeline: "M2 12l3.5-4 3 2.5L14 4M2 14h12",
+  portfolio: "M2.5 5h11v8h-11zM6 5V3h4v2M2.5 8.5h11",
+  risk: "M8 2l5 2v4c0 3-2.2 5.2-5 6-2.8-.8-5-3-5-6V4z",
+  journal: "M4 2h8v12H4zM6 5h4M6 8h4M6 11h2",
+  settings: "M3 4h10M3 8h10M3 12h10M6 2.5v3M10 6.5v3M5 10.5v3",
+};
+
+function NavIcon({ name }: { name: NavIconName }) {
+  return (
+    <svg
+      className="nav-link__icon"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.25"
+      strokeLinejoin="round"
+      strokeLinecap="round"
+    >
+      <path d={iconPaths[name]} />
+    </svg>
+  );
+}
 
 function qualityForResource(state: ResourceState): QualityState {
   if (state === "ready") return "valid";
@@ -78,7 +139,7 @@ export function RootRoute({ route, onNavigate }: RootRouteProps) {
     [],
   );
   const portfolio = useApiResource(loadPortfolios, isEmpty);
-  const page = route === "/" ? undefined : routes[route];
+  const page = pages[route];
   const quality = qualityForResource(portfolio.state);
   const portfolioCount = portfolio.data?.items.length ?? 0;
   const asOfLabel = useMemo(() => {
@@ -97,14 +158,10 @@ export function RootRoute({ route, onNavigate }: RootRouteProps) {
             onNavigate("/");
           }}
         >
-          <span className="brand__mark" aria-hidden="true">
-            AR
-          </span>
-          <span>
-            <strong>AtlasRisk</strong>
-            <small>decision support / local-first</small>
-          </span>
+          <span className="brand__mark" aria-hidden="true" />
+          <strong>AtlasRisk</strong>
         </a>
+        <span className="topbar__env">Local</span>
         <div className="topbar__meta">
           {route === "/timeline" ? (
             <span className="connection">
@@ -120,94 +177,77 @@ export function RootRoute({ route, onNavigate }: RootRouteProps) {
             </QualityBadge>
           )}
           <span className="connection">
-            <span className="connection__dot" aria-hidden="true" /> self-hosted
+            <span className="connection__dot" aria-hidden="true" />
+            Self-hosted
           </span>
         </div>
       </header>
 
       <div className="shell-layout">
         <aside className="sidebar" aria-label="Workspace sidebar">
-          <p className="sidebar__label">Workspace</p>
-          <nav aria-label="Primary navigation">
-            <a
-              className={
-                route === "/" ? "nav-link nav-link--active" : "nav-link"
-              }
-              aria-current={route === "/" ? "page" : undefined}
-              href="/"
-              onClick={(event) => {
-                event.preventDefault();
-                onNavigate("/");
-              }}
-            >
-              <span aria-hidden="true">⌂</span> Overview
-            </a>
-            {(Object.keys(routes) as Array<Exclude<ShellRoute, "/">>).map(
-              (path) => (
-                <a
-                  key={path}
-                  className={
-                    route === path ? "nav-link nav-link--active" : "nav-link"
-                  }
-                  aria-current={route === path ? "page" : undefined}
-                  href={path}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    onNavigate(path);
-                  }}
-                >
-                  <span aria-hidden="true">
-                    {path === "/timeline"
-                      ? "◌"
-                      : path === "/portfolio"
-                        ? "▦"
-                        : path === "/risk"
-                          ? "⌁"
-                          : path === "/journal" || path === "/decisions"
-                            ? "✎"
-                            : "⚙"}
-                  </span>
-                  {routes[path].eyebrow}
-                </a>
-              ),
-            )}
+          <nav className="sidebar__nav" aria-label="Primary navigation">
+            {navGroups.map((group) => (
+              <div className="nav-group" key={group.label ?? "root"}>
+                {group.label ? (
+                  <p className="nav-group__label">{group.label}</p>
+                ) : null}
+                {group.items.map((item) => (
+                  <a
+                    key={item.path}
+                    className={
+                      route === item.path
+                        ? "nav-link nav-link--active"
+                        : "nav-link"
+                    }
+                    aria-current={route === item.path ? "page" : undefined}
+                    href={item.path}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      onNavigate(item.path);
+                    }}
+                  >
+                    <NavIcon name={item.icon} />
+                    {item.label}
+                  </a>
+                ))}
+              </div>
+            ))}
           </nav>
           <div className="sidebar__footer">
-            <span className="sidebar__version">V1 · no execution</span>
+            <span>Version 1 · Decision support only</span>
             <p>
-              Prices, shocks, and risk numbers always come from deterministic
-              server paths.
+              Prices, shocks, and risk figures come from deterministic server
+              paths.
             </p>
           </div>
         </aside>
 
         <main className="content" id="main-content">
-          <div className="content__intro">
-            <div>
-              <p className="eyebrow">{page?.eyebrow ?? "Decision workspace"}</p>
-              <h1>{page?.title ?? "Know what was knowable."}</h1>
-              <p className="lede">
-                {page?.body ??
-                  "AtlasRisk keeps portfolio state, market evidence, and risk quality in one inspectable timeline."}
-              </p>
-            </div>
-            <div className="intro__stamp">
-              <span>Clock semantics</span>
-              <strong>Explicit as-of</strong>
-              <small>No inferred publication time</small>
-            </div>
-          </div>
+          <header className="page-header">
+            {route !== "/" ? (
+              <nav className="breadcrumb" aria-label="Breadcrumb">
+                <a
+                  href="/"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    onNavigate("/");
+                  }}
+                >
+                  AtlasRisk
+                </a>
+                <span aria-hidden="true">/</span>
+                <span aria-current="page">{page.title}</span>
+              </nav>
+            ) : null}
+            <h1>{page.title}</h1>
+            <p className="page-header__description">{page.description}</p>
+          </header>
 
-          {route !== "/portfolio" && route !== "/risk" && (
+          {(route === "/" || route === "/timeline") && (
             <section className="control-strip" aria-labelledby="as-of-title">
               <div className="control-strip__title">
-                <span className="step-number">01</span>
-                <div>
-                  <p className="eyebrow" id="as-of-title">
-                    Evidence window
-                  </p>
-                  <strong>Choose the clock before reading a result.</strong>
-                </div>
+                <h2 id="as-of-title">Evidence window</h2>
+                <p>Explicit as-of. Publication time is never inferred.</p>
               </div>
               <label>
                 Knowledge mode
@@ -241,21 +281,18 @@ export function RootRoute({ route, onNavigate }: RootRouteProps) {
             <TimelineRoute mode={mode} cutoff={cutoff} />
           ) : route === "/risk" ? (
             <RiskRoute />
-          ) : route === "/decisions" ? (
+          ) : route === "/decisions" || route === "/journal" ? (
             <DecisionJournalRoute />
           ) : route === "/" ? (
             <>
-              <section className="signal-grid" aria-label="Workspace signals">
-                <article className="signal-card signal-card--accent">
-                  <span className="signal-card__index">A / context</span>
-                  <h2>Portfolio surface</h2>
-                  <strong className="signal-card__value">
-                    {portfolioCount}
-                  </strong>
-                  <p>
+              <section className="metric-grid" aria-label="Workspace summary">
+                <article className="metric">
+                  <h2 className="metric__label">Portfolios</h2>
+                  <strong className="metric__value">{portfolioCount}</strong>
+                  <p className="metric__detail">
                     {portfolioCount === 0
                       ? "No portfolios returned yet."
-                      : "portfolio contexts available"}
+                      : "Portfolio contexts available"}
                   </p>
                   <QualityBadge state={quality}>
                     {quality === "valid"
@@ -265,81 +302,99 @@ export function RootRoute({ route, onNavigate }: RootRouteProps) {
                         : "Blocked path"}
                   </QualityBadge>
                 </article>
-                <article className="signal-card">
-                  <span className="signal-card__index">B / provenance</span>
-                  <h2>As-of reading</h2>
-                  <strong className="signal-card__value signal-card__value--text">
+                <article className="metric">
+                  <h2 className="metric__label">Knowledge mode</h2>
+                  <strong className="metric__value metric__value--text">
                     {mode === "latest" ? "Latest" : mode.replace("-", " ")}
                   </strong>
-                  <p>Cutoff is explicit and preserved with the view.</p>
-                  <span className="signal-card__note">
+                  <p className="metric__detail">
                     {cutoff
-                      ? cutoff.replace("T", " · ")
+                      ? `Cutoff ${cutoff.replace("T", " ")}`
                       : "Cutoff not selected"}
-                  </span>
-                </article>
-                <article className="signal-card">
-                  <span className="signal-card__index">C / boundary</span>
-                  <h2>Decision support</h2>
-                  <strong className="signal-card__value signal-card__value--text">
-                    No trades
-                  </strong>
-                  <p>
-                    Execution, custody, and recommendations stay outside V1.
                   </p>
-                  <span className="signal-card__note">
-                    Deterministic inputs only
-                  </span>
+                </article>
+                <article className="metric">
+                  <h2 className="metric__label">Order execution</h2>
+                  <strong className="metric__value metric__value--text">
+                    Disabled
+                  </strong>
+                  <p className="metric__detail">
+                    Decision support only. No orders, custody, or
+                    recommendations.
+                  </p>
                 </article>
               </section>
-              <section
-                className="state-section"
-                aria-labelledby="portfolio-state-title"
-              >
-                <div className="section-heading">
-                  <div>
-                    <p className="eyebrow">API state</p>
+
+              <div className="overview-grid">
+                <section
+                  className="panel"
+                  aria-labelledby="portfolio-state-title"
+                >
+                  <div className="panel__header">
                     <h2 id="portfolio-state-title">Portfolio connection</h2>
+                    <code className="panel__meta">GET /api/v1/portfolios</code>
                   </div>
-                  <span className="section-heading__meta">
-                    GET /api/v1/portfolios
-                  </span>
-                </div>
-                <StatusPanel
-                  state={portfolio.state}
-                  onRetry={portfolio.retry}
-                />
-              </section>
+                  <div className="panel__body">
+                    {portfolio.state === "ready" ? (
+                      <p className="panel__ok">
+                        Connected. {portfolioCount} portfolio
+                        {portfolioCount === 1 ? "" : "s"} returned.
+                      </p>
+                    ) : (
+                      <StatusPanel
+                        state={portfolio.state}
+                        onRetry={portfolio.retry}
+                      />
+                    )}
+                  </div>
+                </section>
+
+                <section className="panel" aria-labelledby="quick-links-title">
+                  <div className="panel__header">
+                    <h2 id="quick-links-title">Workspaces</h2>
+                  </div>
+                  <ul className="link-list">
+                    {(
+                      [
+                        "/timeline",
+                        "/portfolio",
+                        "/risk",
+                        "/decisions",
+                      ] as const
+                    ).map((path) => (
+                      <li key={path}>
+                        <a
+                          href={path}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            onNavigate(path);
+                          }}
+                        >
+                          <span>
+                            <strong>{pages[path].title}</strong>
+                            <small>{pages[path].description}</small>
+                          </span>
+                          <span aria-hidden="true">›</span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              </div>
             </>
           ) : (
-            <section
-              className="state-section state-section--route"
-              aria-labelledby="route-state-title"
-            >
-              <div className="section-heading">
-                <div>
-                  <p className="eyebrow">Route shell</p>
-                  <h2 id="route-state-title">
-                    This surface is ready for its domain task
-                  </h2>
-                </div>
-                <QualityBadge state={quality}>
-                  {quality === "valid"
-                    ? "Data path ready"
-                    : quality === "degraded"
-                      ? "Review data quality"
-                      : "Result blocked"}
-                </QualityBadge>
+            <section className="panel" aria-labelledby="route-state-title">
+              <div className="panel__header">
+                <h2 id="route-state-title">Preferences</h2>
               </div>
-              <div className="route-note">
-                <span className="route-note__mark" aria-hidden="true">
-                  ↗
-                </span>
-                <p>
-                  Navigation, evidence controls, focus treatment, and quality
-                  language are shared. The next task can add domain data here
-                  without replacing the shell.
-                </p>
+              <div className="panel__body">
+                <div className="empty-state">
+                  <h3>No configurable settings yet</h3>
+                  <p>
+                    The API address and storage are set by the deployment.
+                    Display preferences will appear here when available.
+                  </p>
+                </div>
               </div>
             </section>
           )}
