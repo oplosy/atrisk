@@ -10,8 +10,11 @@ changes if conditions move against me?**
 
 ## Current status
 
-The repository is implementing the ready task packets in `.ai/tasks/`. The local
-infrastructure packet provides PostgreSQL 18 and Garage 2.x for later components.
+V1 is implemented. Every task packet in `.ai/tasks/` (AR-001 to AR-707) is
+merged, and `v1.0.0` and `v1.0.1` are tagged. Changes merged to `main` after
+`v1.0.1` are not in a tagged release yet. See
+[the release checklist](docs/releases/RELEASE_CHECKLIST.md) and
+[publishing](docs/releases/PUBLISHING.md).
 
 ## V1 scope
 
